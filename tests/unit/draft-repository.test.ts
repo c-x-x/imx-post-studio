@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto'
 
-import { beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { draftRepository } from '../../src/drafts/repository'
 import type { ArticleDraft } from '../../src/metadata/article'
 
@@ -44,6 +44,18 @@ beforeAll(async () => {
 })
 
 describe('draftRepository', () => {
+  it('snapshots a fresh database put before its first await', async () => {
+    const original = draft({ id: 'snapshot-before-open' })
+    const saving = draftRepository.put(original)
+    original.body = 'mutated before IndexedDB opens'
+    original.meta.title = 'Mutated before IndexedDB opens'
+
+    await saving
+    const stored = await draftRepository.get('snapshot-before-open')
+    expect(stored?.body).toBe('Hello, IMX')
+    expect(stored?.meta.title).toBe('First draft')
+  })
+
   it('creates and replaces a draft without leaking mutable values or Blob bytes', async () => {
     const original = draft()
     await draftRepository.put(original)
@@ -67,6 +79,21 @@ describe('draftRepository', () => {
       updatedAt: '2026-08-04T10:00:00+08:00',
     }))
     expect((await draftRepository.get('draft-1'))?.body).toBe('Replacement body')
+  })
+
+  it('preserves the source Blob type even when media metadata has a different MIME', async () => {
+    await draftRepository.put(draft({
+      id: 'blob-type-is-source-of-truth',
+      media: [{
+        id: 'mismatched-type',
+        name: 'diagram.png',
+        kind: 'body',
+        mime: 'image/jpeg',
+        blob: new NativeBlob([imageBytes], { type: 'image/png' }),
+      }],
+    }))
+
+    expect((await draftRepository.get('blob-type-is-source-of-truth'))?.media[0].blob.type).toBe('image/png')
   })
 
   it('lists drafts newest first with ID descending as a deterministic time tie-break', async () => {
@@ -106,13 +133,59 @@ describe('draftRepository', () => {
     expect(renamed.meta.title).toBe('Renamed draft')
     expect(renamed.updatedAt).not.toBe('2026-08-04T09:00:00+08:00')
     await expect(draftRepository.rename('rename-me', '   ')).rejects.toThrow('标题不能为空')
+    await expect(draftRepository.rename('missing-rename', 'Renamed')).rejects.toThrow('草稿不存在')
   })
 
-  it('deletes an existing draft and explains an attempt to duplicate an absent one', async () => {
+  it('renames in one completed readwrite transaction so a concurrent autosave cannot be overwritten', async () => {
+    const done = deferred<void>()
+    const store = {
+      get: vi.fn().mockResolvedValue(draft({ id: 'rename-transaction' })),
+      put: vi.fn().mockResolvedValue(undefined),
+    }
+    const transaction = { store, done: done.promise }
+    const database = { transaction: vi.fn().mockReturnValue(transaction) }
+    const databaseModule = await import('../../src/drafts/database')
+    const getDatabase = vi.spyOn(databaseModule, 'getDraftDatabase').mockResolvedValue(database as never)
+
+    try {
+      const renaming = draftRepository.rename('rename-transaction', 'Atomic rename')
+      await Promise.resolve()
+      await Promise.resolve()
+      expect(database.transaction).toHaveBeenCalledWith('drafts', 'readwrite')
+      expect(store.get).toHaveBeenCalledWith('rename-transaction')
+      expect(store.put).toHaveBeenCalledWith(expect.objectContaining({
+        body: 'Hello, IMX',
+        meta: expect.objectContaining({ title: 'Atomic rename' }),
+      }))
+
+      let completed = false
+      void renaming.then(() => { completed = true })
+      await Promise.resolve()
+      expect(completed).toBe(false)
+
+      done.resolve()
+      expect((await renaming).meta.title).toBe('Atomic rename')
+    } finally {
+      getDatabase.mockRestore()
+    }
+  })
+
+  it('deletes existing drafts, treats missing deletes as idempotent, and explains missing duplicates', async () => {
     await draftRepository.put(draft({ id: 'delete-me' }))
     await draftRepository.delete('delete-me')
 
     expect(await draftRepository.get('delete-me')).toBeUndefined()
+    await expect(draftRepository.delete('already-missing')).resolves.toBeUndefined()
     await expect(draftRepository.duplicate('missing-draft')).rejects.toThrow('草稿不存在')
   })
 })
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}

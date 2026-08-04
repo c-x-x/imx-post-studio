@@ -11,7 +11,7 @@ async function copyDraft(draft: ArticleDraft): Promise<ArticleDraft> {
     },
     media: await Promise.all(draft.media.map(async (asset) => ({
       ...asset,
-      blob: new Blob([await asset.blob.arrayBuffer()], { type: asset.mime }),
+      blob: new Blob([await asset.blob.arrayBuffer()], { type: asset.blob.type }),
     }))),
   }
 }
@@ -64,7 +64,8 @@ export const draftRepository = {
   },
 
   async put(draft: ArticleDraft): Promise<void> {
-    await saveDraft(draft)
+    const snapshot = structuredClone(draft) as ArticleDraft
+    await saveDraft(snapshot)
   },
 
   async duplicate(id: string): Promise<ArticleDraft> {
@@ -88,16 +89,24 @@ export const draftRepository = {
     const nextTitle = title.trim()
     if (!nextTitle) throw new Error('标题不能为空，无法重命名草稿')
 
-    const source = await readDraft(id)
-    if (!source) throw new Error('草稿不存在，无法重命名')
+    try {
+      const database = await getDraftDatabase()
+      const transaction = database.transaction('drafts', 'readwrite')
+      const source = await transaction.store.get(id)
+      if (!source) throw new Error('草稿不存在，无法重命名')
 
-    const renamed: ArticleDraft = {
-      ...source,
-      updatedAt: currentTimestamp(),
-      meta: { ...source.meta, title: nextTitle },
+      const renamed: ArticleDraft = {
+        ...source,
+        updatedAt: currentTimestamp(),
+        meta: { ...source.meta, title: nextTitle },
+        media: source.media.map((asset) => ({ ...asset })),
+      }
+      await transaction.store.put(renamed)
+      await transaction.done
+      return copyDraft(renamed)
+    } catch (error) {
+      throw storageError('重命名草稿', error)
     }
-    await saveDraft(renamed)
-    return copyDraft(renamed)
   },
 
   async delete(id: string): Promise<void> {

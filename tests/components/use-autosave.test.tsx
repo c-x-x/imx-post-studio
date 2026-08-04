@@ -1,3 +1,4 @@
+import { StrictMode } from 'react'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ArticleDraft } from '../../src/metadata/article'
@@ -76,8 +77,9 @@ describe('useAutosave', () => {
     expect(result.current).toEqual(expect.objectContaining({ state: 'saved', at: expect.any(String) }))
   })
 
-  it('retains an actionable failure until a later change saves successfully', async () => {
-    put.mockRejectedValueOnce(new Error('Quota exceeded')).mockResolvedValueOnce(undefined)
+  it('retains an actionable failure while a later retry is pending, then marks recovery saved', async () => {
+    const retry = deferred<void>()
+    put.mockRejectedValueOnce(new Error('Quota exceeded')).mockReturnValueOnce(retry.promise)
     const { result, rerender } = renderHook(({ current }) => useAutosave(current), {
       initialProps: { current: draft() },
     })
@@ -90,7 +92,17 @@ describe('useAutosave', () => {
 
     rerender({ current: draft('recovery') })
     expect(result.current).toEqual(expect.objectContaining({ state: 'failed' }))
-    await act(async () => vi.advanceTimersByTimeAsync(800))
+    act(() => vi.advanceTimersByTime(800))
+    expect(result.current).toEqual(expect.objectContaining({
+      state: 'failed',
+      message: expect.stringContaining('紧急导出'),
+    }))
+
+    await act(async () => {
+      retry.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
     expect(result.current).toEqual(expect.objectContaining({ state: 'saved', at: expect.any(String) }))
   })
 
@@ -125,5 +137,15 @@ describe('useAutosave', () => {
     act(() => vi.advanceTimersByTime(1_000))
 
     expect(put).not.toHaveBeenCalled()
+  })
+
+  it('saves exactly once and settles saved under React StrictMode', async () => {
+    const current = draft('strict mode')
+    const { result } = renderHook(() => useAutosave(current), { wrapper: StrictMode })
+
+    await act(async () => vi.advanceTimersByTimeAsync(800))
+
+    expect(put).toHaveBeenCalledTimes(1)
+    expect(result.current).toEqual(expect.objectContaining({ state: 'saved', at: expect.any(String) }))
   })
 })

@@ -25,7 +25,7 @@ export function useAutosave(draft: ArticleDraft | null): SaveStatus {
     }
 
     const timer = window.setTimeout(() => {
-      setStatus({ state: 'saving' })
+      setStatus((current) => current.state === 'failed' ? current : { state: 'saving' })
       void draftRepository.put(draft).then(
         () => {
           if (generation.current === activeGeneration) {
