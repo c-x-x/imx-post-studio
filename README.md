@@ -8,7 +8,8 @@ IMX Post Studio 是一个浏览器内运行的 Hugo 文章编辑器。它把文�
 
 草稿和图片默认仅保存在当前浏览器的 IndexedDB 中；处理、预览、导入和导出都
 在本机浏览器完成。项目不内置账号、分析、云同步或跨设备恢复服务。清除浏览器
-站点数据会删除本地草稿，因此请定期导出备份。
+站点数据会删除本地草稿，因此请定期导出备份。若正文保留外部 HTTPS 图片链接，
+浏览器仍可能向该图片来源发起请求；其在不同托管环境中的加载限制见下方预览边界。
 
 CI 覆盖 Chromium、Firefox 和 WebKit。建议使用这些浏览器的当前稳定版本；移动
 预览以 390px 画布验证。浏览器需要支持 IndexedDB、Blob、WebP 和现代 JavaScript。
@@ -53,9 +54,14 @@ content/posts/<slug>/images/<image-name>
 - 正文接受 JPEG、PNG、WebP 和 GIF；SVG 被拒绝。
 - 封面接受 JPEG、PNG 和 WebP，会转换为不放大的 WebP，最大 1600×900、16:9。
 - 单个源图片上限为 25 MiB。
-- 导入 Markdown 会先经过净化；预览放在无脚本权限的 sandbox iframe 中。桌面
-  预览为 1180px，移动预览为 390px。预览仅展示编辑器支持的 IMX 文章页面，不
-  运行主题 JavaScript、评论或远程嵌入内容。
+- 导入器保留 Markdown 正文；只有在生成预览 HTML 时才会净化内容。预览放在无
+  脚本权限的 sandbox iframe 中，桌面预览为 1180px，移动预览为 390px。
+- 外部 HTTPS 图片 URL 可保留在预览 HTML 中，因此在 `npm run dev`、`vite
+  preview` 或未设置等效策略的静态主机上可能被请求。Vercel 生产配置的
+  `img-src 'self' blob: data:` 会阻止这类外部图片；`'self'`、`blob:` 和 `data:`
+  仍可加载。
+- 预览不运行主题 JavaScript、远程脚本、远程 iframe 或评论组件；这些边界与可由
+  浏览器请求的外部图片 URL 是不同的安全问题。
 
 ## 恢复草稿
 
