@@ -1,7 +1,16 @@
-import type { ArticleDraft } from '../metadata/article'
-import { getDraftDatabase } from './database'
+import type { ArticleDraft, MediaAsset } from '../metadata/article'
+import { getDraftDatabase, type StoredArticleDraft, type StoredMediaAsset } from './database'
 
-async function copyDraft(draft: ArticleDraft): Promise<ArticleDraft> {
+interface MediaSnapshot extends Omit<MediaAsset, 'blob'> {
+  blob: Blob
+  blobType: string
+}
+
+interface DraftSnapshot extends Omit<ArticleDraft, 'media'> {
+  media: MediaSnapshot[]
+}
+
+function snapshotDraft(draft: ArticleDraft): DraftSnapshot {
   return {
     ...draft,
     meta: {
@@ -9,10 +18,54 @@ async function copyDraft(draft: ArticleDraft): Promise<ArticleDraft> {
       categories: [...draft.meta.categories],
       tags: [...draft.meta.tags],
     },
-    media: await Promise.all(draft.media.map(async (asset) => ({
+    media: draft.media.map((asset) => ({
       ...asset,
-      blob: new Blob([await asset.blob.arrayBuffer()], { type: asset.blob.type }),
+      blobType: asset.blob.type,
+    })),
+  }
+}
+
+async function serializeDraft(draft: ArticleDraft): Promise<StoredArticleDraft> {
+  const snapshot = snapshotDraft(draft)
+  return {
+    ...snapshot,
+    media: await Promise.all(snapshot.media.map(async (asset) => ({
+      ...asset,
+      blob: await asset.blob.arrayBuffer(),
     }))),
+  }
+}
+
+function isLegacyBlob(value: ArrayBuffer | Blob): value is Blob {
+  // IndexedDB and tests can cross realms, where `instanceof Blob` is not
+  // reliable even though the historical record still exposes Blob's API.
+  return typeof (value as Blob).arrayBuffer === 'function'
+}
+
+async function hydrateAsset(asset: StoredMediaAsset): Promise<MediaAsset> {
+  const blob = isLegacyBlob(asset.blob)
+    ? new Blob([await asset.blob.arrayBuffer()], { type: asset.blob.type })
+    : new Blob([asset.blob.slice(0)], { type: asset.blobType || asset.mime })
+  return {
+    id: asset.id,
+    name: asset.name,
+    kind: asset.kind,
+    mime: asset.mime,
+    width: asset.width,
+    height: asset.height,
+    blob,
+  }
+}
+
+async function hydrateDraft(draft: StoredArticleDraft): Promise<ArticleDraft> {
+  return {
+    ...draft,
+    meta: {
+      ...draft.meta,
+      categories: [...draft.meta.categories],
+      tags: [...draft.meta.tags],
+    },
+    media: await Promise.all(draft.media.map(hydrateAsset)),
   }
 }
 
@@ -29,16 +82,19 @@ async function readDraft(id: string): Promise<ArticleDraft | undefined> {
   try {
     const database = await getDraftDatabase()
     const draft = await database.get('drafts', id)
-    return draft === undefined ? undefined : await copyDraft(draft)
+    return draft === undefined ? undefined : await hydrateDraft(draft)
   } catch (error) {
     throw storageError('读取草稿', error)
   }
 }
 
 async function saveDraft(draft: ArticleDraft): Promise<void> {
+  // Take every mutable value before opening IndexedDB. Blob contents are
+  // immutable, so retaining the Blob long enough to copy its bytes is safe.
+  const storedDraft = serializeDraft(draft)
   try {
     const database = await getDraftDatabase()
-    await database.put('drafts', draft)
+    await database.put('drafts', await storedDraft)
   } catch (error) {
     throw storageError('保存草稿', error)
   }
@@ -56,7 +112,7 @@ export const draftRepository = {
       return await Promise.all(
         drafts
           .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt) || right.id.localeCompare(left.id))
-          .map(copyDraft),
+          .map(hydrateDraft),
       )
     } catch (error) {
       throw storageError('列出草稿', error)
@@ -64,8 +120,7 @@ export const draftRepository = {
   },
 
   async put(draft: ArticleDraft): Promise<void> {
-    const snapshot = structuredClone(draft) as ArticleDraft
-    await saveDraft(snapshot)
+    await saveDraft(draft)
   },
 
   async duplicate(id: string): Promise<ArticleDraft> {
@@ -82,7 +137,7 @@ export const draftRepository = {
       media: source.media.map((asset) => ({ ...asset })),
     }
     await saveDraft(duplicate)
-    return copyDraft(duplicate)
+    return hydrateDraft(await serializeDraft(duplicate))
   },
 
   async rename(id: string, title: string): Promise<ArticleDraft> {
@@ -95,7 +150,7 @@ export const draftRepository = {
       const source = await transaction.store.get(id)
       if (!source) throw new Error('草稿不存在，无法重命名')
 
-      const renamed: ArticleDraft = {
+      const renamed: StoredArticleDraft = {
         ...source,
         updatedAt: currentTimestamp(),
         meta: { ...source.meta, title: nextTitle },
@@ -103,7 +158,7 @@ export const draftRepository = {
       }
       await transaction.store.put(renamed)
       await transaction.done
-      return copyDraft(renamed)
+      return hydrateDraft(renamed)
     } catch (error) {
       throw storageError('重命名草稿', error)
     }

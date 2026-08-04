@@ -17,6 +17,15 @@ function importError(message: string): Error {
   return new Error(`无法导入文章：${message}`)
 }
 
+function parseImportedArticle(source: string): ParsedArticle {
+  try {
+    return parseArticle(source)
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : 'Front Matter 格式无效'
+    throw importError(`Front Matter 解析失败：${detail}`)
+  }
+}
+
 function validateImageName(name: string): void {
   try { assertSafeImageName(name) } catch { throw importError(`图片名称或格式不受支持：${name}`) }
 }
@@ -119,7 +128,7 @@ export async function importArticleBundle(blob: Blob): Promise<ArticleDraft> {
     const entries = await reader.getEntries()
     const { root, index, images } = inspectArchiveEntries(entries)
     const source = await index.getData(new TextWriter(), readOptions)
-    const parsed = parseArticle(source)
+    const parsed = parseImportedArticle(source)
     const media = await Promise.all(images.map(async (entry) => {
       const writer = new BlobWriter()
       await entry.getData(writer, readOptions)
@@ -151,7 +160,7 @@ export async function importLooseArticle(indexFile: File, images: File[]): Promi
     names.add(image.name)
   }
 
-  const parsed = parseArticle(await indexFile.text())
+  const parsed = parseImportedArticle(await indexFile.text())
   if (!parsed.meta.slug) {
     throw importError('无封面时，独立导入的 index.md 必须声明 slug')
   }

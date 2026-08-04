@@ -1,10 +1,25 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
-import type { ArticleDraft } from '../metadata/article'
+import type { ArticleDraft, MediaAsset } from '../metadata/article'
+
+/**
+ * IndexedDB records use byte buffers for media rather than `Blob` values. WebKit
+ * can display a Blob produced by the WebP WASM encoder but refuses to clone that
+ * Blob into IndexedDB. The reader deliberately also accepts legacy Blob records
+ * so existing drafts remain available without a schema migration.
+ */
+export interface StoredMediaAsset extends Omit<MediaAsset, 'blob'> {
+  blob: ArrayBuffer | Blob
+  blobType?: string
+}
+
+export interface StoredArticleDraft extends Omit<ArticleDraft, 'media'> {
+  media: StoredMediaAsset[]
+}
 
 interface DraftDatabaseSchema extends DBSchema {
   drafts: {
     key: string
-    value: ArticleDraft
+    value: StoredArticleDraft
     indexes: { updatedAt: string }
   }
 }

@@ -32,11 +32,12 @@ export function useAutosave(draft: ArticleDraft | null): SaveStatus {
             setStatus({ state: 'saved', at: new Date().toISOString() })
           }
         },
-        () => {
+        (cause: unknown) => {
+          const detail = cause instanceof Error ? cause.message : '浏览器本地存储不可用'
           if (generation.current === activeGeneration) {
             setStatus({
               state: 'failed',
-              message: '本地草稿保存失败，请立即使用紧急导出保存 ZIP 备份。',
+              message: `本地草稿保存失败：${detail}。请立即使用紧急导出保存 ZIP 备份。`,
             })
           }
         },

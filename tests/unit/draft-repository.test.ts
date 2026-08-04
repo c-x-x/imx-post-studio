@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto'
 
 import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { getDraftDatabase } from '../../src/drafts/database'
 import { draftRepository } from '../../src/drafts/repository'
 import type { ArticleDraft } from '../../src/metadata/article'
 
@@ -94,6 +95,19 @@ describe('draftRepository', () => {
     }))
 
     expect((await draftRepository.get('blob-type-is-source-of-truth'))?.media[0].blob.type).toBe('image/png')
+  })
+
+  it('persists media as byte buffers and hydrates legacy Blob records', async () => {
+    await draftRepository.put(draft({ id: 'webkit-buffer-storage' }))
+    const database = await getDraftDatabase()
+    const stored = await database.get('drafts', 'webkit-buffer-storage')
+    expect(Object.prototype.toString.call(stored?.media[0].blob)).toBe('[object ArrayBuffer]')
+    expect(stored?.media[0].blobType).toBe('image/png')
+
+    await database.put('drafts', draft({ id: 'legacy-blob-storage' }) as never)
+    const legacy = await draftRepository.get('legacy-blob-storage')
+    expect(legacy?.media[0].blob.type).toBe('image/png')
+    expect(new Uint8Array(await legacy!.media[0].blob.arrayBuffer())).toEqual(imageBytes)
   })
 
   it('lists drafts newest first with ID descending as a deterministic time tie-break', async () => {

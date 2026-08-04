@@ -2,4 +2,5 @@
 .editor-toolbar { display: flex; flex-wrap: wrap; gap: .4rem; padding: .5rem; border: 1px solid #cbd5e1; border-bottom: 0; border-radius: .5rem .5rem 0 0; background: #f8fafc; }
 .editor-toolbar button { min-height: 2rem; }
 .markdown-editor .cm-editor { border: 1px solid #cbd5e1; border-radius: 0 0 .5rem .5rem; font-size: 1rem; }
+.markdown-editor .cm-placeholder { color: #4b5563; opacity: 1; }
 .markdown-editor .cm-focused { outline: 2px solid #2563eb; outline-offset: 2px; }

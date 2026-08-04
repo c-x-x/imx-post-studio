@@ -76,16 +76,34 @@ function coverDimensions(crop: { width: number; height: number }) {
   }
 }
 
-function encodeWebp(canvas: HTMLCanvasElement): Promise<Blob> {
-  return new Promise((resolve, reject) => {
+function encodeWithCanvas(canvas: HTMLCanvasElement): Promise<Blob | undefined> {
+  return new Promise((resolve) => {
     canvas.toBlob((blob) => {
       if (blob?.type === 'image/webp' && blob.size > 0) {
         resolve(blob)
       } else {
-        reject(new Error('封面转换失败：浏览器未生成有效 WebP 文件，请使用兼容浏览器或更换图片后重试'))
+        resolve(undefined)
       }
     }, 'image/webp', 0.82)
   })
+}
+
+async function encodeWebp(canvas: HTMLCanvasElement): Promise<Blob> {
+  const native = await encodeWithCanvas(canvas)
+  if (native) return native
+
+  try {
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('2D canvas is unavailable')
+    const { encode } = await import('@jsquash/webp')
+    const bytes = await encode(context.getImageData(0, 0, canvas.width, canvas.height), { quality: 82 })
+    const fallback = new Blob([bytes], { type: 'image/webp' })
+    if (fallback.size > 0) return fallback
+  } catch {
+    // Keep the user-facing error below stable across native and WASM encoders.
+  }
+
+  throw new Error('封面转换失败：浏览器未生成有效 WebP 文件，请使用兼容浏览器或更换图片后重试')
 }
 
 export async function renderCover(
