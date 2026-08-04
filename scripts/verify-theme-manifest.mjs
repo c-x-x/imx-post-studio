@@ -53,7 +53,7 @@ function exactEntries(entries, expected, label) {
   for (let index = 0; index < expected.length; index += 1) {
     const entry = entries[index]
     const [path, hash] = expected[index]
-    if (!entry || entry.path !== path || entry.sha256 !== hash) throw new Error(`Theme manifest ${label} entry mismatch: ${path}`)
+    if (!entry || Object.keys(entry).length !== 2 || !Object.hasOwn(entry, 'path') || !Object.hasOwn(entry, 'sha256') || entry.path !== path || entry.sha256 !== hash) throw new Error(`Theme manifest ${label} entry mismatch: ${path}`)
   }
 }
 async function physicalPaths() {

@@ -42,6 +42,16 @@ describe('renderMarkdown', () => {
     expect(rendered.html).not.toMatch(/data:image|images\/hostile\.png/)
   })
 
+  it('never network-resolves malformed local-looking inline or reference image paths', async () => {
+    const rendered = await renderMarkdown(
+      '![upper](images/Foo.PNG) ![query](images/x.png?raw=1) ![fragment](images/x.png#part) ![slash](images//x.png) ![backslash](images\\x.png) ![encoded](images/%2e%2e/secret.png) ![traversal](images/../secret.png)\n\n![ref-upper][upper] ![ref-query][query] ![ref-traversal][traversal]\n\n[upper]: images/Foo.PNG\n[query]: images/x.png?raw=1\n[traversal]: images/../secret.png',
+      () => 'blob:should-not-resolve',
+    )
+
+    expect(rendered.html).not.toMatch(/images(?:\/|%|\\)|Foo\.PNG|raw=1|secret\.png|blob:should-not-resolve/i)
+    expect(rendered.html).not.toContain('src=')
+  })
+
   it('removes executable markup', async () => {
     const rendered = await renderMarkdown(
       '<script>alert(1)</script><a href="javascript:alert(2)" onclick="alert(3)">safe prose</a>',

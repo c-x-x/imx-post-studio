@@ -33,6 +33,10 @@ function isNormalizedLocalImage(path: string): boolean {
   return segments.length === 2 && safeMediaName(segments[1]) === segments[1]
 }
 
+function isLocalLookingImage(path: string): boolean {
+  return /^images(?:[/%\\]|$)/i.test(path)
+}
+
 function estimateWords(text: string): number {
   const han = text.match(/[\u3400-\u9fff]/g)?.length ?? 0
   const words = text.match(/[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*/g)?.length ?? 0
@@ -62,10 +66,12 @@ function collectHeadingsRewriteImagesAndMeasure(resolveLocalImage: (path: string
       }
       if (node.tagName === 'img') {
         const source = typeof node.properties.src === 'string' ? node.properties.src : ''
-        if (isNormalizedLocalImage(source)) {
-          const resolved = resolveLocalImage(source)
-          if (isSafeBlobUrl(resolved)) node.properties.src = resolved
-          else delete node.properties.src
+        if (isLocalLookingImage(source)) {
+          if (isNormalizedLocalImage(source)) {
+            const resolved = resolveLocalImage(source)
+            if (isSafeBlobUrl(resolved)) node.properties.src = resolved
+            else delete node.properties.src
+          } else delete node.properties.src
         }
       }
       if (node.tagName === 'a' && typeof node.properties.href === 'string' && !/^(https?:|mailto:|#)/i.test(node.properties.href)) {

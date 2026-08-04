@@ -104,6 +104,13 @@ describe('the vendored IMX theme snapshot', () => {
         await writeFile(path, JSON.stringify(manifest))
       },
       async (directory) => {
+        const path = resolve(directory, 'src/theme/imx/theme-manifest.json')
+        const manifest = JSON.parse(await readFile(path, 'utf8')) as ThemeManifest
+        Object.assign(manifest.sourceFiles[0], { unexpected: true })
+        Object.assign(manifest.files[0], { unexpected: true })
+        await writeFile(path, JSON.stringify(manifest))
+      },
+      async (directory) => {
         await rm(resolve(directory, 'src/theme/imx/LICENSE.imx'))
       },
       async (directory) => {
