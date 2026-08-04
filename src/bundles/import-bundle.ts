@@ -1,0 +1,176 @@
+import { BlobReader, BlobWriter, TextWriter, ZipReader, type Entry, type FileEntry } from '@zip.js/zip.js'
+import type { ArticleDraft, MediaAsset, MediaMime } from '../metadata/article'
+import { createArticleDraft } from '../metadata/article'
+import { parseArticle, type ParsedArticle } from '../metadata/frontmatter'
+import { validateSlug } from '../metadata/slug'
+import { safeMediaName } from '../media/names'
+import { validateMediaReferences } from '../media/references'
+import {
+  MAX_ARCHIVE_ENTRIES,
+  MAX_ARCHIVE_FILE_BYTES,
+  MAX_ARCHIVE_TOTAL_BYTES,
+  MAX_SOURCE_BYTES,
+} from '../shared/limits'
+import { validateArchiveEntries, validateArchivePath } from './archive-path'
+
+function importError(message: string): Error {
+  return new Error(`无法导入文章：${message}`)
+}
+
+function detectedImageMime(bytes: Uint8Array): MediaMime | undefined {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return 'image/jpeg'
+  }
+  if (bytes.length >= 8
+    && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47
+    && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a) {
+    return 'image/png'
+  }
+  if (bytes.length >= 6 && String.fromCharCode(...bytes.slice(0, 6)) === 'GIF87a') return 'image/gif'
+  if (bytes.length >= 6 && String.fromCharCode(...bytes.slice(0, 6)) === 'GIF89a') return 'image/gif'
+  if (bytes.length >= 12
+    && String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF'
+    && String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP') return 'image/webp'
+  return undefined
+}
+
+function expectedMime(name: string): MediaMime | undefined {
+  const extension = name.slice(name.lastIndexOf('.') + 1)
+  return ({ jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' })[extension] as MediaMime | undefined
+}
+
+function validateImageName(name: string): void {
+  if (!name || name.includes('/') || name.includes('\\') || safeMediaName(name) !== name || !expectedMime(name)) {
+    throw importError(`图片名称或格式不受支持：${name}`)
+  }
+}
+
+function assertNotSymlink(entry: Entry): void {
+  if (entry.unixMode !== undefined && (entry.unixMode & 0o170000) === 0o120000) {
+    throw importError(`不支持符号链接条目：${entry.filename}`)
+  }
+}
+
+function createMedia(name: string, bytes: Uint8Array): MediaAsset {
+  validateImageName(name)
+  const mime = detectedImageMime(bytes)
+  if (!mime || mime !== expectedMime(name)) {
+    throw importError(`图片内容不是与扩展名匹配的受支持图片：${name}`)
+  }
+  if (name === 'cover.webp' && mime !== 'image/webp') {
+    throw importError('封面必须为 WebP 图片')
+  }
+  return {
+    id: crypto.randomUUID(),
+    name,
+    kind: name === 'cover.webp' ? 'cover' : 'body',
+    mime,
+    blob: new Blob([new Uint8Array(bytes).buffer], { type: mime }),
+  }
+}
+
+function draftFromParsed(parsed: ParsedArticle, slug: string, media: MediaAsset[]): ArticleDraft {
+  if (!validateSlug(slug).ok) throw importError('文章目录名称不是有效 Slug')
+  if (parsed.meta.slug && parsed.meta.slug !== slug) {
+    throw importError('Front Matter 的封面或 slug 与文章目录不一致')
+  }
+
+  const cover = media.find((asset) => asset.kind === 'cover')
+  if (parsed.coverPath && parsed.coverPath !== `/posts/${slug}/images/cover.webp`) {
+    throw importError('Front Matter 封面路径与文章目录不一致')
+  }
+  if (Boolean(parsed.coverPath) !== Boolean(cover)) {
+    throw importError(parsed.coverPath ? 'Front Matter 引用了缺失的封面' : '封面文件缺少 Front Matter 路径')
+  }
+
+  const references = validateMediaReferences(parsed.body, media)
+  if (references.missing.length > 0) {
+    throw importError(`缺少正文图片：${references.missing.join('、')}`)
+  }
+
+  const draft = createArticleDraft()
+  return {
+    ...draft,
+    meta: { ...parsed.meta, slug },
+    body: parsed.body,
+    media,
+  }
+}
+
+function inspectArchiveEntries(entries: Entry[]): { root: string; index: FileEntry; images: FileEntry[] } {
+  validateArchiveEntries(entries)
+  const files = entries.filter((entry): entry is FileEntry => !entry.directory)
+  const paths = files.map((entry) => ({ entry, path: validateArchivePath(entry.filename) }))
+  for (const { entry } of paths) assertNotSymlink(entry)
+
+  const roots = new Set(paths.map(({ path }) => path.root))
+  if (roots.size !== 1) throw importError('ZIP 必须只包含一个文章目录')
+  const root = paths[0]?.path.root
+  if (!root || !validateSlug(root).ok) throw importError('文章目录名称不是有效 Slug')
+
+  const indexes = paths.filter(({ path }) => path.relative === 'index.md')
+  if (indexes.length !== 1) throw importError('ZIP 必须恰好包含一个 <slug>/index.md')
+
+  const images: FileEntry[] = []
+  for (const { entry, path } of paths) {
+    if (path.relative === 'index.md') continue
+    if (!path.relative.startsWith('images/')) {
+      throw importError(`ZIP 包含不支持的条目：${entry.filename}`)
+    }
+    const imageName = path.relative.slice('images/'.length)
+    if (imageName.includes('/')) throw importError(`图片不能位于嵌套目录：${entry.filename}`)
+    validateImageName(imageName)
+    images.push(entry)
+  }
+
+  return { root, index: indexes[0].entry, images }
+}
+
+export async function importArticleBundle(blob: Blob): Promise<ArticleDraft> {
+  const reader = new ZipReader(new BlobReader(blob))
+  try {
+    const entries = await reader.getEntries()
+    const { root, index, images } = inspectArchiveEntries(entries)
+    const source = await index.getData(new TextWriter())
+    const parsed = parseArticle(source)
+    const media = await Promise.all(images.map(async (entry) => {
+      const writer = new BlobWriter()
+      await entry.getData(writer)
+      const bytes = new Uint8Array(await (await writer.getData()).arrayBuffer())
+      return createMedia(validateArchivePath(entry.filename).relative.slice('images/'.length), bytes)
+    }))
+    return draftFromParsed(parsed, root, media.sort((left, right) => left.name.localeCompare(right.name)))
+  } finally {
+    await reader.close().catch(() => undefined)
+  }
+}
+
+export async function importLooseArticle(indexFile: File, images: File[]): Promise<ArticleDraft> {
+  if (indexFile.name !== 'index.md' || indexFile.size > MAX_SOURCE_BYTES) {
+    throw importError('请选择不超过 25 MiB 的 index.md 文件')
+  }
+  if (images.length + 1 > MAX_ARCHIVE_ENTRIES) {
+    throw importError(`文件数不能超过 ${MAX_ARCHIVE_ENTRIES}`)
+  }
+
+  let total = indexFile.size
+  const names = new Set<string>()
+  for (const image of images) {
+    if (image.size > MAX_ARCHIVE_FILE_BYTES) throw importError(`图片超过 25 MiB：${image.name}`)
+    total += image.size
+    if (total > MAX_ARCHIVE_TOTAL_BYTES) throw importError('导入总大小不能超过 250 MiB')
+    validateImageName(image.name)
+    if (names.has(image.name)) throw importError(`图片名称重复：${image.name}`)
+    names.add(image.name)
+  }
+
+  const parsed = parseArticle(await indexFile.text())
+  if (!parsed.meta.slug) {
+    throw importError('无封面时，独立导入的 index.md 必须声明 slug')
+  }
+  const media = await Promise.all(images.map(async (image) => createMedia(
+    image.name,
+    new Uint8Array(await image.arrayBuffer()),
+  )))
+  return draftFromParsed(parsed, parsed.meta.slug, media.sort((left, right) => left.name.localeCompare(right.name)))
+}
