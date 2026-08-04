@@ -1,9 +1,8 @@
 import { BlobReader, BlobWriter, TextWriter, ZipReader, type Entry, type FileEntry } from '@zip.js/zip.js'
-import type { ArticleDraft, MediaAsset, MediaMime } from '../metadata/article'
-import { createArticleDraft } from '../metadata/article'
+import type { ArticleDraft, MediaAsset } from '../metadata/article'
+import { assertCompleteArticleMeta, createArticleDraft } from '../metadata/article'
 import { parseArticle, type ParsedArticle } from '../metadata/frontmatter'
 import { validateSlug } from '../metadata/slug'
-import { safeMediaName } from '../media/names'
 import { validateMediaReferences } from '../media/references'
 import {
   MAX_ARCHIVE_ENTRIES,
@@ -12,51 +11,34 @@ import {
   MAX_SOURCE_BYTES,
 } from '../shared/limits'
 import { validateArchiveEntries, validateArchivePath } from './archive-path'
+import { assertImageBytes, assertSafeImageName } from './media-validation'
 
 function importError(message: string): Error {
   return new Error(`无法导入文章：${message}`)
 }
 
-function detectedImageMime(bytes: Uint8Array): MediaMime | undefined {
-  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
-    return 'image/jpeg'
-  }
-  if (bytes.length >= 8
-    && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47
-    && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a) {
-    return 'image/png'
-  }
-  if (bytes.length >= 6 && String.fromCharCode(...bytes.slice(0, 6)) === 'GIF87a') return 'image/gif'
-  if (bytes.length >= 6 && String.fromCharCode(...bytes.slice(0, 6)) === 'GIF89a') return 'image/gif'
-  if (bytes.length >= 12
-    && String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF'
-    && String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP') return 'image/webp'
-  return undefined
-}
-
-function expectedMime(name: string): MediaMime | undefined {
-  const extension = name.slice(name.lastIndexOf('.') + 1)
-  return ({ jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' })[extension] as MediaMime | undefined
-}
-
 function validateImageName(name: string): void {
-  if (!name || name.includes('/') || name.includes('\\') || safeMediaName(name) !== name || !expectedMime(name)) {
-    throw importError(`图片名称或格式不受支持：${name}`)
-  }
+  try { assertSafeImageName(name) } catch { throw importError(`图片名称或格式不受支持：${name}`) }
 }
 
-function assertNotSymlink(entry: Entry): void {
-  if (entry.unixMode !== undefined && (entry.unixMode & 0o170000) === 0o120000) {
-    throw importError(`不支持符号链接条目：${entry.filename}`)
+function assertSupportedEntry(entry: Entry): void {
+  if (entry.encrypted || entry.zipCrypto) throw importError(`不支持加密 ZIP 条目：${entry.filename}`)
+  if (entry.compressionMethod !== 0 && entry.compressionMethod !== 8) {
+    throw importError(`不支持的 ZIP 压缩方法：${entry.filename}`)
+  }
+  if (entry.unixMode !== undefined) {
+    const fileType = entry.unixMode & 0o170000
+    if (fileType === 0o120000) throw importError(`不支持符号链接条目：${entry.filename}`)
+    if (fileType !== 0 && fileType !== 0o100000) {
+      throw importError(`不支持的 Unix 非常规文件：${entry.filename}`)
+    }
   }
 }
 
 function createMedia(name: string, bytes: Uint8Array): MediaAsset {
   validateImageName(name)
-  const mime = detectedImageMime(bytes)
-  if (!mime || mime !== expectedMime(name)) {
-    throw importError(`图片内容不是与扩展名匹配的受支持图片：${name}`)
-  }
+  let mime
+  try { mime = assertImageBytes(name, bytes) } catch { throw importError(`图片内容不是与扩展名匹配的受支持图片：${name}`) }
   if (name === 'cover.webp' && mime !== 'image/webp') {
     throw importError('封面必须为 WebP 图片')
   }
@@ -89,19 +71,23 @@ function draftFromParsed(parsed: ParsedArticle, slug: string, media: MediaAsset[
   }
 
   const draft = createArticleDraft()
-  return {
+  const complete = {
     ...draft,
     meta: { ...parsed.meta, slug },
     body: parsed.body,
     media,
   }
+  try { assertCompleteArticleMeta(complete.meta) } catch (error) {
+    throw importError(error instanceof Error ? error.message : '文章元数据无效')
+  }
+  return complete
 }
 
 function inspectArchiveEntries(entries: Entry[]): { root: string; index: FileEntry; images: FileEntry[] } {
   validateArchiveEntries(entries)
   const files = entries.filter((entry): entry is FileEntry => !entry.directory)
   const paths = files.map((entry) => ({ entry, path: validateArchivePath(entry.filename) }))
-  for (const { entry } of paths) assertNotSymlink(entry)
+  for (const { entry } of paths) assertSupportedEntry(entry)
 
   const roots = new Set(paths.map(({ path }) => path.root))
   if (roots.size !== 1) throw importError('ZIP 必须只包含一个文章目录')
@@ -127,15 +113,16 @@ function inspectArchiveEntries(entries: Entry[]): { root: string; index: FileEnt
 }
 
 export async function importArticleBundle(blob: Blob): Promise<ArticleDraft> {
-  const reader = new ZipReader(new BlobReader(blob))
+  const readOptions = { checkSignature: true, checkAmbiguity: true, checkOverlappingEntry: true, strictness: 'strict' as const }
+  const reader = new ZipReader(new BlobReader(blob), readOptions)
   try {
     const entries = await reader.getEntries()
     const { root, index, images } = inspectArchiveEntries(entries)
-    const source = await index.getData(new TextWriter())
+    const source = await index.getData(new TextWriter(), readOptions)
     const parsed = parseArticle(source)
     const media = await Promise.all(images.map(async (entry) => {
       const writer = new BlobWriter()
-      await entry.getData(writer)
+      await entry.getData(writer, readOptions)
       const bytes = new Uint8Array(await (await writer.getData()).arrayBuffer())
       return createMedia(validateArchivePath(entry.filename).relative.slice('images/'.length), bytes)
     }))

@@ -11,12 +11,21 @@ async function archive(entries: Array<{ name: string; contents?: string | Uint8A
         typeof entry.contents === 'string' || entry.contents === undefined
           ? new TextReader(entry.contents ?? '')
           : new BlobReader(new Blob([new Uint8Array(entry.contents).buffer])),
+        { level: 0 },
       )
     }
     return await writer.close()
   } finally {
     await writer.close().catch(() => undefined)
   }
+}
+
+async function corruptPayload(bundle: Blob, payload: Uint8Array): Promise<Blob> {
+  const bytes = new Uint8Array(await bundle.arrayBuffer())
+  const firstMatch = bytes.findIndex((_, start) => payload.every((value, index) => bytes[start + index] === value))
+  if (firstMatch < 0) throw new Error('test archive did not contain the requested stored payload')
+  bytes[firstMatch + payload.length - 1] ^= 0xff
+  return new Blob([bytes], { type: 'application/zip' })
 }
 
 const validIndex = [
@@ -68,5 +77,35 @@ describe('bundle import security', () => {
       new File([validIndex], 'index.md', { type: 'text/markdown' }),
       [new File(['not an image'], 'diagram.png', { type: 'image/png' })],
     )).rejects.toThrow()
+  })
+
+  it('rejects a titleless ZIP instead of returning a draft that cannot export', async () => {
+    const titleless = validIndex.replace('title = "Safe article"\n', '')
+    await expect(importArticleBundle(await archive([
+      { name: 'post/index.md', contents: titleless },
+    ]))).rejects.toThrow('标题不能为空')
+  })
+
+  it('rejects a titleless loose article instead of returning a draft that cannot export', async () => {
+    const titleless = validIndex.replace('title = "Safe article"\n', 'slug = "post"\n')
+    await expect(importLooseArticle(
+      new File([titleless], 'index.md', { type: 'text/markdown' }),
+      [],
+    )).rejects.toThrow('标题不能为空')
+  })
+
+  it('rejects an index whose same-size stored payload no longer matches its ZIP CRC', async () => {
+    const source = await archive([{ name: 'post/index.md', contents: validIndex }])
+    await expect(importArticleBundle(await corruptPayload(source, new TextEncoder().encode(validIndex))))
+      .rejects.toThrow()
+  })
+
+  it('rejects an image whose same-size stored payload no longer matches its ZIP CRC', async () => {
+    const image = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0])
+    const source = await archive([
+      { name: 'post/index.md', contents: validIndex },
+      { name: 'post/images/diagram.png', contents: image },
+    ])
+    await expect(importArticleBundle(await corruptPayload(source, image))).rejects.toThrow()
   })
 })

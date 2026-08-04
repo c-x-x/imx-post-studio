@@ -83,4 +83,44 @@ describe('Hugo article bundle', () => {
       ['diagram.png', 'body'],
     ])
   })
+
+  it.each([
+    ['a body asset using the reserved cover.webp name', {
+      id: 'bad-cover-role',
+      name: 'cover.webp',
+      kind: 'body' as const,
+      mime: 'image/webp' as const,
+      blob: new Blob([coverBytes], { type: 'image/webp' }),
+    }],
+    ['a cover asset with a non-cover filename', {
+      id: 'bad-cover-name',
+      name: 'hero.webp',
+      kind: 'cover' as const,
+      mime: 'image/webp' as const,
+      blob: new Blob([coverBytes], { type: 'image/webp' }),
+    }],
+    ['a PNG whose Blob bytes are spoofed', {
+      id: 'spoofed-bytes',
+      name: 'diagram.png',
+      kind: 'body' as const,
+      mime: 'image/png' as const,
+      blob: new Blob(['not an image'], { type: 'image/png' }),
+    }],
+    ['a PNG whose Blob MIME and signature disagree', {
+      id: 'mismatched-mime',
+      name: 'diagram.png',
+      kind: 'body' as const,
+      mime: 'image/png' as const,
+      blob: new Blob([coverBytes], { type: 'image/webp' }),
+    }],
+  ])('rejects export before creating a writer for %s', async (_reason, invalidAsset) => {
+    const source = draft()
+    const replacementName = invalidAsset.kind === 'cover' ? 'cover.webp' : invalidAsset.name
+    const media = [
+      ...source.media.filter((asset) => asset.name !== replacementName),
+      invalidAsset,
+    ]
+
+    await expect(exportArticleBundle({ ...source, media }, { production: true, publish: true })).rejects.toThrow()
+  })
 })
