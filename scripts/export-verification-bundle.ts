@@ -95,12 +95,16 @@ const draft: ArticleDraft = {
 }
 
 const nativeDate = globalThis.Date
-globalThis.Date = FixedDate
+const nativeTimeZone = process.env.TZ
 let bundle: Blob
 try {
+  globalThis.Date = FixedDate
+  process.env.TZ = 'UTC'
   bundle = await exportArticleBundle(draft, { production: true, publish: true })
 } finally {
   globalThis.Date = nativeDate
+  if (nativeTimeZone === undefined) delete process.env.TZ
+  else process.env.TZ = nativeTimeZone
 }
 const bytes = new Uint8Array(await bundle.arrayBuffer())
 await writeFile(outputPath, bytes)
