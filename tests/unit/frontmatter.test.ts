@@ -105,8 +105,13 @@ describe('article TOML front matter', () => {
     expect(() => parseArticle(`+++\ndate = "${date}"\n+++\n`)).toThrow()
   })
 
-  it('rejects impossible unquoted TOML calendar dates before parser rollover', () => {
-    expect(() => parseArticle('+++\ndate = 2026-02-30\n+++\n')).toThrow()
+  it.each(['', '  ', '\t'])('rejects impossible unquoted TOML calendar dates before parser rollover', (indent) => {
+    expect(() => parseArticle(`+++\n${indent}date = 2026-02-30\n+++\n`)).toThrow()
+  })
+
+  it.each(['  ', '\t'])('accepts an indented unquoted TOML date with %s', (indent) => {
+    expect(parseArticle(`+++\n${indent}date = 2026-06-13\n+++\n`).meta.date)
+      .toBe('2026-06-13T00:00:00+08:00')
   })
 
   it.each([
@@ -154,5 +159,21 @@ describe('article TOML front matter', () => {
     }
 
     expect(() => serializeArticle(malformedDraft)).toThrow()
+  })
+
+  it.each([
+    ['a scalar', { ...draft.meta, title: 'bad\ud800' }],
+    ['an array member', { ...draft.meta, categories: ['bad\ud800'] }],
+  ])('rejects a terminal high surrogate in %s', (_location, meta) => {
+    expect(() => serializeArticle({ ...draft, meta })).toThrow()
+  })
+
+  it('round-trips a valid astral Unicode character', () => {
+    const astralDraft: ArticleDraft = {
+      ...draft,
+      meta: { ...draft.meta, title: 'Hugo 😀 图片' },
+    }
+
+    expect(parseArticle(serializeArticle(astralDraft)).meta.title).toBe('Hugo 😀 图片')
   })
 })

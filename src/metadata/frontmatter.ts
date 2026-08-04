@@ -94,6 +94,9 @@ function tomlBasicString(value: string): string {
   for (let index = 0; index < value.length; index += 1) {
     const codeUnit = value.charCodeAt(index)
     if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
+      if (index + 1 >= value.length) {
+        throw new Error('TOML 字符串不能包含未配对的 UTF-16 代理项')
+      }
       const next = value.charCodeAt(index + 1)
       if (next < 0xdc00 || next > 0xdfff) {
         throw new Error('TOML 字符串不能包含未配对的 UTF-16 代理项')
@@ -121,7 +124,7 @@ function parseFrontMatter(source: string): { table: Record<string, unknown>; hea
 }
 
 function rawTomlDate(header: string): string | undefined {
-  return /^date[ \t]*=[ \t]*([0-9T:.+\-Z]+)[ \t]*(?:#.*)?$/m.exec(header)?.[1]
+  return /^[ \t]*date[ \t]*=[ \t]*([0-9T:.+\-Z]+)[ \t]*(?:#.*)?$/m.exec(header)?.[1]
 }
 
 export function serializeArticle(draft: ArticleDraft, draftOverride?: boolean): string {
