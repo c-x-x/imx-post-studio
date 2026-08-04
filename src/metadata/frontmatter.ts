@@ -8,52 +8,59 @@ export interface ParsedArticle {
   coverPath?: string
 }
 
-const RFC_3339 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/
-const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
+const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/
+const RFC_3339 = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d+)?(Z|([+-])(\d{2}):(\d{2}))$/
 
 function normalizeLineEndings(value: string): string {
   return value.replace(/\r\n?/g, '\n')
 }
 
-function formatBeijingDateTime(date: Date): string {
-  const beijingTime = new Date(date.getTime() + 8 * 60 * 60 * 1000)
-  return `${beijingTime.toISOString().slice(0, 19)}+08:00`
+function isLeapYear(year: number): boolean {
+  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
 }
 
-function normalizeDate(value: unknown): string {
-  if (value instanceof TomlDate) {
-    if (value.isDate()) {
-      return `${value.toISOString()}T00:00:00+08:00`
-    }
+function validateCalendarDate(year: number, month: number, day: number): void {
+  const daysInMonth = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+  if (month < 1 || month > 12 || day < 1 || day > daysInMonth[month - 1]) {
+    throw new Error('date 不是有效日期')
+  }
+}
 
-    if (!value.isDateTime() || value.isLocal() || Number.isNaN(value.getTime())) {
+function normalizeDateString(value: string): string {
+  const dateOnly = DATE_ONLY.exec(value)
+  if (dateOnly) {
+    const [, year, month, day] = dateOnly
+    validateCalendarDate(Number(year), Number(month), Number(day))
+    return `${value}T00:00:00+08:00`
+  }
+
+  const dateTime = RFC_3339.exec(value)
+  if (!dateTime) {
+    throw new Error('date 必须是 RFC 3339 日期时间或日期')
+  }
+
+  const [, year, month, day, hour, minute, second, fraction, , , offsetHour, offsetMinute] = dateTime
+  validateCalendarDate(Number(year), Number(month), Number(day))
+  if (Number(hour) > 23 || Number(minute) > 59 || Number(second) > 59
+    || (offsetHour !== undefined && (Number(offsetHour) > 23 || Number(offsetMinute) > 59))) {
+    throw new Error('date 不是有效 RFC 3339 日期时间')
+  }
+
+  return `${year}-${month}-${day}T${hour}:${minute}:${second}${fraction ?? ''}+08:00`
+}
+
+function normalizeDate(value: unknown, rawTomlDate?: string): string {
+  if (value instanceof TomlDate) {
+    if (!rawTomlDate) {
       throw new Error('date 必须是 RFC 3339 日期时间或日期')
     }
-
-    return formatBeijingDateTime(value)
+    return normalizeDateString(rawTomlDate)
   }
 
   if (typeof value !== 'string') {
     throw new Error('date 必须是 RFC 3339 日期时间或日期')
   }
-
-  if (DATE_ONLY.test(value)) {
-    const date = new Date(`${value}T00:00:00+08:00`)
-    if (Number.isNaN(date.getTime())) {
-      throw new Error('date 不是有效日期')
-    }
-    return `${value}T00:00:00+08:00`
-  }
-
-  if (!RFC_3339.test(value)) {
-    throw new Error('date 必须是 RFC 3339 日期时间或日期')
-  }
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) {
-    throw new Error('date 不是有效日期时间')
-  }
-  return formatBeijingDateTime(date)
+  return normalizeDateString(value)
 }
 
 function stringField(table: Record<string, unknown>, key: string, fallback: string): string {
@@ -83,28 +90,50 @@ function coverPathFor(slug: string): string {
   return `/posts/${slug}/images/cover.webp`
 }
 
-function tomlStringArray(values: string[]): string {
-  return `[${values.map((value) => JSON.stringify(value)).join(', ')}]`
+function tomlBasicString(value: string): string {
+  for (let index = 0; index < value.length; index += 1) {
+    const codeUnit = value.charCodeAt(index)
+    if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
+      const next = value.charCodeAt(index + 1)
+      if (next < 0xdc00 || next > 0xdfff) {
+        throw new Error('TOML 字符串不能包含未配对的 UTF-16 代理项')
+      }
+      index += 1
+    } else if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
+      throw new Error('TOML 字符串不能包含未配对的 UTF-16 代理项')
+    }
+  }
+
+  return JSON.stringify(value).replace(/\u007f/g, '\\u007F')
 }
 
-function parseFrontMatter(source: string): { table: Record<string, unknown>; body: string } {
+function tomlStringArray(values: string[]): string {
+  return `[${values.map((value) => tomlBasicString(value)).join(', ')}]`
+}
+
+function parseFrontMatter(source: string): { table: Record<string, unknown>; header: string; body: string } {
   const match = /^\+\+\+\n([\s\S]*?)\n\+\+\+(?:\n|$)([\s\S]*)$/.exec(source)
   if (!match) throw new Error('文章必须以完整的 +++ TOML Front Matter 包裹')
 
-  const table = parse(match[1])
-  return { table, body: match[2] }
+  const header = match[1]
+  const table = parse(header)
+  return { table, header, body: match[2] }
+}
+
+function rawTomlDate(header: string): string | undefined {
+  return /^date[ \t]*=[ \t]*([0-9T:.+\-Z]+)[ \t]*(?:#.*)?$/m.exec(header)?.[1]
 }
 
 export function serializeArticle(draft: ArticleDraft, draftOverride?: boolean): string {
   const cover = draft.media.find((asset) => asset.kind === 'cover')
   const values = [
-    `title = ${JSON.stringify(draft.meta.title)}`,
-    `date = ${JSON.stringify(draft.meta.date)}`,
+    `title = ${tomlBasicString(draft.meta.title)}`,
+    `date = ${tomlBasicString(draft.meta.date)}`,
     `draft = ${draftOverride ?? draft.meta.draft}`,
     `categories = ${tomlStringArray(draft.meta.categories)}`,
     `tags = ${tomlStringArray(draft.meta.tags)}`,
-    ...(cover ? [`image = ${JSON.stringify(coverPathFor(draft.meta.slug))}`] : []),
-    `description = ${JSON.stringify(draft.meta.description)}`,
+    ...(cover ? [`image = ${tomlBasicString(coverPathFor(draft.meta.slug))}`] : []),
+    `description = ${tomlBasicString(draft.meta.description)}`,
     `toc = ${draft.meta.toc}`,
   ]
 
@@ -112,7 +141,7 @@ export function serializeArticle(draft: ArticleDraft, draftOverride?: boolean): 
 }
 
 export function parseArticle(source: string): ParsedArticle {
-  const { table, body } = parseFrontMatter(normalizeLineEndings(source))
+  const { table, header, body } = parseFrontMatter(normalizeLineEndings(source))
   const declaredSlug = stringField(table, 'slug', '')
   const image = table.image
 
@@ -138,7 +167,7 @@ export function parseArticle(source: string): ParsedArticle {
     meta: {
       title: stringField(table, 'title', ''),
       slug,
-      date: normalizeDate(table.date),
+      date: normalizeDate(table.date, rawTomlDate(header)),
       draft: booleanField(table, 'draft', true),
       categories: stringArrayField(table, 'categories'),
       tags: stringArrayField(table, 'tags'),

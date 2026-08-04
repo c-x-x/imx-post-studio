@@ -83,8 +83,76 @@ describe('article TOML front matter', () => {
       .toBe('2026-06-13T00:00:00+08:00')
   })
 
-  it('rejects malformed known fields and cover paths', () => {
-    expect(() => parseArticle('+++\ndraft = "true"\n+++\n')).toThrow()
+  it('normalizes offset date-times to Beijing without moving their intended date', () => {
+    expect(parseArticle('+++\ndate = "2026-06-13T23:30:00-04:00"\n+++\n').meta.date)
+      .toBe('2026-06-13T23:30:00+08:00')
+    expect(parseArticle('+++\ndate = "2026-06-13T00:30:00+14:00"\n+++\n').meta.date)
+      .toBe('2026-06-13T00:30:00+08:00')
+  })
+
+  it.each([
+    '2026-02-30',
+    '2025-02-29',
+    '2026-13-01',
+    '2026-00-01',
+    '2026-06-31',
+    '2026-06-13T24:00:00+08:00',
+    '2026-06-13T12:60:00+08:00',
+    '2026-06-13T12:00:60+08:00',
+    '2026-06-13T12:00:00+24:00',
+    '2026-06-13T12:00:00+08:60',
+  ])('rejects impossible or out-of-range RFC 3339 values: %s', (date) => {
+    expect(() => parseArticle(`+++\ndate = "${date}"\n+++\n`)).toThrow()
+  })
+
+  it('rejects impossible unquoted TOML calendar dates before parser rollover', () => {
+    expect(() => parseArticle('+++\ndate = 2026-02-30\n+++\n')).toThrow()
+  })
+
+  it.each([
+    ['title', 'title = true'],
+    ['slug', 'slug = true'],
+    ['date', 'date = true'],
+    ['draft', 'draft = "true"'],
+    ['categories', 'categories = "技术"'],
+    ['tags', 'tags = ["Hugo", true]'],
+    ['image', 'image = true'],
+    ['description', 'description = true'],
+    ['toc', 'toc = "true"'],
+  ])('rejects %s with an invalid known-field type', (_field, line) => {
+    const date = line.startsWith('date =') ? '' : 'date = "2026-06-13T09:00:00+08:00"\n'
+    expect(() => parseArticle(`+++\n${date}${line}\n+++\n`)).toThrow()
+  })
+
+  it('rejects noncanonical cover paths separately from field types', () => {
     expect(() => parseArticle('+++\nimage = "images/cover.webp"\n+++\n')).toThrow()
+  })
+
+  it('uses TOML-safe escapes for scalar and array strings', () => {
+    const escapedDraft: ArticleDraft = {
+      ...draft,
+      meta: {
+        ...draft.meta,
+        title: '删除\u007f字符\\并换行\n',
+        categories: ['技术\n写作', '控制\u000b字符'],
+        tags: ['反斜杠\\', '制表\t符'],
+        description: '包含 "引号" 和\r回车',
+      },
+    }
+
+    const serialized = serializeArticle(escapedDraft)
+
+    expect(serialized).toContain('\\u007F')
+    expect(serialized).not.toContain('\u007f')
+    expect(parseArticle(serialized).meta).toEqual(escapedDraft.meta)
+  })
+
+  it('rejects malformed UTF-16 before serializing TOML strings', () => {
+    const malformedDraft: ArticleDraft = {
+      ...draft,
+      meta: { ...draft.meta, title: '损坏\ud800字符' },
+    }
+
+    expect(() => serializeArticle(malformedDraft)).toThrow()
   })
 })
