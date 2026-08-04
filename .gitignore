@@ -3,5 +3,16 @@
 .superpowers/
 node_modules/
 dist/
+.vercel/
 test-results/
 playwright-report/
+.env
+.env.*
+!.env.example
+.eslintcache
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.zip
