@@ -21,7 +21,8 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
   expect: { timeout: 10_000 },
-  snapshotPathTemplate: '{testDir}/{testFilePath}-snapshots/{arg}-{projectName}{ext}',
+  // Chromium text metrics differ between macOS CoreText and Linux FreeType.
+  snapshotPathTemplate: '{testDir}/{testFilePath}-snapshots/{arg}-{projectName}-{platform}{ext}',
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'], ...sharedUse } },
     { name: 'firefox', use: { ...devices['Desktop Firefox'], ...sharedUse } },
