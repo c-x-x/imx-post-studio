@@ -15,6 +15,7 @@
     "typecheck": "tsc -b --pretty false",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "sync:imx": "node scripts/sync-imx-theme.mjs",
     "check:theme": "node scripts/verify-theme-manifest.mjs"
   },
   "keywords": [],
@@ -53,6 +54,7 @@
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.3",
+    "@types/node": "^26.1.2",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.0.5",

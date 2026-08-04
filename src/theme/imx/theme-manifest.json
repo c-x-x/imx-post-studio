@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "repository": "https://github.com/c-x-x/hugo-theme-imx",
+  "version": "v1.4.9",
+  "commit": "6f08e8e",
+  "sourceCommit": "6f08e8e5bba774a8e1fa0c2fa911c7435dddd9c7",
+  "syncedAt": "2026-08-04T10:00:50.282Z",
+  "sourceFiles": [
+    {
+      "path": "LICENSE",
+      "sha256": "0430d664811b8d60345dbb908f979e088b8f09dcca7bb5ac890c4a087de3c2c7"
+    },
+    {
+      "path": "assets/css/tokens.css",
+      "sha256": "d67bfdc7803edae8c5b50bb127b1668f0c75cdc6612e0c230b52f06f69ff153d"
+    },
+    {
+      "path": "assets/css/base.css",
+      "sha256": "e8bd2641016410aeaae982dbdff899cf4f0211e0197a680550bcc4585f8c6cc4"
+    },
+    {
+      "path": "assets/css/layout.css",
+      "sha256": "4bf20e90f3a55c2b29c10d94f0beaeb8079498b6446eb39131e00b4ccb9d15f7"
+    },
+    {
+      "path": "assets/css/cards.css",
+      "sha256": "da86e692ccb81e71ccdb6f280fa2f655190e40c8ddd0305b0881e0c647f9acc4"
+    },
+    {
+      "path": "assets/css/article.css",
+      "sha256": "0b0595a70bae85bea3cc38f69aaa6560e536b83b7185ea1d3e0375bd29138950"
+    },
+    {
+      "path": "assets/css/responsive-content.css",
+      "sha256": "f5a6af9b585aaba2c5fbccd2b8cf7837748f49990e94869b11ac67d4266d4136"
+    },
+    {
+      "path": "assets/css/article-reading.css",
+      "sha256": "ed1632fce0a63f0c5e7f7c875b6a3a21d9d8ef69afb1aed01ac045ff407a286e"
+    },
+    {
+      "path": "assets/css/article-reading-responsive.css",
+      "sha256": "a7034392509308555ca2831d4161b836162516265b4c9d19aabe525c8c6a388a"
+    },
+    {
+      "path": "assets/css/code.css",
+      "sha256": "8865b456825cda634ed2222ca49f9abf787f44e9f0bf0de2788988d20df12368"
+    },
+    {
+      "path": "assets/fonts/imx/inter-variable.woff2",
+      "sha256": "693b77d4f32ee9b8bfc995589b5fad5e99adf2832738661f5402f9978429a8e3"
+    },
+    {
+      "path": "assets/fonts/imx/noto-serif-sc-400-core.woff2",
+      "sha256": "d70c4c90898fc4745f1e5550a082d933fcb07bb3ac846ecb49ecd089abf51379"
+    },
+    {
+      "path": "assets/fonts/imx/noto-serif-sc-400-common.woff2",
+      "sha256": "ed936522eadb6a32b5df199196c968416dda2f153daa5b80ecd1c5d4ca746dd2"
+    },
+    {
+      "path": "assets/fonts/imx/noto-serif-sc-400-extended.woff2",
+      "sha256": "c07409ffc90fec98311b8dffd7bdc38121b06aa1bff3b317c1ba02d89f3af228"
+    },
+    {
+      "path": "assets/fonts/imx/noto-serif-sc-700-core.woff2",
+      "sha256": "48ebbcf99ff2b28c34926a57b31564da71c98f919daf3c5261528f7ca408e59d"
+    },
+    {
+      "path": "assets/fonts/imx/noto-serif-sc-700-common.woff2",
+      "sha256": "1e936c22005cb9318d5a002eebeafab5bf651f866dbca69404b302de084fc8c7"
+    },
+    {
+      "path": "assets/fonts/imx/noto-serif-sc-700-extended.woff2",
+      "sha256": "6a910bf112c062ae6bbecec50185601a34a333a4c81b7779063f66b0a654a048"
+    }
+  ],
+  "files": [
+    {
+      "path": "src/theme/imx/imx-preview.css",
+      "sha256": "6108f81229566d785048cdafb2deec7c52ce4e5c8865fca2af69989bd96e8c71"
+    },
+    {
+      "path": "src/theme/imx/LICENSE.imx",
+      "sha256": "0430d664811b8d60345dbb908f979e088b8f09dcca7bb5ac890c4a087de3c2c7"
+    },
+    {
+      "path": "public/imx/fonts/inter-variable.woff2",
+      "sha256": "693b77d4f32ee9b8bfc995589b5fad5e99adf2832738661f5402f9978429a8e3"
+    },
+    {
+      "path": "public/imx/fonts/noto-serif-sc-400-core.woff2",
+      "sha256": "d70c4c90898fc4745f1e5550a082d933fcb07bb3ac846ecb49ecd089abf51379"
+    },
+    {
+      "path": "public/imx/fonts/noto-serif-sc-400-common.woff2",
+      "sha256": "ed936522eadb6a32b5df199196c968416dda2f153daa5b80ecd1c5d4ca746dd2"
+    },
+    {
+      "path": "public/imx/fonts/noto-serif-sc-400-extended.woff2",
+      "sha256": "c07409ffc90fec98311b8dffd7bdc38121b06aa1bff3b317c1ba02d89f3af228"
+    },
+    {
+      "path": "public/imx/fonts/noto-serif-sc-700-core.woff2",
+      "sha256": "48ebbcf99ff2b28c34926a57b31564da71c98f919daf3c5261528f7ca408e59d"
+    },
+    {
+      "path": "public/imx/fonts/noto-serif-sc-700-common.woff2",
+      "sha256": "1e936c22005cb9318d5a002eebeafab5bf651f866dbca69404b302de084fc8c7"
+    },
+    {
+      "path": "public/imx/fonts/noto-serif-sc-700-extended.woff2",
+      "sha256": "6a910bf112c062ae6bbecec50185601a34a333a4c81b7779063f66b0a654a048"
+    }
+  ]
+}
