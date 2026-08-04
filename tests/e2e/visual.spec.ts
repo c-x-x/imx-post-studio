@@ -111,6 +111,21 @@ async function assertPreviewCaptureReady(capturePage: Page, viewport: 'desktop' 
         && bounds.left >= 0 && bounds.right <= window.innerWidth && bounds.top >= 0)
     })).toBe(true)
   }
+
+  if (viewport === 'mobile') {
+    expect(await capturePage.locator('.article-tools').evaluate((tools) => {
+      const toolBounds = tools.getBoundingClientRect()
+      return [...document.querySelectorAll('.article-content > *')].every((content) => {
+        const contentBounds = content.getBoundingClientRect()
+        const hasArea = contentBounds.width > 0 && contentBounds.height > 0
+        const intersects = toolBounds.left < contentBounds.right
+          && toolBounds.right > contentBounds.left
+          && toolBounds.top < contentBounds.bottom
+          && toolBounds.bottom > contentBounds.top
+        return !hasArea || !intersects
+      })
+    })).toBe(true)
+  }
 }
 
 async function matchPreviewScreenshot(page: Page, name: string, viewport: 'desktop' | 'mobile'): Promise<void> {
