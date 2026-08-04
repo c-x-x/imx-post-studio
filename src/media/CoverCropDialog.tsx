@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import Cropper, { type Area, type Point } from 'react-easy-crop'
 import type { MediaAsset } from '../metadata/article'
-import { AccessibleDialog } from '../app/AccessibleDialog'
+import { AccessibleDialog, DialogClose } from '../app/AccessibleDialog'
 import { renderCover } from './cover'
 
 interface CoverCropDialogProps {
   source: File
   onCancel: () => void
   onComplete: (asset: MediaAsset) => void
+  disabled?: boolean
 }
 
-export function CoverCropDialog({ source, onCancel, onComplete }: CoverCropDialogProps) {
+export function CoverCropDialog({ source, onCancel, onComplete, disabled = false }: CoverCropDialogProps) {
   const [crop, setCrop] = useState<Point>({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
   const [area, setArea] = useState<Area>({ x: 0, y: 0, width: 100, height: 100 })
@@ -25,10 +26,10 @@ export function CoverCropDialog({ source, onCancel, onComplete }: CoverCropDialo
   const close = () => {
     closedRef.current = true
     onCancel()
-    triggerRef.current?.focus()
   }
 
   const confirm = async () => {
+    if (disabled) return
     setProcessing(true)
     setError(undefined)
     try {
@@ -59,8 +60,8 @@ export function CoverCropDialog({ source, onCancel, onComplete }: CoverCropDialo
   return <AccessibleDialog title="裁剪封面" className="crop-dialog" onClose={close} returnFocus={() => triggerRef.current}>
       <p>封面将裁剪为 16:9，并导出为 1600×900 以内的 WebP。</p>
       <div className="crop-canvas"><Cropper image={previewUrl} crop={crop} zoom={zoom} aspect={16 / 9} onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={(_pixels, percentages) => setArea(percentages)} /></div>
-      <label htmlFor="cover-zoom">缩放<input id="cover-zoom" type="range" min="1" max="3" step="0.05" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} /></label>
+      <label htmlFor="cover-zoom">缩放<input id="cover-zoom" disabled={disabled} type="range" min="1" max="3" step="0.05" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} /></label>
       {error ? <p role="alert" className="field-error">{error}</p> : null}
-      <div className="dialog-actions"><button type="button" onClick={close} disabled={processing}>取消</button><button type="button" onClick={() => void confirm()} disabled={processing}>{processing ? '正在转换…' : '使用此封面'}</button></div>
+      <div className="dialog-actions"><DialogClose>{(dialogClose) => <button type="button" onClick={dialogClose} disabled={disabled || processing}>取消</button>}</DialogClose><button type="button" onClick={() => void confirm()} disabled={disabled || processing}>{processing ? '正在转换…' : '使用此封面'}</button></div>
   </AccessibleDialog>
 }

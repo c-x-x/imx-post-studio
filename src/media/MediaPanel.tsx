@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent } from 'react'
 import type { MediaAsset, MediaMime } from '../metadata/article'
 import { assertImageBytes } from '../bundles/media-validation'
 import { MAX_SOURCE_BYTES } from '../shared/limits'
@@ -6,15 +6,18 @@ import { safeMediaName } from './names'
 import { validateMediaReferences } from './references'
 import { CoverCropDialog } from './CoverCropDialog'
 import { prepareBodyMediaBatch } from './intake'
-import { AccessibleDialog } from '../app/AccessibleDialog'
+import { AccessibleDialog, DialogClose } from '../app/AccessibleDialog'
 
 interface MediaPanelProps {
+  draftId?: string
   media: MediaAsset[]
   body: string
   onAddBatch: (assets: MediaAsset[]) => void
   onReplaceCover: (asset: MediaAsset) => void
   onRemove: (id: string) => void
   onInsertImage: (asset: MediaAsset) => void
+  disabled?: boolean
+  onIntakeBusyChange?: (busy: boolean) => void
 }
 
 const COVER_TYPES = new Set<MediaMime>(['image/jpeg', 'image/png', 'image/webp'])
@@ -34,29 +37,67 @@ async function prevalidateCover(file: File): Promise<void> {
   if (detected !== mime) throw new Error(`图片 MIME 与内容不一致：${file.name}`)
 }
 
-export function MediaPanel({ media, body, onAddBatch, onReplaceCover, onRemove, onInsertImage }: MediaPanelProps) {
+export function MediaPanel({ draftId = 'default-draft', media, body, onAddBatch, onReplaceCover, onRemove, onInsertImage, disabled = false, onIntakeBusyChange }: MediaPanelProps) {
   const [error, setError] = useState<string>()
   const [pendingCover, setPendingCover] = useState<File>()
   const [removal, setRemoval] = useState<MediaAsset>()
   const panelRef = useRef<HTMLElement>(null)
+  const removalTrigger = useRef<HTMLElement | null>(null)
   const namesRef = useRef(new Set(['cover.webp', ...media.map((asset) => asset.name)]))
   const intakeQueue = useRef(Promise.resolve())
+  const mounted = useRef(false)
+  const generation = useRef(0)
+  const activeIntakes = useRef(0)
+  const draftIdRef = useRef(draftId)
+  const disabledRef = useRef(disabled)
+  const intakeBusyCallback = useRef(onIntakeBusyChange)
+  useEffect(() => { intakeBusyCallback.current = onIntakeBusyChange }, [onIntakeBusyChange])
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      activeIntakes.current = 0
+      intakeBusyCallback.current?.(false)
+    }
+  }, [])
+  useLayoutEffect(() => {
+    generation.current += 1
+    draftIdRef.current = draftId
+  }, [draftId])
   useEffect(() => { namesRef.current = new Set(['cover.webp', ...media.map((asset) => asset.name)]) }, [media])
+  useLayoutEffect(() => { disabledRef.current = disabled }, [disabled])
+
+  const reportIntakeBusy = () => {
+    if (mounted.current) intakeBusyCallback.current?.(activeIntakes.current > 0)
+  }
 
   const queueFiles = (files: File[]) => {
-    if (files.length === 0) return
+    if (files.length === 0 || disabled || disabledRef.current) return
     setError(undefined)
+    const intakeGeneration = generation.current
+    const intakeDraftId = draftIdRef.current
+    activeIntakes.current += 1
+    reportIntakeBusy()
     intakeQueue.current = intakeQueue.current
       .then(async () => {
         const assets = await prepareBodyMediaBatch(files, namesRef.current)
+        if (!mounted.current || disabledRef.current || generation.current !== intakeGeneration || draftIdRef.current !== intakeDraftId) return
         namesRef.current = new Set([...namesRef.current, ...assets.map((asset) => asset.name)])
         onAddBatch(assets)
       })
-      .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : '无法添加图片'))
+      .catch((cause: unknown) => {
+        if (mounted.current && generation.current === intakeGeneration && draftIdRef.current === intakeDraftId) {
+          setError(cause instanceof Error ? cause.message : '无法添加图片')
+        }
+      })
+      .finally(() => {
+        activeIntakes.current = Math.max(0, activeIntakes.current - 1)
+        reportIntakeBusy()
+      })
   }
 
   const selectCover = async (file: File | undefined) => {
-    if (!file) return
+    if (!file || disabled || disabledRef.current) return
     setError(undefined)
     try {
       await prevalidateCover(file)
@@ -66,9 +107,11 @@ export function MediaPanel({ media, body, onAddBatch, onReplaceCover, onRemove, 
     }
   }
 
-  const requestRemove = (asset: MediaAsset) => {
+  const requestRemove = (asset: MediaAsset, trigger: HTMLElement) => {
     const references = validateMediaReferences(body, media)
+    if (disabled || disabledRef.current) return
     if (asset.kind === 'body' && !references.unused.includes(`images/${asset.name}`)) {
+      removalTrigger.current = trigger
       setRemoval(asset)
     } else {
       onRemove(asset.id)
@@ -86,15 +129,15 @@ export function MediaPanel({ media, body, onAddBatch, onReplaceCover, onRemove, 
       const files = Array.from(event.clipboardData.files)
       if (files.length > 0) { event.preventDefault(); queueFiles(files) }
     }} tabIndex={0}>
-      <label className="file-button">添加正文图片<input aria-label="添加正文图片" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={(event) => { queueFiles(Array.from(event.target.files ?? [])); event.currentTarget.value = '' }} /></label>
-      <label className="file-button">选择封面<input aria-label="选择封面" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { void selectCover(event.target.files?.[0]); event.currentTarget.value = '' }} /></label>
+      <label className="file-button">添加正文图片<input disabled={disabled} aria-label="添加正文图片" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={(event) => { queueFiles(Array.from(event.target.files ?? [])); event.currentTarget.value = '' }} /></label>
+      <label className="file-button">选择封面<input disabled={disabled} aria-label="选择封面" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { void selectCover(event.target.files?.[0]); event.currentTarget.value = '' }} /></label>
       <p>可拖放或粘贴图片；单个文件不超过 25 MiB。</p>
     </div>
     {error ? <p className="field-error" role="alert">{error}</p> : null}
     <ul className="media-list" aria-label="已添加图片">
-      {media.map((asset) => <li key={asset.id} aria-label={asset.name}><span>{asset.kind === 'cover' ? '封面' : asset.name}</span><div><button type="button" onClick={() => onInsertImage(asset)} disabled={asset.kind === 'cover'}>插入</button><button type="button" onClick={() => requestRemove(asset)}>删除</button></div></li>)}
+      {media.map((asset) => <li key={asset.id} aria-label={asset.name}><span>{asset.kind === 'cover' ? '封面' : asset.name}</span><div><button type="button" onClick={() => onInsertImage(asset)} disabled={disabled || asset.kind === 'cover'}>插入</button><button type="button" disabled={disabled} onClick={(event) => requestRemove(asset, event.currentTarget)}>删除</button></div></li>)}
     </ul>
-    {pendingCover ? <CoverCropDialog source={pendingCover} onCancel={() => setPendingCover(undefined)} onComplete={(asset) => { onReplaceCover(asset); setPendingCover(undefined) }} /> : null}
-    {removal ? <AccessibleDialog title="删除已引用图片？" onClose={closeRemoval} returnFocus={() => panelRef.current}><p>正文仍引用 images/{removal.name}。删除会让最终导出无法通过校验。</p><div className="dialog-actions"><button type="button" onClick={closeRemoval}>取消</button><button type="button" onClick={() => { onRemove(removal.id); closeRemoval(); panelRef.current?.focus() }}>删除图片</button></div></AccessibleDialog> : null}
+    {pendingCover ? <CoverCropDialog disabled={disabled} source={pendingCover} onCancel={() => setPendingCover(undefined)} onComplete={(asset) => { onReplaceCover(asset); setPendingCover(undefined) }} /> : null}
+    {removal ? <AccessibleDialog title="删除已引用图片？" onClose={closeRemoval} returnFocus={() => removalTrigger.current ?? panelRef.current}><p>正文仍引用 images/{removal.name}。删除会让最终导出无法通过校验。</p><div className="dialog-actions"><DialogClose>{(close) => <button type="button" disabled={disabled} onClick={close}>取消</button>}</DialogClose><button type="button" disabled={disabled} onClick={() => { onRemove(removal.id); closeRemoval(); panelRef.current?.focus() }}>删除图片</button></div></AccessibleDialog> : null}
   </section>
 }

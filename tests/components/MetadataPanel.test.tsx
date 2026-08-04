@@ -54,4 +54,18 @@ describe('MetadataPanel', () => {
     expect(screen.getByLabelText('发布日期')).toHaveAttribute('aria-invalid', 'true')
     expect(screen.getByText('date 必须是规范的 +08:00 RFC 3339 日期时间')).toHaveAttribute('aria-live', 'polite')
   })
+
+  it('rejects impossible calendar dates but accepts leap-day +08:00 values', async () => {
+    const user = userEvent.setup()
+    render(<MetadataHarness />)
+
+    const date = screen.getByLabelText('发布日期')
+    await user.clear(date)
+    await user.type(date, '2026-02-30T09:00:00+08:00')
+    expect(date).toHaveAttribute('aria-invalid', 'true')
+
+    await user.clear(date)
+    await user.type(date, '2024-02-29T09:00:00+08:00')
+    expect(date).toHaveAttribute('aria-invalid', 'false')
+  })
 })

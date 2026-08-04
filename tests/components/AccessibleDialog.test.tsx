@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import { AccessibleDialog } from '../../src/app/AccessibleDialog'
+import { AccessibleDialog, DialogClose } from '../../src/app/AccessibleDialog'
 
 describe('AccessibleDialog', () => {
   afterEach(cleanup)
@@ -20,6 +20,18 @@ describe('AccessibleDialog', () => {
     fireEvent.keyDown(dialog, { key: 'Tab' })
     expect(document.activeElement).toBe(cancel)
     fireEvent.keyDown(dialog, { key: 'Escape' })
+    expect(initiator).toHaveFocus()
+    initiator.remove()
+  })
+
+  it('routes a Cancel click through the same focus-restoring close path', () => {
+    const initiator = document.createElement('button')
+    document.body.append(initiator)
+    let closed = false
+    render(<AccessibleDialog title="取消测试" onClose={() => { closed = true }} returnFocus={() => initiator}><DialogClose>{(close) => <button type="button" onClick={close}>取消</button>}</DialogClose></AccessibleDialog>)
+
+    fireEvent.click(screen.getByRole('button', { name: '取消' }))
+    expect(closed).toBe(true)
     expect(initiator).toHaveFocus()
     initiator.remove()
   })

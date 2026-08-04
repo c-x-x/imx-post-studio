@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useReducer, useRef, useState, type ReactNode } from 'react'
 import type { ArticleDraft, MediaAsset } from '../metadata/article'
 import { createArticleDraft } from '../metadata/article'
 import { MarkdownEditor, type MarkdownEditorHandle } from '../editor/MarkdownEditor'
@@ -21,6 +21,7 @@ type View = 'dashboard' | 'workspace'
 type WorkspaceTab = 'settings' | 'write' | 'preview'
 
 interface FailedTransition {
+  id: number
   label: string
   continue: () => void
   message: string
@@ -58,12 +59,20 @@ export function App() {
   const [recoveryError, setRecoveryError] = useState<string>()
   const [failedTransition, setFailedTransition] = useState<FailedTransition>()
   const [transitioning, setTransitioning] = useState(false)
+  const [intakeBusy, setIntakeBusy] = useState(false)
   const transitionInFlight = useRef(false)
+  const transitionDecisionInFlight = useRef(false)
+  const transitionId = useRef(0)
+  const draftRevision = useRef(0)
+  const draftRef = useRef(draft)
+  const intakeBusyRef = useRef(false)
+  const failedTransitionRef = useRef<FailedTransition | undefined>(undefined)
   const editorRef = useRef<MarkdownEditorHandle>(null)
   const urls = useRef(new ObjectUrlRegistry())
   const previousMedia = useRef<MediaAsset[]>([])
   const saveStatus = useAutosave(view === 'workspace' ? draft : null)
 
+  useLayoutEffect(() => { draftRef.current = draft }, [draft])
   useEffect(() => () => urls.current.dispose(), [])
   useEffect(() => {
     const currentById = new Map(draft.media.map((asset) => [asset.id, asset]))
@@ -93,20 +102,42 @@ export function App() {
     return () => { cancelled = true }
   }, [draft.body, draft.media])
 
+  const setTransitionFailure = (failure: FailedTransition | undefined) => {
+    failedTransitionRef.current = failure
+    setFailedTransition(failure)
+  }
+
+  const dispatchDraft = (action: Parameters<typeof appReducer>[1], allowDuringTransition = false) => {
+    if (transitionInFlight.current && !allowDuringTransition) return
+    draftRevision.current += 1
+    dispatch(action)
+  }
+
   const requestTransition = async (continueTransition: () => void, label: string): Promise<void> => {
     if (view !== 'workspace') {
       continueTransition()
+      return
+    }
+    if (intakeBusyRef.current) {
+      setNotice('正在读取媒体，请完成后再切换文章')
       return
     }
     if (transitionInFlight.current) return
     transitionInFlight.current = true
     setTransitioning(true)
     try {
-      await draftRepository.put(draft)
-      setFailedTransition(undefined)
+      // Any mutation that somehow reaches the reducer during the asynchronous put
+      // increments this revision. In that case persist the newest snapshot before
+      // allowing a view or identity change to discard the outgoing reducer value.
+      let savedRevision: number
+      do {
+        savedRevision = draftRevision.current
+        await draftRepository.put(draftRef.current)
+      } while (savedRevision !== draftRevision.current)
+      setTransitionFailure(undefined)
       continueTransition()
     } catch (cause) {
-      setFailedTransition({ label, continue: continueTransition, message: errorMessage(cause) })
+      setTransitionFailure({ id: ++transitionId.current, label, continue: continueTransition, message: errorMessage(cause) })
     } finally {
       transitionInFlight.current = false
       setTransitioning(false)
@@ -114,28 +145,28 @@ export function App() {
   }
 
   const startNew = async () => requestTransition(() => {
-    dispatch({ type: 'new', draft: createArticleDraft() })
+    dispatchDraft({ type: 'new', draft: createArticleDraft() }, true)
     setTab('settings')
     setView('workspace')
     setNotice('已创建新文章')
   }, '新建文章')
 
   const openDraft = async (next: ArticleDraft) => requestTransition(() => {
-    dispatch({ type: 'replace', draft: next })
+    dispatchDraft({ type: 'replace', draft: next }, true)
     setTab('settings')
     setView('workspace')
     setNotice('草稿已打开')
   }, '打开草稿')
 
   const replaceImportedDraft = async (next: ArticleDraft) => requestTransition(() => {
-    dispatch({ type: 'replace-import-content', draft: next })
+    dispatchDraft({ type: 'replace-import-content', draft: next }, true)
     setTab('settings')
     setView('workspace')
     setNotice('已替换当前草稿内容')
   }, '替换当前文章')
 
   const openImportedAsNew = async (next: ArticleDraft) => requestTransition(() => {
-    dispatch({ type: 'new', draft: createImportedDraft(next) })
+    dispatchDraft({ type: 'new', draft: createImportedDraft(next) }, true)
     setTab('settings')
     setView('workspace')
     setNotice('已作为新草稿打开')
@@ -147,6 +178,7 @@ export function App() {
   }, '打开草稿库')
 
   const exportRecovery = async () => {
+    if (transitionInFlight.current || intakeBusyRef.current) return
     setRecoveryError(undefined)
     try {
       downloadRecovery(await exportRecoveryBundle(draft))
@@ -158,29 +190,53 @@ export function App() {
 
   const status = saveStatus.state === 'saving'
     ? '正在保存…'
+    : intakeBusy
+      ? '正在读取媒体…'
     : saveStatus.state === 'saved'
       ? '已保存到本地草稿'
       : notice
   const recoveryNeeded = saveStatus.state === 'failed' || Boolean(failedTransition)
+  const workspaceLocked = transitioning || intakeBusy
+  const retryFailedTransition = () => {
+    const failure = failedTransitionRef.current
+    if (!failure || transitionDecisionInFlight.current || transitionInFlight.current) return
+    transitionDecisionInFlight.current = true
+    void requestTransition(failure.continue, failure.label).finally(() => { transitionDecisionInFlight.current = false })
+  }
+  const discardFailedTransition = () => {
+    const failure = failedTransitionRef.current
+    if (!failure || transitionDecisionInFlight.current || transitionInFlight.current) return
+    transitionDecisionInFlight.current = true
+    transitionInFlight.current = true
+    setTransitioning(true)
+    setTransitionFailure(undefined)
+    try {
+      failure.continue()
+    } finally {
+      transitionInFlight.current = false
+      transitionDecisionInFlight.current = false
+      setTransitioning(false)
+    }
+  }
   const alerts: ReactNode[] = []
   if (saveStatus.state === 'failed') alerts.push(<p key="autosave">{saveStatus.message}</p>)
   if (failedTransition) {
-    alerts.push(<div key="transition"><p>保存当前草稿失败，未执行“{failedTransition.label}”：{failedTransition.message}</p><div className="recovery-actions"><button type="button" onClick={() => void requestTransition(failedTransition.continue, failedTransition.label)}>重试保存</button><button type="button" onClick={() => { failedTransition.continue(); setFailedTransition(undefined) }}>放弃未保存更改</button></div></div>)
+    alerts.push(<div key="transition"><p>保存当前草稿失败，未执行“{failedTransition.label}”：{failedTransition.message}</p><div className="recovery-actions"><button type="button" disabled={transitioning} onClick={retryFailedTransition}>重试保存</button><button type="button" disabled={transitioning} onClick={discardFailedTransition}>放弃未保存更改</button></div></div>)
   }
-  if (recoveryNeeded) alerts.push(<button key="recovery-export" type="button" onClick={() => void exportRecovery()}>紧急导出恢复备份</button>)
+  if (recoveryNeeded) alerts.push(<button key="recovery-export" type="button" disabled={transitioning || intakeBusy} onClick={() => void exportRecovery()}>紧急导出恢复备份</button>)
   if (previewError) alerts.push(<p key="preview">{previewError}</p>)
   if (recoveryError) alerts.push(<p key="recovery-error">{recoveryError}</p>)
 
   return <main className="app-shell">
-    <header className="app-header"><div><h1>IMX Post Studio</h1><p>文章和图片仅在此浏览器中处理</p></div><div className="app-header-actions"><button type="button" disabled={transitioning} onClick={() => void startNew()}>新建文章</button><button type="button" disabled={transitioning} onClick={() => void showDashboard()}>草稿库</button></div></header>
+    <header className="app-header"><div><h1>IMX Post Studio</h1><p>文章和图片仅在此浏览器中处理</p></div><div className="app-header-actions"><button type="button" disabled={workspaceLocked} onClick={() => void startNew()}>新建文章</button><button type="button" disabled={workspaceLocked} onClick={() => void showDashboard()}>草稿库</button></div></header>
     <Notifications status={status} alert={alerts.length > 0 ? <>{alerts}</> : undefined} />
-    {view === 'dashboard' ? <DraftDashboard onOpen={openDraft} /> : <section className="workspace" aria-label="文章工作区" aria-busy={transitioning}>
+    {view === 'dashboard' ? <DraftDashboard onOpen={openDraft} disabled={workspaceLocked} /> : <section className="workspace" aria-label="文章工作区" aria-busy={workspaceLocked}>
       <nav className="workspace-tabs" role="tablist" aria-label="工作区视图">
-        {([['settings', '设置'], ['write', '写作'], ['preview', '预览']] as const).map(([id, label]) => <button key={id} id={`tab-${id}`} type="button" role="tab" aria-selected={tab === id} aria-controls={`panel-${id}`} onClick={() => setTab(id)}>{label}</button>)}
+        {([['settings', '设置'], ['write', '写作'], ['preview', '预览']] as const).map(([id, label]) => <button key={id} id={`tab-${id}`} type="button" disabled={workspaceLocked} role="tab" aria-selected={tab === id} aria-controls={`panel-${id}`} onClick={() => setTab(id)}>{label}</button>)}
       </nav>
       <div className="workspace-grid" data-tab={tab}>
-        <aside id="panel-settings" className="workspace-panel workspace-inspector" role="tabpanel" aria-labelledby="tab-settings"><MetadataPanel meta={draft.meta} onChange={(field, value) => dispatch({ type: 'set-meta', field, value })} /><MediaPanel media={draft.media} body={draft.body} onAddBatch={(assets) => dispatch({ type: 'add-media-batch', assets })} onReplaceCover={(asset) => dispatch({ type: 'replace-cover', asset })} onRemove={(id) => { urls.current.revoke(id); dispatch({ type: 'remove-media', id }) }} onInsertImage={(asset) => editorRef.current?.insertImage(asset.name, assetAlt(asset))} /><BundleActions draft={draft} onReplace={replaceImportedDraft} onNew={openImportedAsNew} onStatus={setNotice} /></aside>
-        <section id="panel-write" className="workspace-panel workspace-editor" role="tabpanel" aria-labelledby="tab-write"><h2 className="visually-hidden">写作</h2><MarkdownEditor ref={editorRef} value={draft.body} onChange={(body) => dispatch({ type: 'set-body', body })} /></section>
+        <aside id="panel-settings" className="workspace-panel workspace-inspector" role="tabpanel" aria-labelledby="tab-settings"><MetadataPanel disabled={workspaceLocked} meta={draft.meta} onChange={(field, value) => dispatchDraft({ type: 'set-meta', field, value })} /><MediaPanel draftId={draft.id} disabled={transitioning} media={draft.media} body={draft.body} onAddBatch={(assets) => dispatchDraft({ type: 'add-media-batch', assets })} onReplaceCover={(asset) => dispatchDraft({ type: 'replace-cover', asset })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onInsertImage={(asset) => editorRef.current?.insertImage(asset.name, assetAlt(asset))} onIntakeBusyChange={(busy) => { intakeBusyRef.current = busy; setIntakeBusy(busy) }} /><BundleActions disabled={workspaceLocked} draft={draft} onReplace={replaceImportedDraft} onNew={openImportedAsNew} onStatus={setNotice} /></aside>
+        <section id="panel-write" className="workspace-panel workspace-editor" role="tabpanel" aria-labelledby="tab-write"><h2 className="visually-hidden">写作</h2><MarkdownEditor disabled={workspaceLocked} ref={editorRef} value={draft.body} onChange={(body) => dispatchDraft({ type: 'set-body', body })} /></section>
         <section id="panel-preview" className="workspace-panel workspace-preview" role="tabpanel" aria-labelledby="tab-preview"><PreviewFrame meta={draft.meta} rendered={rendered} css={previewCss} /></section>
       </div>
     </section>}

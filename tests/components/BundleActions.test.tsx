@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ArticleDraft } from '../../src/metadata/article'
 
@@ -6,6 +7,7 @@ const { exportArticleBundle } = vi.hoisted(() => ({ exportArticleBundle: vi.fn()
 vi.mock('../../src/bundles/export-bundle', () => ({ exportArticleBundle }))
 
 import { BundleActions } from '../../src/bundles/BundleActions'
+import { exportRecoveryBundle } from '../../src/bundles/recovery-bundle'
 
 function draft(): ArticleDraft {
   return {
@@ -30,5 +32,17 @@ describe('BundleActions production choices', () => {
 
     expect(exportArticleBundle).toHaveBeenCalledWith(expect.objectContaining({ meta: expect.objectContaining({ draft: true }) }), { production: true, publish: false })
     click.mockRestore()
+  })
+
+  it('offers a clearly identified recovery ZIP import through the normal replace/new decision', async () => {
+    const user = userEvent.setup()
+    const onNew = vi.fn()
+    render(<BundleActions draft={draft()} onReplace={() => undefined} onNew={onNew} onStatus={() => undefined} />)
+
+    const recovery = new File([await exportRecoveryBundle(draft())], 'recovery.zip', { type: 'application/zip' })
+    await user.upload(screen.getByLabelText('导入紧急恢复 ZIP'), recovery)
+    expect(await screen.findByRole('dialog', { name: '导入已验证' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '作为新草稿打开' }))
+    expect(onNew).toHaveBeenCalledWith(expect.objectContaining({ id: 'export' }))
   })
 })

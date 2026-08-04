@@ -68,4 +68,39 @@ describe('workspace transitions', () => {
     expect(screen.getByRole('region', { name: '文章工作区' })).toBeInTheDocument()
     expect(screen.getByLabelText('标题')).toHaveValue('可返回的草稿')
   })
+
+  it('freezes draft mutations while the transition snapshot is pending', async () => {
+    let resolvePut: (() => void) | undefined
+    put.mockImplementation(() => new Promise<void>((resolve) => { resolvePut = resolve }))
+    render(<App />)
+    await startWorkspace()
+    fireEvent.change(screen.getByLabelText('标题'), { target: { value: '应被保存的版本' } })
+    fireEvent.click(screen.getByRole('button', { name: '草稿库' }))
+
+    const title = screen.getByLabelText('标题')
+    expect(title).toBeDisabled()
+    fireEvent.change(title, { target: { value: '不能覆盖快照' } })
+    expect(put).toHaveBeenLastCalledWith(expect.objectContaining({ meta: expect.objectContaining({ title: '应被保存的版本' }) }))
+
+    await act(async () => { resolvePut?.() })
+    expect(screen.getByRole('region', { name: '草稿库' })).toBeInTheDocument()
+  })
+
+  it('does not let discard race a retry continuation', async () => {
+    let resolveRetry: (() => void) | undefined
+    put.mockRejectedValueOnce(new Error('Quota exceeded'))
+    put.mockImplementationOnce(() => new Promise<void>((resolve) => { resolveRetry = resolve }))
+    render(<App />)
+    await startWorkspace()
+    fireEvent.click(screen.getByRole('button', { name: '草稿库' }))
+    await act(async () => { await Promise.resolve() })
+
+    fireEvent.click(screen.getByRole('button', { name: '重试保存' }))
+    expect(screen.getByRole('button', { name: '放弃未保存更改' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: '放弃未保存更改' }))
+    await act(async () => { resolveRetry?.() })
+
+    expect(screen.getByRole('region', { name: '草稿库' })).toBeInTheDocument()
+    expect(put).toHaveBeenCalledTimes(2)
+  })
 })

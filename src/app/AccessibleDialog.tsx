@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from 'react'
+import { createContext, useContext, useId, useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from 'react'
 
 interface AccessibleDialogProps {
   title: string
@@ -7,6 +7,15 @@ interface AccessibleDialogProps {
   returnFocus?: () => HTMLElement | null
   className?: string
   closeOnEscape?: boolean
+}
+
+const DialogCloseContext = createContext<(() => void) | undefined>(undefined)
+
+/** Use this for in-dialog Cancel controls so pointer and Escape closes share focus restoration. */
+export function DialogClose({ children }: { children: (close: () => void) => ReactNode }) {
+  const close = useContext(DialogCloseContext)
+  if (!close) throw new Error('DialogClose 必须在 AccessibleDialog 中使用')
+  return <>{children(close)}</>
 }
 
 function focusableElements(container: HTMLElement): HTMLElement[] {
@@ -57,5 +66,5 @@ export function AccessibleDialog({ title, children, onClose, returnFocus, classN
     }
   }
 
-  return <div className="modal-backdrop" role="presentation"><section ref={dialogRef} className={className} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} onKeyDown={onKeyDown}><h2 id={titleId}>{title}</h2>{children}</section></div>
+  return <div className="modal-backdrop" role="presentation"><section ref={dialogRef} className={className} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} onKeyDown={onKeyDown}><h2 id={titleId}>{title}</h2><DialogCloseContext.Provider value={close}>{children}</DialogCloseContext.Provider></section></div>
 }

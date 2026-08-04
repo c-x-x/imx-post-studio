@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { MediaAsset } from '../../src/metadata/article'
 import { MediaPanel } from '../../src/media/MediaPanel'
@@ -33,5 +33,41 @@ describe('MediaPanel intake', () => {
     await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(2))
     expect(screen.getByRole('listitem', { name: 'cover-2.webp' })).toBeInTheDocument()
     expect(screen.getByRole('listitem', { name: 'cover-3.webp' })).toBeInTheDocument()
+  })
+
+  it('drops an old asynchronous intake after its draft generation changes, then accepts a new batch', async () => {
+    let resolveRead: ((value: ArrayBuffer) => void) | undefined
+    const delayed = new File([png], 'old.png', { type: 'image/png' })
+    Object.defineProperty(delayed, 'arrayBuffer', {
+      value: () => new Promise<ArrayBuffer>((resolve) => { resolveRead = resolve }),
+    })
+    const onAddBatch = vi.fn()
+    const props = {
+      media: [], body: '', onAddBatch, onReplaceCover: vi.fn(), onRemove: vi.fn(), onInsertImage: vi.fn(),
+    }
+    const { rerender } = render(<MediaPanel draftId="old" {...props} />)
+    fireEvent.change(screen.getByLabelText('添加正文图片'), { target: { files: [delayed] } })
+    await act(async () => { await Promise.resolve() })
+    rerender(<MediaPanel draftId="new" {...props} />)
+    await act(async () => { resolveRead?.(png.buffer) })
+    expect(onAddBatch).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getByLabelText('添加正文图片'), { target: { files: [new File([png], 'new.png', { type: 'image/png' })] } })
+    await waitFor(() => expect(onAddBatch).toHaveBeenCalledWith([expect.objectContaining({ name: 'new.png' })]))
+  })
+
+  it('does not dispatch a delayed intake after unmount', async () => {
+    let resolveRead: ((value: ArrayBuffer) => void) | undefined
+    const delayed = new File([png], 'old.png', { type: 'image/png' })
+    Object.defineProperty(delayed, 'arrayBuffer', {
+      value: () => new Promise<ArrayBuffer>((resolve) => { resolveRead = resolve }),
+    })
+    const onAddBatch = vi.fn()
+    const { unmount } = render(<MediaPanel draftId="old" media={[]} body="" onAddBatch={onAddBatch} onReplaceCover={vi.fn()} onRemove={vi.fn()} onInsertImage={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('添加正文图片'), { target: { files: [delayed] } })
+    await act(async () => { await Promise.resolve() })
+    unmount()
+    await act(async () => { resolveRead?.(png.buffer) })
+    expect(onAddBatch).not.toHaveBeenCalled()
   })
 })

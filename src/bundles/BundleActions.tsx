@@ -2,16 +2,18 @@ import { useRef, useState } from 'react'
 import type { ArticleDraft } from '../metadata/article'
 import { validateSlug } from '../metadata/slug'
 import { validateMediaReferences } from '../media/references'
-import { AccessibleDialog } from '../app/AccessibleDialog'
+import { AccessibleDialog, DialogClose } from '../app/AccessibleDialog'
 import { LAST_PORTABLE_EXPORT_KEY } from '../drafts/backup-keys'
 import { exportArticleBundle } from './export-bundle'
 import { importArticleBundle, importLooseArticle } from './import-bundle'
+import { importRecoveryBundle } from './recovery-bundle'
 
 interface BundleActionsProps {
   draft: ArticleDraft
   onReplace: (draft: ArticleDraft) => Promise<void> | void
   onNew: (draft: ArticleDraft) => Promise<void> | void
   onStatus: (message: string) => void
+  disabled?: boolean
 }
 
 function errorMessage(error: unknown): string {
@@ -48,19 +50,22 @@ function exportWarnings(draft: ArticleDraft): string[] {
   return warnings
 }
 
-export function BundleActions({ draft, onReplace, onNew, onStatus }: BundleActionsProps) {
+export function BundleActions({ draft, onReplace, onNew, onStatus, disabled = false }: BundleActionsProps) {
   const [error, setError] = useState<string>()
   const [pendingImport, setPendingImport] = useState<ArticleDraft>()
   const [productionDialog, setProductionDialog] = useState(false)
   const [looseIndex, setLooseIndex] = useState<File>()
   const [looseImages, setLooseImages] = useState<File[]>([])
   const importTrigger = useRef<HTMLInputElement>(null)
+  const recoveryImportTrigger = useRef<HTMLInputElement>(null)
+  const pendingImportTrigger = useRef<HTMLElement | null>(null)
   const productionTrigger = useRef<HTMLButtonElement>(null)
   const slugResult = validateSlug(draft.meta.slug)
   const exportError = !draft.meta.title.trim() ? '标题不能为空' : !slugResult.ok ? slugResult.message : undefined
   const warnings = exportWarnings(draft)
 
   const stageImport = async (work: () => Promise<ArticleDraft>) => {
+    if (disabled) return
     setError(undefined)
     try {
       setPendingImport(await work())
@@ -70,6 +75,7 @@ export function BundleActions({ draft, onReplace, onNew, onStatus }: BundleActio
   }
 
   const exportDraft = async () => {
+    if (disabled) return
     setError(undefined)
     try {
       download(await exportArticleBundle(draft, { production: false, publish: false }), `${draft.meta.slug}-draft.zip`)
@@ -81,6 +87,7 @@ export function BundleActions({ draft, onReplace, onNew, onStatus }: BundleActio
   }
 
   const exportProduction = async (publish: boolean) => {
+    if (disabled) return
     setError(undefined)
     try {
       const explicitlyChosenDraft = { ...draft, meta: { ...draft.meta, draft: !publish } }
@@ -96,19 +103,24 @@ export function BundleActions({ draft, onReplace, onNew, onStatus }: BundleActio
 
   return <section className="bundle-actions" role="group" aria-label="文章包操作">
     <div className="bundle-row">
-      <label className="file-button">导入 ZIP<input ref={importTrigger} aria-label="导入 ZIP" type="file" accept="application/zip,.zip" onChange={(event) => {
+      <label className="file-button">导入 ZIP<input disabled={disabled} ref={importTrigger} aria-label="导入 ZIP" type="file" accept="application/zip,.zip" onChange={(event) => {
         const file = event.target.files?.[0]
         event.currentTarget.value = ''
-        if (file) void stageImport(() => importArticleBundle(file))
+        if (file) { pendingImportTrigger.current = event.currentTarget; void stageImport(() => importArticleBundle(file)) }
       }} /></label>
-      <button type="button" onClick={() => void exportDraft()}>导出草稿</button>
-      <button ref={productionTrigger} type="button" disabled={Boolean(exportError)} aria-describedby={exportError ? 'production-export-error' : undefined} onClick={() => setProductionDialog(true)}>导出文章</button>
+      <label className="file-button">导入紧急恢复 ZIP<input disabled={disabled} ref={recoveryImportTrigger} aria-label="导入紧急恢复 ZIP" type="file" accept="application/zip,.zip" onChange={(event) => {
+        const file = event.target.files?.[0]
+        event.currentTarget.value = ''
+        if (file) { pendingImportTrigger.current = event.currentTarget; void stageImport(() => importRecoveryBundle(file)) }
+      }} /></label>
+      <button type="button" disabled={disabled} onClick={() => void exportDraft()}>导出草稿</button>
+      <button ref={productionTrigger} type="button" disabled={disabled || Boolean(exportError)} aria-describedby={exportError ? 'production-export-error' : undefined} onClick={() => setProductionDialog(true)}>导出文章</button>
     </div>
     {exportError ? <p id="production-export-error" className="field-error">{exportError}</p> : null}
-    <details className="loose-import"><summary>从 index.md 和图片导入</summary><label>index.md<input aria-label="导入 index.md" type="file" accept="text/markdown,.md" onChange={(event) => setLooseIndex(event.target.files?.[0])} /></label><label>图片<input aria-label="导入图片文件" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={(event) => setLooseImages(Array.from(event.target.files ?? []))} /></label><button type="button" disabled={!looseIndex} onClick={() => void stageImport(() => importLooseArticle(looseIndex!, looseImages))}>验证并导入文件</button></details>
+    <details className="loose-import"><summary>从 index.md 和图片导入</summary><label>index.md<input disabled={disabled} aria-label="导入 index.md" type="file" accept="text/markdown,.md" onChange={(event) => setLooseIndex(event.target.files?.[0])} /></label><label>图片<input disabled={disabled} aria-label="导入图片文件" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={(event) => setLooseImages(Array.from(event.target.files ?? []))} /></label><button type="button" disabled={disabled || !looseIndex} onClick={() => void stageImport(() => importLooseArticle(looseIndex!, looseImages))}>验证并导入文件</button></details>
     {error ? <p role="alert" className="field-error">{error}</p> : null}
-    {pendingImport ? <AccessibleDialog title="导入已验证" onClose={() => setPendingImport(undefined)} returnFocus={() => importTrigger.current}><p>ZIP 已完整验证。请选择替换当前文章，或作为一篇新草稿打开。</p><div className="dialog-actions"><button type="button" onClick={() => setPendingImport(undefined)}>取消</button><button type="button" onClick={() => void Promise.resolve(onReplace(pendingImport)).then(() => setPendingImport(undefined))}>替换当前文章</button><button type="button" onClick={() => void Promise.resolve(onNew(pendingImport)).then(() => setPendingImport(undefined))}>作为新草稿打开</button></div></AccessibleDialog> : null}
-    {productionDialog ? <AccessibleDialog title="导出 Hugo 文章包" onClose={() => setProductionDialog(false)} returnFocus={() => productionTrigger.current}>{warnings.length > 0 ? <><p>导出前请确认这些提醒：</p><ul>{warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></> : <p>验证通过，准备下载 Hugo leaf bundle。</p>}<div className="dialog-actions"><button type="button" onClick={() => setProductionDialog(false)}>取消</button><button type="button" onClick={() => void exportProduction(false)}>保留 draft = true</button><button type="button" onClick={() => void exportProduction(true)}>设为 draft = false</button></div></AccessibleDialog> : null}
+    {pendingImport ? <AccessibleDialog title="导入已验证" onClose={() => setPendingImport(undefined)} returnFocus={() => pendingImportTrigger.current}><p>ZIP 已完整验证。请选择替换当前文章，或作为一篇新草稿打开。</p><div className="dialog-actions"><DialogClose>{(close) => <button type="button" disabled={disabled} onClick={close}>取消</button>}</DialogClose><button type="button" disabled={disabled} onClick={() => void Promise.resolve(onReplace(pendingImport)).then(() => setPendingImport(undefined))}>替换当前文章</button><button type="button" disabled={disabled} onClick={() => void Promise.resolve(onNew(pendingImport)).then(() => setPendingImport(undefined))}>作为新草稿打开</button></div></AccessibleDialog> : null}
+    {productionDialog ? <AccessibleDialog title="导出 Hugo 文章包" onClose={() => setProductionDialog(false)} returnFocus={() => productionTrigger.current}>{warnings.length > 0 ? <><p>导出前请确认这些提醒：</p><ul>{warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></> : <p>验证通过，准备下载 Hugo leaf bundle。</p>}<div className="dialog-actions"><DialogClose>{(close) => <button type="button" disabled={disabled} onClick={close}>取消</button>}</DialogClose><button type="button" disabled={disabled} onClick={() => void exportProduction(false)}>保留 draft = true</button><button type="button" disabled={disabled} onClick={() => void exportProduction(true)}>设为 draft = false</button></div></AccessibleDialog> : null}
   </section>
 }
 

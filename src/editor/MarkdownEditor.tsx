@@ -11,6 +11,7 @@ export interface MarkdownEditorHandle {
 interface MarkdownEditorProps {
   value: string
   onChange: (value: string) => void
+  disabled?: boolean
 }
 
 const toolbar: Array<{ label: string; command: Exclude<MarkdownCommand, { type: 'image' }> }> = [
@@ -22,10 +23,11 @@ const toolbar: Array<{ label: string; command: Exclude<MarkdownCommand, { type: 
   { label: '链接', command: { type: 'link' } },
 ]
 
-export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(function MarkdownEditor({ value, onChange }, ref) {
+export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(function MarkdownEditor({ value, onChange, disabled = false }, ref) {
   const editorRef = useRef<ReactCodeMirrorRef>(null)
 
   const applyCommand = (command: MarkdownCommand) => {
+    if (disabled) return
     const view = editorRef.current?.view
     if (!view) return
     const selection = view.state.selection.main
@@ -46,8 +48,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 
   return <section className="markdown-editor" aria-label="Markdown 编辑">
     <div className="editor-toolbar" role="toolbar" aria-label="Markdown 格式">
-      {toolbar.map(({ label, command }) => <button key={label} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => applyCommand(command)}>{label}</button>)}
+      {toolbar.map(({ label, command }) => <button key={label} type="button" disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={() => applyCommand(command)}>{label}</button>)}
     </div>
-    <CodeMirror ref={editorRef} value={value} height="min(65vh, 760px)" extensions={[markdown()]} onChange={onChange} aria-label="Markdown 编辑器" placeholder="从这里开始写 Markdown…" />
+    <CodeMirror ref={editorRef} value={value} height="min(65vh, 760px)" extensions={[markdown()]} editable={!disabled} onChange={onChange} aria-label="Markdown 编辑器" placeholder="从这里开始写 Markdown…" />
   </section>
 })
