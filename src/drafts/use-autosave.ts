@@ -9,9 +9,15 @@ export type SaveStatus =
   | { state: 'failed'; message: string }
 
 const AUTOSAVE_DELAY_MS = 800
+const IDLE_STATUS: SaveStatus = { state: 'idle' }
+
+interface RevisionStatus {
+  draft: ArticleDraft | null
+  status: SaveStatus
+}
 
 export function useAutosave(draft: ArticleDraft | null): SaveStatus {
-  const [status, setStatus] = useState<SaveStatus>({ state: 'idle' })
+  const [revisionStatus, setRevisionStatus] = useState<RevisionStatus>({ draft: null, status: IDLE_STATUS })
   const generation = useRef(0)
 
   useEffect(() => {
@@ -25,19 +31,24 @@ export function useAutosave(draft: ArticleDraft | null): SaveStatus {
     }
 
     const timer = window.setTimeout(() => {
-      setStatus((current) => current.state === 'failed' ? current : { state: 'saving' })
+      setRevisionStatus((current) => current.status.state === 'failed'
+        ? current
+        : { draft, status: { state: 'saving' } })
       void draftRepository.put(draft).then(
         () => {
           if (generation.current === activeGeneration) {
-            setStatus({ state: 'saved', at: new Date().toISOString() })
+            setRevisionStatus({ draft, status: { state: 'saved', at: new Date().toISOString() } })
           }
         },
         (cause: unknown) => {
           const detail = cause instanceof Error ? cause.message : '浏览器本地存储不可用'
           if (generation.current === activeGeneration) {
-            setStatus({
-              state: 'failed',
-              message: `本地草稿保存失败：${detail}。请立即使用紧急导出保存 ZIP 备份。`,
+            setRevisionStatus({
+              draft,
+              status: {
+                state: 'failed',
+                message: `本地草稿保存失败：${detail}。请立即使用紧急导出保存 ZIP 备份。`,
+              },
             })
           }
         },
@@ -50,5 +61,7 @@ export function useAutosave(draft: ArticleDraft | null): SaveStatus {
     }
   }, [draft])
 
-  return status
+  return !draft || revisionStatus.status.state === 'failed' || revisionStatus.draft === draft
+    ? revisionStatus.status
+    : IDLE_STATUS
 }

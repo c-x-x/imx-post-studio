@@ -77,6 +77,20 @@ describe('useAutosave', () => {
     expect(result.current).toEqual(expect.objectContaining({ state: 'saved', at: expect.any(String) }))
   })
 
+  it('does not report a newer revision as saved before its debounce completes', async () => {
+    const { result, rerender } = renderHook(({ current }) => useAutosave(current), {
+      initialProps: { current: draft('saved revision') },
+    })
+
+    await act(async () => vi.advanceTimersByTimeAsync(800))
+    expect(result.current).toEqual(expect.objectContaining({ state: 'saved' }))
+
+    rerender({ current: draft('unsaved revision') })
+    expect(result.current).toEqual({ state: 'idle' })
+    act(() => vi.advanceTimersByTime(799))
+    expect(result.current).toEqual({ state: 'idle' })
+  })
+
   it('retains an actionable failure while a later retry is pending, then marks recovery saved', async () => {
     const retry = deferred<void>()
     put.mockRejectedValueOnce(new Error('Quota exceeded')).mockReturnValueOnce(retry.promise)
