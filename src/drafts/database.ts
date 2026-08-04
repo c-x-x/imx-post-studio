@@ -30,17 +30,24 @@ const DATABASE_VERSION = 1
 let databasePromise: Promise<IDBPDatabase<DraftDatabaseSchema>> | undefined
 
 export function getDraftDatabase(): Promise<IDBPDatabase<DraftDatabaseSchema>> {
-  databasePromise ??= openDB<DraftDatabaseSchema>(DATABASE_NAME, DATABASE_VERSION, {
-    upgrade(database, _oldVersion, _newVersion, transaction) {
-      const drafts = database.objectStoreNames.contains('drafts')
-        ? transaction.objectStore('drafts')
-        : database.createObjectStore('drafts', { keyPath: 'id' })
+  if (!databasePromise) {
+    const opening = openDB<DraftDatabaseSchema>(DATABASE_NAME, DATABASE_VERSION, {
+      upgrade(database, _oldVersion, _newVersion, transaction) {
+        const drafts = database.objectStoreNames.contains('drafts')
+          ? transaction.objectStore('drafts')
+          : database.createObjectStore('drafts', { keyPath: 'id' })
 
-      if (!drafts.indexNames.contains('updatedAt')) {
-        drafts.createIndex('updatedAt', 'updatedAt')
-      }
-    },
-  })
+        if (!drafts.indexNames.contains('updatedAt')) {
+          drafts.createIndex('updatedAt', 'updatedAt')
+        }
+      },
+    })
+    const retryable = opening.catch((cause) => {
+      if (databasePromise === retryable) databasePromise = undefined
+      throw cause
+    })
+    databasePromise = retryable
+  }
 
   return databasePromise
 }

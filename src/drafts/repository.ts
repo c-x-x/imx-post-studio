@@ -1,5 +1,9 @@
-import type { ArticleDraft, MediaAsset } from '../metadata/article'
+import type { ArticleDraft, MediaAsset, MediaKind, MediaMime } from '../metadata/article'
+import { assertSafeImageName } from '../bundles/media-validation'
 import { getDraftDatabase, type StoredArticleDraft, type StoredMediaAsset } from './database'
+
+const MEDIA_MIMES = new Set<MediaMime>(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+const MEDIA_KINDS = new Set<MediaKind>(['cover', 'body'])
 
 interface MediaSnapshot extends Omit<MediaAsset, 'blob'> {
   blob: Blob
@@ -8,6 +12,88 @@ interface MediaSnapshot extends Omit<MediaAsset, 'blob'> {
 
 interface DraftSnapshot extends Omit<ArticleDraft, 'media'> {
   media: MediaSnapshot[]
+}
+
+type UnknownRecord = Record<string, unknown>
+
+function corruptDraft(message: string): Error {
+  return new Error(`草稿记录损坏：${message}`)
+}
+
+function isRecord(value: unknown): value is UnknownRecord {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string')
+}
+
+function isDimension(value: unknown): value is number | undefined {
+  return value === undefined || (typeof value === 'number' && Number.isSafeInteger(value) && value > 0)
+}
+
+function isArrayBuffer(value: unknown): value is ArrayBuffer {
+  return Object.prototype.toString.call(value) === '[object ArrayBuffer]'
+}
+
+function isLegacyBlob(value: unknown): value is Blob {
+  return isRecord(value)
+    && Object.prototype.toString.call(value) === '[object Blob]'
+    && typeof value.arrayBuffer === 'function'
+    && typeof value.type === 'string'
+    && typeof value.size === 'number'
+}
+
+function assertStoredMeta(value: unknown): void {
+  if (!isRecord(value)
+    || typeof value.title !== 'string' || typeof value.slug !== 'string' || typeof value.date !== 'string'
+    || typeof value.draft !== 'boolean' || !isStringArray(value.categories) || !isStringArray(value.tags)
+    || typeof value.description !== 'string' || typeof value.toc !== 'boolean') {
+    throw corruptDraft('元数据格式无效')
+  }
+}
+
+function assertStoredMedia(asset: unknown, ids: Set<string>, names: Set<string>): asserts asset is StoredMediaAsset {
+  if (!isRecord(asset) || typeof asset.id !== 'string' || !asset.id.trim()) {
+    const name = isRecord(asset) && typeof asset.name === 'string' ? asset.name : '未知图片'
+    throw corruptDraft(`媒体标识无效：${name}`)
+  }
+  if (typeof asset.name !== 'string') throw corruptDraft('媒体名称无效：未知图片')
+  try {
+    if (assertSafeImageName(asset.name) !== asset.mime) throw new Error('MIME mismatch')
+  } catch {
+    throw corruptDraft(`媒体名称无效：${asset.name}`)
+  }
+  if (typeof asset.mime !== 'string' || !MEDIA_MIMES.has(asset.mime as MediaMime)
+    || typeof asset.kind !== 'string' || !MEDIA_KINDS.has(asset.kind as MediaKind)
+    || !isDimension(asset.width) || !isDimension(asset.height)) {
+    throw corruptDraft(`媒体格式无效：${asset.name}`)
+  }
+  if ((asset.kind === 'cover') !== (asset.name === 'cover.webp')) {
+    throw corruptDraft(`封面媒体标识无效：${asset.name}`)
+  }
+  if (ids.has(asset.id) || names.has(asset.name)) throw corruptDraft(`媒体标识或名称重复：${asset.name}`)
+  ids.add(asset.id)
+  names.add(asset.name)
+
+  const blobType = isLegacyBlob(asset.blob) ? asset.blob.type : asset.blobType
+  if (typeof blobType !== 'string' || blobType !== asset.mime) {
+    throw corruptDraft(`媒体 MIME 与 blobType 不一致：${asset.name}`)
+  }
+  if (isLegacyBlob(asset.blob)) return
+  if (!isArrayBuffer(asset.blob)) throw corruptDraft(`媒体二进制不是 ArrayBuffer：${asset.name}`)
+}
+
+function assertStoredDraft(value: unknown): asserts value is StoredArticleDraft {
+  if (!isRecord(value) || typeof value.id !== 'string' || !value.id.trim()
+    || typeof value.createdAt !== 'string' || !value.createdAt || typeof value.updatedAt !== 'string' || !value.updatedAt
+    || typeof value.body !== 'string' || !Array.isArray(value.media)) {
+    throw corruptDraft('草稿结构无效')
+  }
+  assertStoredMeta(value.meta)
+  const ids = new Set<string>()
+  const names = new Set<string>()
+  for (const asset of value.media) assertStoredMedia(asset, ids, names)
 }
 
 function snapshotDraft(draft: ArticleDraft): DraftSnapshot {
@@ -27,19 +113,15 @@ function snapshotDraft(draft: ArticleDraft): DraftSnapshot {
 
 async function serializeDraft(draft: ArticleDraft): Promise<StoredArticleDraft> {
   const snapshot = snapshotDraft(draft)
-  return {
+  const stored: StoredArticleDraft = {
     ...snapshot,
     media: await Promise.all(snapshot.media.map(async (asset) => ({
       ...asset,
       blob: await asset.blob.arrayBuffer(),
     }))),
   }
-}
-
-function isLegacyBlob(value: ArrayBuffer | Blob): value is Blob {
-  // IndexedDB and tests can cross realms, where `instanceof Blob` is not
-  // reliable even though the historical record still exposes Blob's API.
-  return typeof (value as Blob).arrayBuffer === 'function'
+  assertStoredDraft(stored)
+  return stored
 }
 
 async function hydrateAsset(asset: StoredMediaAsset): Promise<MediaAsset> {
@@ -58,6 +140,7 @@ async function hydrateAsset(asset: StoredMediaAsset): Promise<MediaAsset> {
 }
 
 async function hydrateDraft(draft: StoredArticleDraft): Promise<ArticleDraft> {
+  assertStoredDraft(draft)
   return {
     ...draft,
     meta: {
@@ -149,6 +232,7 @@ export const draftRepository = {
       const transaction = database.transaction('drafts', 'readwrite')
       const source = await transaction.store.get(id)
       if (!source) throw new Error('草稿不存在，无法重命名')
+      assertStoredDraft(source)
 
       const renamed: StoredArticleDraft = {
         ...source,
@@ -156,6 +240,7 @@ export const draftRepository = {
         meta: { ...source.meta, title: nextTitle },
         media: source.media.map((asset) => ({ ...asset })),
       }
+      assertStoredDraft(renamed)
       await transaction.store.put(renamed)
       await transaction.done
       return hydrateDraft(renamed)

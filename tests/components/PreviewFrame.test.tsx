@@ -23,13 +23,14 @@ describe('PreviewFrame', () => {
     expect(iframe).toHaveAttribute('referrerpolicy', 'no-referrer')
     expect(iframe.getAttribute('srcdoc')).toContain('&lt;title&gt;')
     expect(iframe.getAttribute('srcdoc')).not.toMatch(/<script/i)
+    expect(screen.getByLabelText('预览画布，可水平滚动')).toHaveAttribute('tabindex', '0')
     expect(desktop).toHaveAttribute('aria-pressed', 'true')
-    expect(iframe.parentElement).toHaveStyle({ width: '100%' })
+    expect(iframe).toHaveStyle({ width: '1180px' })
 
     fireEvent.click(mobile)
     expect(mobile).toHaveAttribute('aria-pressed', 'true')
     expect(desktop).toHaveAttribute('aria-pressed', 'false')
-    expect(iframe.parentElement).toHaveStyle({ width: '390px' })
+    expect(iframe).toHaveStyle({ width: '390px' })
   })
 
   it('uses the vendored TOC nav contract with an always reachable script-free sidebar', () => {
@@ -40,6 +41,7 @@ describe('PreviewFrame', () => {
     })
 
     expect(document).toContain('class="preview-symbols" style="display:none"')
+    expect(document).toContain(':root[data-theme="light"] .article-page { --article-ink-muted: #746c62; }')
     expect(document).toContain('<aside class="sidebar active" id="article-toc" aria-label="文章目录">')
     expect(document).toContain('<div class="toc"><h3 class="toc-title">目录</h3><nav aria-label="文章目录"><ul>')
   })

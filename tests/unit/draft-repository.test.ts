@@ -82,19 +82,39 @@ describe('draftRepository', () => {
     expect((await draftRepository.get('draft-1'))?.body).toBe('Replacement body')
   })
 
-  it('preserves the source Blob type even when media metadata has a different MIME', async () => {
-    await draftRepository.put(draft({
+  it('rejects a Blob whose MIME conflicts with media metadata before it reaches IndexedDB', async () => {
+    await expect(draftRepository.put(draft({
       id: 'blob-type-is-source-of-truth',
       media: [{
         id: 'mismatched-type',
         name: 'diagram.png',
         kind: 'body',
-        mime: 'image/jpeg',
-        blob: new NativeBlob([imageBytes], { type: 'image/png' }),
+        mime: 'image/png',
+        blob: new NativeBlob([imageBytes], { type: 'image/jpeg' }),
       }],
-    }))
+    }))).rejects.toThrow('保存草稿失败：草稿记录损坏：媒体 MIME 与 blobType 不一致：diagram.png')
+  })
 
-    expect((await draftRepository.get('blob-type-is-source-of-truth'))?.media[0].blob.type).toBe('image/png')
+  it.each([
+    ['non-ArrayBuffer bytes', {
+      id: 'corrupt-bytes', name: 'diagram.png', kind: 'body', mime: 'image/png', blobType: 'image/png', blob: new Uint8Array(imageBytes),
+    }, '媒体二进制不是 ArrayBuffer：diagram.png'],
+    ['mismatched record MIME', {
+      id: 'corrupt-mime', name: 'diagram.png', kind: 'body', mime: 'image/png', blobType: 'image/jpeg', blob: imageBytes.buffer.slice(0),
+    }, '媒体 MIME 与 blobType 不一致：diagram.png'],
+    ['unsafe media name', {
+      id: 'corrupt-name', name: '../escape.png', kind: 'body', mime: 'image/png', blobType: 'image/png', blob: imageBytes.buffer.slice(0),
+    }, '媒体名称无效：../escape.png'],
+    ['empty media ID', {
+      id: '', name: 'diagram.png', kind: 'body', mime: 'image/png', blobType: 'image/png', blob: imageBytes.buffer.slice(0),
+    }, '媒体标识无效：diagram.png'],
+  ])('rejects a corrupt %s persisted record with an actionable error', async (_label, media, message) => {
+    const database = await getDraftDatabase()
+    const id = `corrupt-${media.id || 'id'}`
+    await database.put('drafts', { ...draft({ id }), media: [media] } as never)
+
+    await expect(draftRepository.get(id)).rejects.toThrow(`读取草稿失败：草稿记录损坏：${message}`)
+    await database.delete('drafts', id)
   })
 
   it('persists media as byte buffers and hydrates legacy Blob records', async () => {

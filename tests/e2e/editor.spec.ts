@@ -7,6 +7,8 @@ import { pngFile } from '../helpers/test-images'
 
 const ARTICLE_TITLE = '浏览器中的 IMX 图片工作流'
 const ARTICLE_SLUG = 'imx-browser-workflow'
+const ARTICLE_DATE = '2026-08-04T09:45:00+08:00'
+const ARTICLE_DESCRIPTION = '浏览器端 IMX 文章编辑与 Hugo 文章包测试。'
 const ARTICLE_BODY = [
   '## 文章目录',
   '',
@@ -36,7 +38,8 @@ async function beginArticle(page: Page): Promise<void> {
 async function fillMetadata(page: Page): Promise<void> {
   await page.getByLabel('标题').fill(ARTICLE_TITLE)
   await page.getByLabel('Slug').fill(ARTICLE_SLUG)
-  await page.getByLabel('摘要').fill('浏览器端 IMX 文章编辑与 Hugo 文章包测试。')
+  await page.getByLabel('发布日期').fill(ARTICLE_DATE)
+  await page.getByLabel('摘要').fill(ARTICLE_DESCRIPTION)
   await page.getByLabel('分类', { exact: true }).fill('测试')
   await page.getByLabel('分类', { exact: true }).press('Enter')
   await page.getByLabel('标签', { exact: true }).fill('IMX')
@@ -63,19 +66,77 @@ function sha256(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex')
 }
 
-async function imageDimensions(page: Page, bytes: Uint8Array): Promise<{ width: number; height: number; type: string }> {
+async function imageDimensions(page: Page, bytes: Uint8Array): Promise<{ width: number; height: number }> {
   return page.evaluate(async ({ imageBytes }) => {
-    const blob = new Blob([new Uint8Array(imageBytes)], { type: 'image/webp' })
+    const blob = new Blob([new Uint8Array(imageBytes)])
     const bitmap = await createImageBitmap(blob)
     try {
-      return { width: bitmap.width, height: bitmap.height, type: blob.type }
+      return { width: bitmap.width, height: bitmap.height }
     } finally {
       bitmap.close()
     }
   }, { imageBytes: Array.from(bytes) })
 }
 
-test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle', async ({ page, browserName }) => {
+function isWebp(bytes: Uint8Array): boolean {
+  return bytes.length >= 12
+    && new TextDecoder().decode(bytes.slice(0, 4)) === 'RIFF'
+    && new TextDecoder().decode(bytes.slice(8, 12)) === 'WEBP'
+}
+
+async function mediaNames(page: Page): Promise<string[]> {
+  return page.getByLabel('已添加图片').getByRole('listitem').evaluateAll((items) => items
+    .map((item) => item.getAttribute('aria-label') ?? '')
+    .sort())
+}
+
+async function assertEditorState(page: Page, expected: {
+  draft: boolean
+  body: string
+}): Promise<void> {
+  await expect(page.getByLabel('标题')).toHaveValue(ARTICLE_TITLE)
+  await expect(page.getByLabel('Slug')).toHaveValue(ARTICLE_SLUG)
+  await expect(page.getByLabel('发布日期')).toHaveValue(ARTICLE_DATE)
+  await expect(page.getByLabel('摘要')).toHaveValue(ARTICLE_DESCRIPTION)
+  expect(await page.locator('[aria-label="分类列表"] .chip').evaluateAll((items) => items.map((item) => item.firstChild?.textContent))).toEqual(['测试'])
+  expect(await page.locator('[aria-label="标签列表"] .chip').evaluateAll((items) => items.map((item) => item.firstChild?.textContent))).toEqual(['IMX'])
+  await expect(page.getByLabel('草稿')).toBeChecked({ checked: expected.draft })
+  await expect(page.getByLabel('显示目录')).toBeChecked()
+  expect(await page.getByRole('textbox', { name: 'Markdown 编辑器' }).evaluate((editor) => editor.textContent)).toBe(expected.body)
+  expect(await mediaNames(page)).toEqual(['cover.webp', 'workflow.png'])
+}
+
+async function scanPreviewDomWithAxe(page: Page) {
+  const iframe = page.getByTitle('IMX 文章预览')
+  const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
+  const srcDoc = await iframe.getAttribute('srcdoc')
+  if (!srcDoc) throw new Error('预览 iframe 缺少 srcDoc')
+
+  // This is static preview-DOM evidence only. Production keeps the exact
+  // script-free sandbox; the harness briefly reloads the identical srcDoc with
+  // scripts permitted so Axe can inspect it, then restores the original DOM.
+  await expect(iframe).toHaveAttribute('sandbox', 'allow-same-origin')
+  await expect(iframe).not.toHaveAttribute('sandbox', /allow-scripts/)
+  await expect(preview.locator('script')).toHaveCount(0)
+  await iframe.evaluate((element, documentHtml) => {
+    element.setAttribute('sandbox', 'allow-same-origin allow-scripts')
+    ;(element as HTMLIFrameElement).srcdoc = documentHtml
+  }, srcDoc)
+
+  try {
+    await expect(preview.locator('body')).toBeVisible()
+    return await new AxeBuilder({ page }).analyze()
+  } finally {
+    await iframe.evaluate((element, documentHtml) => {
+      element.setAttribute('sandbox', 'allow-same-origin')
+      ;(element as HTMLIFrameElement).srcdoc = documentHtml
+    }, srcDoc)
+    await expect(iframe).toHaveAttribute('sandbox', 'allow-same-origin')
+    await expect(preview.locator('script')).toHaveCount(0)
+  }
+}
+
+test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle', async ({ page }) => {
   await beginArticle(page)
   await fillMetadata(page)
 
@@ -91,6 +152,8 @@ test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle
   const imageItem = page.getByRole('listitem', { name: 'workflow.png' })
   await expect(imageItem).toBeVisible()
   await imageItem.getByRole('button', { name: '插入' }).click()
+  const expectedBody = await editor.evaluate((element) => element.textContent ?? '')
+  expect(expectedBody).toContain('![workflow](images/workflow.png)')
 
   const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
   await expect(preview.locator('h1.article-title')).toHaveText(ARTICLE_TITLE)
@@ -106,9 +169,11 @@ test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle
   await expect(page.getByRole('region', { name: '草稿库' })).toBeVisible()
   await expect(page.getByRole('heading', { name: ARTICLE_TITLE })).toBeVisible()
   await page.getByRole('button', { name: '打开' }).click()
-  await expect(page.getByLabel('标题')).toHaveValue(ARTICLE_TITLE)
-  await expect(page.getByLabel('Slug')).toHaveValue(ARTICLE_SLUG)
-  await expect(page.getByRole('textbox', { name: 'Markdown 编辑器' })).toContainText('const answer = 42')
+  await assertEditorState(page, { draft: true, body: expectedBody })
+
+  const reloadDownload = page.waitForEvent('download')
+  await page.getByRole('button', { name: '导出草稿' }).click()
+  const reloadZip = await readZip(await reloadDownload)
 
   const productionDownload = page.waitForEvent('download')
   await page.getByRole('button', { name: '导出文章' }).click()
@@ -121,13 +186,13 @@ test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle
   expect(index).toContain('![workflow](images/workflow.png)')
   expect(cover).toBeDefined()
   expect(bodyImage).toBeDefined()
-  if (browserName === 'chromium') {
-    const dimensions = await imageDimensions(page, cover!)
-    expect(dimensions.type).toBe('image/webp')
-    expect(dimensions.width).toBeLessThanOrEqual(1600)
-    expect(dimensions.height).toBeLessThanOrEqual(900)
-    expect(dimensions.width / dimensions.height).toBe(16 / 9)
-  }
+  expect(isWebp(cover!)).toBe(true)
+  const dimensions = await imageDimensions(page, cover!)
+  expect(dimensions.width).toBeLessThanOrEqual(1600)
+  expect(dimensions.height).toBeLessThanOrEqual(900)
+  expect(dimensions.width / dimensions.height).toBe(16 / 9)
+  expect(sha256(reloadZip.entries.get(`${ARTICLE_SLUG}/images/cover.webp`)!)).toBe(sha256(cover!))
+  expect(sha256(reloadZip.entries.get(`${ARTICLE_SLUG}/images/workflow.png`)!)).toBe(sha256(bodyImage!))
 
   await page.getByRole('button', { name: '新建文章' }).click()
   await expect(page.getByLabel('标题')).toHaveValue('')
@@ -138,13 +203,16 @@ test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle
   })
   await expect(page.getByRole('dialog', { name: '导入已验证' })).toBeVisible()
   await page.getByRole('button', { name: '作为新草稿打开' }).click()
-  await expect(page.getByLabel('标题')).toHaveValue(ARTICLE_TITLE)
-  await expect(page.getByRole('textbox', { name: 'Markdown 编辑器' })).toContainText('![workflow](images/workflow.png)')
-  await expect(page.getByLabel('已添加图片')).toContainText('workflow.png')
+  await assertEditorState(page, { draft: false, body: expectedBody })
 
   const roundTripDownload = page.waitForEvent('download')
   await page.getByRole('button', { name: '导出草稿' }).click()
   const roundTripZip = await readZip(await roundTripDownload)
+  expect([...roundTripZip.entries.keys()].sort()).toEqual([
+    `${ARTICLE_SLUG}/images/cover.webp`,
+    `${ARTICLE_SLUG}/images/workflow.png`,
+    `${ARTICLE_SLUG}/index.md`,
+  ])
   expect(sha256(roundTripZip.entries.get(`${ARTICLE_SLUG}/images/cover.webp`)!)).toBe(sha256(cover!))
   expect(sha256(roundTripZip.entries.get(`${ARTICLE_SLUG}/images/workflow.png`)!)).toBe(sha256(bodyImage!))
 })
@@ -158,9 +226,7 @@ test('has no serious or critical axe violations on the dashboard and workspace',
   await expect(page.getByRole('button', { name: '新建文章' })).toBeFocused()
   await page.keyboard.press('Enter')
   await fillMetadata(page)
-  // The preview deliberately has no script permission, so axe cannot inject into
-  // that sandbox. The workspace scan covers every authoring control around it.
-  const workspaceResults = await new AxeBuilder({ page }).exclude('iframe').analyze()
+  const workspaceResults = await scanPreviewDomWithAxe(page)
   expect(workspaceResults.violations.filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')).toEqual([])
 })
 
@@ -183,11 +249,15 @@ test('keeps all responsive workspace tabs mounted without horizontal overflow', 
   await expect(page.getByRole('tablist', { name: '工作区视图' })).toBeVisible()
   await expect(page.getByRole('tab')).toHaveCount(3)
   await expect(page.locator('[role="tabpanel"]')).toHaveCount(3)
-  expect(await page.locator('html').evaluate((element) => element.scrollWidth <= window.innerWidth)).toBe(true)
+  const expectNoHorizontalOverflow = () => expect(page.locator('html').evaluate((element) => element.scrollWidth <= window.innerWidth)).resolves.toBe(true)
+  await expectNoHorizontalOverflow()
   await page.getByRole('tab', { name: '写作' }).click()
   await expect(page.getByRole('textbox', { name: 'Markdown 编辑器' })).toBeVisible()
+  await expectNoHorizontalOverflow()
   await page.getByRole('tab', { name: '预览' }).click()
   await expect(page.getByTitle('IMX 文章预览')).toBeVisible()
+  await expectNoHorizontalOverflow()
   await page.getByRole('tab', { name: '设置' }).click()
   await expect(page.getByLabel('标题')).toHaveValue(ARTICLE_TITLE)
+  await expectNoHorizontalOverflow()
 })
