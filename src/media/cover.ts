@@ -29,8 +29,10 @@ function normalizedCrop(bitmap: ImageBitmap, crop: NormalizedCrop) {
 
   const x = clamp(crop.x)
   const y = clamp(crop.y)
-  let width = Math.min(clamp(crop.width), 1 - x) * bitmap.width
-  let height = Math.min(clamp(crop.height), 1 - y) * bitmap.height
+  const xPixels = x * bitmap.width
+  const yPixels = y * bitmap.height
+  let width = Math.min(clamp(crop.width) * bitmap.width, bitmap.width - xPixels)
+  let height = Math.min(clamp(crop.height) * bitmap.height, bitmap.height - yPixels)
 
   if (width <= 0 || height <= 0) {
     throw new Error('封面裁剪区域无效，请重新调整裁剪框')
@@ -50,28 +52,37 @@ function normalizedCrop(bitmap: ImageBitmap, crop: NormalizedCrop) {
   }
 
   return {
-    x: x * bitmap.width + offsetX,
-    y: y * bitmap.height + offsetY,
+    x: xPixels + offsetX,
+    y: yPixels + offsetY,
     width,
     height,
   }
 }
 
 function coverDimensions(crop: { width: number; height: number }) {
-  const scale = Math.min(1, MAX_COVER_WIDTH / crop.width, MAX_COVER_HEIGHT / crop.height)
+  const multiple = Math.min(
+    Math.floor(crop.width / 16),
+    Math.floor(crop.height / 9),
+    Math.floor(MAX_COVER_WIDTH / 16),
+    Math.floor(MAX_COVER_HEIGHT / 9),
+  )
+  if (multiple < 1) {
+    throw new Error('封面裁剪区域过小，至少需要 16×9 像素，请重新调整裁剪框')
+  }
+
   return {
-    width: Math.max(1, Math.round(crop.width * scale)),
-    height: Math.max(1, Math.round(crop.height * scale)),
+    width: multiple * 16,
+    height: multiple * 9,
   }
 }
 
 function encodeWebp(canvas: HTMLCanvasElement): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
-      if (blob) {
+      if (blob?.type === 'image/webp' && blob.size > 0) {
         resolve(blob)
       } else {
-        reject(new Error('浏览器未能生成封面文件'))
+        reject(new Error('封面转换失败：浏览器未生成有效 WebP 文件，请使用兼容浏览器或更换图片后重试'))
       }
     }, 'image/webp', 0.82)
   })

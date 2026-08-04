@@ -14,12 +14,11 @@ export class ObjectUrlRegistry {
       return current.url
     }
 
+    const url = URL.createObjectURL(asset.blob)
+    this.urls.set(asset.id, { blob: asset.blob, url })
     if (current) {
       URL.revokeObjectURL(current.url)
     }
-
-    const url = URL.createObjectURL(asset.blob)
-    this.urls.set(asset.id, { blob: asset.blob, url })
     return url
   }
 

@@ -14,4 +14,8 @@ describe('safe media names', () => {
   it('adds the next numeric suffix before an extension that is already in use', () => {
     expect(uniqueMediaName('image.png', new Set(['image.png']))).toBe('image-2.png')
   })
+
+  it('keeps escalating collision suffixes until it finds an available name', () => {
+    expect(uniqueMediaName('image.png', new Set(['image.png', 'image-2.png', 'image-3.png']))).toBe('image-4.png')
+  })
 })
