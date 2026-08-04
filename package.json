@@ -16,7 +16,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "sync:imx": "node scripts/sync-imx-theme.mjs",
-    "check:theme": "node scripts/verify-theme-manifest.mjs"
+    "check:theme": "node scripts/verify-theme-manifest.mjs",
+    "verify:bundle": "tsx scripts/export-verification-bundle.ts"
   },
   "keywords": [],
   "author": "",
