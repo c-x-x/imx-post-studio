@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import type { ArticleDraft } from '../metadata/article'
 import { validateSlug } from '../metadata/slug'
 import { validateMediaReferences } from '../media/references'
-import { AccessibleDialog, DialogClose } from '../app/AccessibleDialog'
+import { AccessibleDialog, DialogClose, type DialogCloseOptions } from '../app/AccessibleDialog'
 import { LAST_PORTABLE_EXPORT_KEY } from '../drafts/backup-keys'
 import { exportArticleBundle } from './export-bundle'
 import { importArticleBundle, importLooseArticle } from './import-bundle'
@@ -13,6 +13,7 @@ interface BundleActionsProps {
   onReplace: (draft: ArticleDraft) => Promise<boolean | void> | boolean | void
   onNew: (draft: ArticleDraft) => Promise<boolean | void> | boolean | void
   onStatus: (message: string) => void
+  onImportFocusRequest?: (target: () => HTMLElement | null) => void
   disabled?: boolean
 }
 
@@ -50,7 +51,7 @@ function exportWarnings(draft: ArticleDraft): string[] {
   return warnings
 }
 
-export function BundleActions({ draft, onReplace, onNew, onStatus, disabled = false }: BundleActionsProps) {
+export function BundleActions({ draft, onReplace, onNew, onStatus, onImportFocusRequest, disabled = false }: BundleActionsProps) {
   const [error, setError] = useState<string>()
   const [pendingImport, setPendingImport] = useState<ArticleDraft>()
   const [productionDialog, setProductionDialog] = useState(false)
@@ -101,11 +102,14 @@ export function BundleActions({ draft, onReplace, onNew, onStatus, disabled = fa
     }
   }
 
-  const completeImport = async (operation: (draft: ArticleDraft) => Promise<boolean | void> | boolean | void, close: () => void) => {
+  const completeImport = async (operation: (draft: ArticleDraft) => Promise<boolean | void> | boolean | void, close: (options?: DialogCloseOptions) => void) => {
     if (disabled || !pendingImport) return
     setError(undefined)
     try {
-      if (await operation(pendingImport) !== false) close()
+      if (await operation(pendingImport) !== false) {
+        onImportFocusRequest?.(() => pendingImportTrigger.current)
+        close({ restoreFocus: !onImportFocusRequest })
+      }
     } catch (cause) {
       setError(errorMessage(cause))
     }

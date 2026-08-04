@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { put, list } = vi.hoisted(() => ({ put: vi.fn(), list: vi.fn() }))
@@ -9,6 +9,8 @@ vi.mock('../../src/drafts/repository', () => ({
 }))
 
 import { App } from '../../src/app/App'
+import { exportRecoveryBundle } from '../../src/bundles/recovery-bundle'
+import { createArticleDraft } from '../../src/metadata/article'
 
 async function startWorkspace() {
   fireEvent.click(screen.getByRole('button', { name: '新建文章' }))
@@ -138,5 +140,27 @@ describe('workspace transitions', () => {
     fireEvent.click(screen.getByRole('button', { name: '放弃未保存更改' }))
     expect(screen.getByRole('region', { name: '文章工作区' })).toBeInTheDocument()
     await act(async () => { resolveRead?.(png.buffer) })
+  })
+
+  it.each(['替换当前文章', '作为新草稿打开'])('restores focus to the enabled recovery import control after a delayed %s transition', async (choice) => {
+    vi.useRealTimers()
+    render(<App />)
+    await startWorkspace()
+    const trigger = screen.getByLabelText('导入紧急恢复 ZIP')
+    const recovery = new File([await exportRecoveryBundle(createArticleDraft())], 'recovery.zip', { type: 'application/zip' })
+    fireEvent.change(trigger, { target: { files: [recovery] } })
+    await screen.findByRole('dialog', { name: '导入已验证' })
+
+    let resolvePut: (() => void) | undefined
+    put.mockImplementation(() => new Promise<void>((resolve) => { resolvePut = resolve }))
+    fireEvent.click(screen.getByRole('button', { name: choice }))
+    expect(trigger).toBeDisabled()
+    await act(async () => { resolvePut?.() })
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: '导入已验证' })).not.toBeInTheDocument()
+      expect(trigger).toBeEnabled()
+      expect(trigger).toHaveFocus()
+    })
   })
 })

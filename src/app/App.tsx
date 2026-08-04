@@ -60,6 +60,7 @@ export function App() {
   const [failedTransition, setFailedTransition] = useState<FailedTransition>()
   const [transitioning, setTransitioning] = useState(false)
   const [intakeBusy, setIntakeBusy] = useState(false)
+  const [importFocusVersion, setImportFocusVersion] = useState(0)
   const transitionInFlight = useRef(false)
   const transitionDecisionInFlight = useRef(false)
   const transitionId = useRef(0)
@@ -67,12 +68,24 @@ export function App() {
   const draftRef = useRef(draft)
   const intakeBusyRef = useRef(false)
   const failedTransitionRef = useRef<FailedTransition | undefined>(undefined)
+  const importFocusTarget = useRef<(() => HTMLElement | null) | undefined>(undefined)
   const editorRef = useRef<MarkdownEditorHandle>(null)
   const urls = useRef(new ObjectUrlRegistry())
   const previousMedia = useRef<MediaAsset[]>([])
   const saveStatus = useAutosave(view === 'workspace' ? draft : null)
 
   useLayoutEffect(() => { draftRef.current = draft }, [draft])
+  useLayoutEffect(() => {
+    if (!importFocusTarget.current || transitioning || intakeBusy) return
+    const target = importFocusTarget.current()
+    if (!target || !target.isConnected) {
+      importFocusTarget.current = undefined
+      return
+    }
+    if (target.matches(':disabled')) return
+    target.focus()
+    importFocusTarget.current = undefined
+  }, [importFocusVersion, transitioning, intakeBusy])
   useEffect(() => () => urls.current.dispose(), [])
   useEffect(() => {
     const currentById = new Map(draft.media.map((asset) => [asset.id, asset]))
@@ -237,7 +250,7 @@ export function App() {
         {([['settings', '设置'], ['write', '写作'], ['preview', '预览']] as const).map(([id, label]) => <button key={id} id={`tab-${id}`} type="button" disabled={workspaceLocked} role="tab" aria-selected={tab === id} aria-controls={`panel-${id}`} onClick={() => setTab(id)}>{label}</button>)}
       </nav>
       <div className="workspace-grid" data-tab={tab}>
-        <aside id="panel-settings" className="workspace-panel workspace-inspector" role="tabpanel" aria-labelledby="tab-settings"><MetadataPanel disabled={workspaceLocked} meta={draft.meta} onChange={(field, value) => dispatchDraft({ type: 'set-meta', field, value })} /><MediaPanel draftId={draft.id} disabled={transitioning} media={draft.media} body={draft.body} onAddBatch={(assets) => dispatchDraft({ type: 'add-media-batch', assets })} onReplaceCover={(asset) => dispatchDraft({ type: 'replace-cover', asset })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onInsertImage={(asset) => editorRef.current?.insertImage(asset.name, assetAlt(asset))} onIntakeBusyChange={(busy) => { intakeBusyRef.current = busy; setIntakeBusy(busy) }} /><BundleActions disabled={workspaceLocked} draft={draft} onReplace={replaceImportedDraft} onNew={openImportedAsNew} onStatus={setNotice} /></aside>
+        <aside id="panel-settings" className="workspace-panel workspace-inspector" role="tabpanel" aria-labelledby="tab-settings"><MetadataPanel disabled={workspaceLocked} meta={draft.meta} onChange={(field, value) => dispatchDraft({ type: 'set-meta', field, value })} /><MediaPanel draftId={draft.id} disabled={transitioning} media={draft.media} body={draft.body} onAddBatch={(assets) => dispatchDraft({ type: 'add-media-batch', assets })} onReplaceCover={(asset) => dispatchDraft({ type: 'replace-cover', asset })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onInsertImage={(asset) => editorRef.current?.insertImage(asset.name, assetAlt(asset))} onIntakeBusyChange={(busy) => { intakeBusyRef.current = busy; setIntakeBusy(busy) }} /><BundleActions disabled={workspaceLocked} draft={draft} onReplace={replaceImportedDraft} onNew={openImportedAsNew} onStatus={setNotice} onImportFocusRequest={(target) => { importFocusTarget.current = target; setImportFocusVersion((current) => current + 1) }} /></aside>
         <section id="panel-write" className="workspace-panel workspace-editor" role="tabpanel" aria-labelledby="tab-write"><h2 className="visually-hidden">写作</h2><MarkdownEditor disabled={workspaceLocked} ref={editorRef} value={draft.body} onChange={(body) => dispatchDraft({ type: 'set-body', body })} /></section>
         <section id="panel-preview" className="workspace-panel workspace-preview" role="tabpanel" aria-labelledby="tab-preview"><PreviewFrame meta={draft.meta} rendered={rendered} css={previewCss} /></section>
       </div>

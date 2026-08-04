@@ -9,10 +9,16 @@ interface AccessibleDialogProps {
   closeOnEscape?: boolean
 }
 
-const DialogCloseContext = createContext<(() => void) | undefined>(undefined)
+export interface DialogCloseOptions {
+  restoreFocus?: boolean
+}
+
+type DialogCloseHandler = (options?: unknown) => void
+
+const DialogCloseContext = createContext<DialogCloseHandler | undefined>(undefined)
 
 /** Use this for in-dialog Cancel controls so pointer and Escape closes share focus restoration. */
-export function DialogClose({ children }: { children: (close: () => void) => ReactNode }) {
+export function DialogClose({ children }: { children: (close: DialogCloseHandler) => ReactNode }) {
   const close = useContext(DialogCloseContext)
   if (!close) throw new Error('DialogClose 必须在 AccessibleDialog 中使用')
   return <>{children(close)}</>
@@ -28,10 +34,10 @@ export function AccessibleDialog({ title, children, onClose, returnFocus, classN
   const dialogRef = useRef<HTMLElement>(null)
   const titleId = useId()
 
-  const close = () => {
+  const close: DialogCloseHandler = (options) => {
     const target = returnFocus?.()
     onClose()
-    target?.focus()
+    if (!(typeof options === 'object' && options !== null && 'restoreFocus' in options && options.restoreFocus === false)) target?.focus()
   }
 
   useLayoutEffect(() => {
