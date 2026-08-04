@@ -8,6 +8,7 @@ vi.mock('../../src/bundles/export-bundle', () => ({ exportArticleBundle }))
 
 import { BundleActions } from '../../src/bundles/BundleActions'
 import { exportRecoveryBundle } from '../../src/bundles/recovery-bundle'
+import { fileFromBlob } from '../helpers/test-files'
 
 function draft(): ArticleDraft {
   return {
@@ -39,7 +40,7 @@ describe('BundleActions production choices', () => {
     const onNew = vi.fn()
     render(<BundleActions draft={draft()} onReplace={() => undefined} onNew={onNew} onStatus={() => undefined} />)
 
-    const recovery = new File([await exportRecoveryBundle(draft())], 'recovery.zip', { type: 'application/zip' })
+    const recovery = await fileFromBlob(await exportRecoveryBundle(draft()), 'recovery.zip')
     await user.upload(screen.getByLabelText('导入紧急恢复 ZIP'), recovery)
     expect(await screen.findByRole('dialog', { name: '导入已验证' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '作为新草稿打开' }))
@@ -56,7 +57,7 @@ describe('BundleActions production choices', () => {
     render(<BundleActions draft={draft()} onReplace={onReplace} onNew={onNew} onStatus={() => undefined} />)
 
     const trigger = screen.getByLabelText('导入紧急恢复 ZIP')
-    const recovery = new File([await exportRecoveryBundle(draft())], 'recovery.zip', { type: 'application/zip' })
+    const recovery = await fileFromBlob(await exportRecoveryBundle(draft()), 'recovery.zip')
     await user.upload(trigger, recovery)
     await screen.findByRole('dialog', { name: '导入已验证' })
     await user.click(screen.getByRole('button', { name: choice }))
@@ -69,7 +70,7 @@ describe('BundleActions production choices', () => {
     const user = userEvent.setup()
     render(<BundleActions draft={draft()} onReplace={() => false} onNew={() => true} onStatus={() => undefined} />)
 
-    const recovery = new File([await exportRecoveryBundle(draft())], 'recovery.zip', { type: 'application/zip' })
+    const recovery = await fileFromBlob(await exportRecoveryBundle(draft()), 'recovery.zip')
     await user.upload(screen.getByLabelText('导入紧急恢复 ZIP'), recovery)
     await screen.findByRole('dialog', { name: '导入已验证' })
     await user.click(screen.getByRole('button', { name: '替换当前文章' }))

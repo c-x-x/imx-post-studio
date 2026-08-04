@@ -3,6 +3,7 @@ import { BlobReader, BlobWriter, TextReader, ZipWriter } from '@zip.js/zip.js'
 import { assertRecoveryBundleExportable, exportRecoveryBundle, importRecoveryBundle } from '../../src/bundles/recovery-bundle'
 import type { ArticleDraft, MediaAsset } from '../../src/metadata/article'
 import { MAX_ARCHIVE_ENTRIES, MAX_ARCHIVE_FILE_BYTES, MAX_ARCHIVE_TOTAL_BYTES } from '../../src/shared/limits'
+import { fileFromBlob } from '../helpers/test-files'
 
 function incompleteDraft(): ArticleDraft {
   return {
@@ -48,6 +49,18 @@ function blobReportingSize(size: number): Blob {
 }
 
 describe('emergency recovery bundle', () => {
+  it('imports an exported recovery ZIP after a browser File input wraps it', async () => {
+    const archive = await exportRecoveryBundle(incompleteDraft())
+    const file = await fileFromBlob(archive, 'recovery.zip')
+    const archiveBytes = new Uint8Array(await archive.arrayBuffer())
+    const fileBytes = new Uint8Array(await file.arrayBuffer())
+
+    expect(file.type).toBe(archive.type)
+    expect(fileBytes).toEqual(archiveBytes)
+    expect(fileBytes.slice(0, 4)).toEqual(new Uint8Array([0x50, 0x4b, 0x03, 0x04]))
+    await expect(importRecoveryBundle(file)).resolves.toMatchObject({ id: 'incomplete' })
+  })
+
   it('round-trips an invalid, incomplete draft without normal article export validation', async () => {
     const source = incompleteDraft()
     const archive = await exportRecoveryBundle(source)

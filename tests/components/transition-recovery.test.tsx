@@ -11,6 +11,7 @@ vi.mock('../../src/drafts/repository', () => ({
 import { App } from '../../src/app/App'
 import { exportRecoveryBundle } from '../../src/bundles/recovery-bundle'
 import { createArticleDraft } from '../../src/metadata/article'
+import { fileFromBlob } from '../helpers/test-files'
 
 async function startWorkspace() {
   fireEvent.click(screen.getByRole('button', { name: '新建文章' }))
@@ -147,7 +148,7 @@ describe('workspace transitions', () => {
     render(<App />)
     await startWorkspace()
     const trigger = screen.getByLabelText('导入紧急恢复 ZIP')
-    const recovery = new File([await exportRecoveryBundle(createArticleDraft())], 'recovery.zip', { type: 'application/zip' })
+    const recovery = await fileFromBlob(await exportRecoveryBundle(createArticleDraft()), 'recovery.zip')
     fireEvent.change(trigger, { target: { files: [recovery] } })
     await screen.findByRole('dialog', { name: '导入已验证' })
 
