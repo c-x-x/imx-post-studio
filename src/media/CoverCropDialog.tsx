@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Cropper, { type Area, type Point } from 'react-easy-crop'
 import type { MediaAsset } from '../metadata/article'
+import { AccessibleDialog } from '../app/AccessibleDialog'
 import { renderCover } from './cover'
 
 interface CoverCropDialogProps {
@@ -16,13 +17,15 @@ export function CoverCropDialog({ source, onCancel, onComplete }: CoverCropDialo
   const [error, setError] = useState<string>()
   const [processing, setProcessing] = useState(false)
   const triggerRef = useRef<HTMLElement | null>(document.activeElement instanceof HTMLElement ? document.activeElement : null)
+  const closedRef = useRef(false)
   const [previewUrl] = useState(() => URL.createObjectURL(source))
 
   useEffect(() => () => URL.revokeObjectURL(previewUrl), [previewUrl])
 
   const close = () => {
+    closedRef.current = true
     onCancel()
-    window.setTimeout(() => triggerRef.current?.focus(), 0)
+    triggerRef.current?.focus()
   }
 
   const confirm = async () => {
@@ -35,6 +38,7 @@ export function CoverCropDialog({ source, onCancel, onComplete }: CoverCropDialo
         width: area.width / 100,
         height: area.height / 100,
       })
+      if (closedRef.current) return
       onComplete({
         id: crypto.randomUUID(),
         name: 'cover.webp',
@@ -44,7 +48,7 @@ export function CoverCropDialog({ source, onCancel, onComplete }: CoverCropDialo
         width: result.width,
         height: result.height,
       })
-      window.setTimeout(() => triggerRef.current?.focus(), 0)
+      triggerRef.current?.focus()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '封面转换失败，请更换图片后重试')
     } finally {
@@ -52,14 +56,11 @@ export function CoverCropDialog({ source, onCancel, onComplete }: CoverCropDialo
     }
   }
 
-  return <div className="modal-backdrop" role="presentation">
-    <section className="crop-dialog" role="dialog" aria-modal="true" aria-labelledby="cover-crop-title">
-      <h2 id="cover-crop-title">裁剪封面</h2>
+  return <AccessibleDialog title="裁剪封面" className="crop-dialog" onClose={close} returnFocus={() => triggerRef.current}>
       <p>封面将裁剪为 16:9，并导出为 1600×900 以内的 WebP。</p>
       <div className="crop-canvas"><Cropper image={previewUrl} crop={crop} zoom={zoom} aspect={16 / 9} onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={(_pixels, percentages) => setArea(percentages)} /></div>
       <label htmlFor="cover-zoom">缩放<input id="cover-zoom" type="range" min="1" max="3" step="0.05" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} /></label>
       {error ? <p role="alert" className="field-error">{error}</p> : null}
       <div className="dialog-actions"><button type="button" onClick={close} disabled={processing}>取消</button><button type="button" onClick={() => void confirm()} disabled={processing}>{processing ? '正在转换…' : '使用此封面'}</button></div>
-    </section>
-  </div>
+  </AccessibleDialog>
 }

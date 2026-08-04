@@ -44,4 +44,14 @@ describe('MetadataPanel', () => {
     await user.type(screen.getByLabelText('Slug'), 'Invalid slug')
     expect(screen.getByText('Slug 只能包含小写英文、数字和单个连字符')).toBeInTheDocument()
   })
+
+  it('marks a non-canonical date invalid and associates its live validation message', async () => {
+    const user = userEvent.setup()
+    render(<MetadataHarness />)
+
+    await user.clear(screen.getByLabelText('发布日期'))
+    await user.type(screen.getByLabelText('发布日期'), '2026/08/04')
+    expect(screen.getByLabelText('发布日期')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByText('date 必须是规范的 +08:00 RFC 3339 日期时间')).toHaveAttribute('aria-live', 'polite')
+  })
 })

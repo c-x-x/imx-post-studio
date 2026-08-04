@@ -3,14 +3,16 @@ import type { ArticleDraft, ArticleMeta, MediaAsset } from '../metadata/article'
 export type AppAction =
   | { type: 'new'; draft: ArticleDraft }
   | { type: 'replace'; draft: ArticleDraft }
+  | { type: 'replace-import-content'; draft: ArticleDraft }
   | { type: 'set-meta'; field: keyof ArticleMeta; value: ArticleMeta[keyof ArticleMeta] }
   | { type: 'set-body'; body: string }
   | { type: 'add-media'; asset: MediaAsset }
+  | { type: 'add-media-batch'; assets: MediaAsset[] }
   | { type: 'replace-cover'; asset: MediaAsset }
   | { type: 'remove-media'; id: string }
 
-function timestamp(): string {
-  const beijingTime = new Date(Date.now() + 8 * 60 * 60 * 1000)
+export function beijingTimestamp(now = new Date()): string {
+  const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000)
   return `${beijingTime.toISOString().slice(0, 19)}+08:00`
 }
 
@@ -27,7 +29,12 @@ function cloneDraft(draft: ArticleDraft): ArticleDraft {
 }
 
 function touched(draft: ArticleDraft): ArticleDraft {
-  return { ...cloneDraft(draft), updatedAt: timestamp() }
+  return { ...cloneDraft(draft), updatedAt: beijingTimestamp() }
+}
+
+export function createImportedDraft(draft: ArticleDraft, now = new Date()): ArticleDraft {
+  const createdAt = beijingTimestamp(now)
+  return { ...cloneDraft(draft), id: crypto.randomUUID(), createdAt, updatedAt: createdAt }
 }
 
 export function appReducer(state: ArticleDraft, action: AppAction): ArticleDraft {
@@ -35,6 +42,12 @@ export function appReducer(state: ArticleDraft, action: AppAction): ArticleDraft
     case 'new':
     case 'replace':
       return touched(action.draft)
+    case 'replace-import-content':
+      return {
+        ...touched(action.draft),
+        id: state.id,
+        createdAt: state.createdAt,
+      }
     case 'set-meta':
       return {
         ...touched(state),
@@ -44,6 +57,8 @@ export function appReducer(state: ArticleDraft, action: AppAction): ArticleDraft
       return { ...touched(state), body: action.body }
     case 'add-media':
       return { ...touched(state), media: [...state.media, { ...action.asset }] }
+    case 'add-media-batch':
+      return { ...touched(state), media: [...state.media, ...action.assets.map((asset) => ({ ...asset }))] }
     case 'replace-cover':
       return {
         ...touched(state),

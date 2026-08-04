@@ -14,6 +14,13 @@ interface ChipsInputProps {
   onChange: (values: string[]) => void
 }
 
+function validateCanonicalDate(value: string): string | undefined {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?\+08:00$/.test(value) || Number.isNaN(Date.parse(value))) {
+    return 'date 必须是规范的 +08:00 RFC 3339 日期时间'
+  }
+  return undefined
+}
+
 function ChipsInput({ id, label, values, onChange }: ChipsInputProps) {
   const [pending, setPending] = useState('')
   const add = () => {
@@ -36,6 +43,7 @@ function ChipsInput({ id, label, values, onChange }: ChipsInputProps) {
 export function MetadataPanel({ meta, onChange }: MetadataPanelProps) {
   const slugValidation = validateSlug(meta.slug)
   const titleError = meta.title.trim() ? undefined : '标题不能为空'
+  const dateError = validateCanonicalDate(meta.date)
 
   return <section className="metadata-panel" aria-label="文章设置">
     <h2>文章设置</h2>
@@ -51,7 +59,8 @@ export function MetadataPanel({ meta, onChange }: MetadataPanelProps) {
     </div>
     <div className="metadata-field">
       <label htmlFor="date">发布日期</label>
-      <input id="date" type="text" inputMode="numeric" value={meta.date} onChange={(event) => onChange('date', event.target.value)} />
+      <input id="date" type="text" inputMode="numeric" value={meta.date} aria-invalid={Boolean(dateError)} aria-describedby={dateError ? 'date-error' : undefined} onChange={(event) => onChange('date', event.target.value)} />
+      {dateError ? <p id="date-error" className="field-error" aria-live="polite">{dateError}</p> : null}
     </div>
     <ChipsInput id="categories" label="分类" values={meta.categories} onChange={(values) => onChange('categories', values)} />
     <ChipsInput id="tags" label="标签" values={meta.tags} onChange={(values) => onChange('tags', values)} />

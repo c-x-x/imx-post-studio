@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ArticleDraft } from '../metadata/article'
 import { exportArticleBundle } from '../bundles/export-bundle'
-import { LAST_PORTABLE_EXPORT_KEY } from '../bundles/BundleActions'
+import { AccessibleDialog } from '../app/AccessibleDialog'
+import { LAST_PORTABLE_EXPORT_KEY } from './backup-keys'
+import { shouldShowBackupReminder } from './backup-reminder'
 import { draftRepository } from './repository'
 
 interface DraftDashboardProps {
-  onOpen: (draft: ArticleDraft) => void
+  onOpen: (draft: ArticleDraft) => Promise<void> | void
 }
 
 function errorMessage(error: unknown): string {
@@ -13,15 +15,13 @@ function errorMessage(error: unknown): string {
 }
 
 function recordNeedsBackup(): boolean {
-  let value: string | null | undefined
   try {
-    value = window.localStorage?.getItem(LAST_PORTABLE_EXPORT_KEY)
+    const storage = window.localStorage
+    if (!storage) return false
+    return shouldShowBackupReminder(storage)
   } catch {
-    return true
+    return false
   }
-  if (!value) return true
-  const lastExport = Date.parse(value)
-  return !Number.isFinite(lastExport) || Date.now() - lastExport > 7 * 24 * 60 * 60 * 1000
 }
 
 function DraftThumbnail({ draft }: { draft: ArticleDraft }) {
@@ -41,6 +41,8 @@ export function DraftDashboard({ onOpen }: DraftDashboardProps) {
   const [renameValue, setRenameValue] = useState('')
   const [needsBackup, setNeedsBackup] = useState(recordNeedsBackup)
   const deleteTrigger = useRef<HTMLButtonElement | null>(null)
+  const renameTrigger = useRef<HTMLButtonElement | null>(null)
+  const dashboardRef = useRef<HTMLElement>(null)
 
   const refresh = async () => {
     try {
@@ -79,17 +81,14 @@ export function DraftDashboard({ onOpen }: DraftDashboardProps) {
     }
   }
 
-  const closeDelete = () => {
-    setPendingDelete(undefined)
-    window.setTimeout(() => deleteTrigger.current?.focus(), 0)
-  }
+  const closeDelete = () => setPendingDelete(undefined)
 
-  return <section className="draft-dashboard" aria-label="草稿库">
+  return <section ref={dashboardRef} className="draft-dashboard" aria-label="草稿库" tabIndex={-1}>
     <div className="dashboard-heading"><div><h2>本地草稿</h2><p>草稿和图片仅存于这个浏览器。</p></div></div>
     {needsBackup ? <p className="backup-reminder" role="status">超过 7 天没有导出便携草稿备份。建议下载一个草稿 ZIP。</p> : null}
     {error ? <p className="field-error" role="alert">{error}</p> : null}
-    {drafts.length === 0 ? <p>还没有已保存的草稿。</p> : <ul className="draft-list">{drafts.map((draft) => <li key={draft.id}><DraftThumbnail draft={draft} /><div><h3>{draft.meta.title || '未命名文章'}</h3><p>{draft.meta.slug || '尚未设置 Slug'} · 修改于 {new Date(draft.updatedAt).toLocaleString('zh-CN')}</p></div><div className="draft-actions"><button type="button" onClick={() => onOpen(draft)}>打开</button><button type="button" onClick={() => void draftRepository.duplicate(draft.id).then(refresh, (cause: unknown) => setError(errorMessage(cause)))}>复制</button><button type="button" onClick={() => { setRenameDraft(draft); setRenameValue(draft.meta.title) }}>重命名</button><button type="button" onClick={() => void downloadDraft(draft)}>导出草稿</button><button type="button" onClick={(event) => { deleteTrigger.current = event.currentTarget; setPendingDelete(draft) }}>删除</button></div></li>)}</ul>}
-    {pendingDelete ? <div className="modal-backdrop" role="presentation"><section className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-draft-title"><h2 id="delete-draft-title">删除草稿？</h2><p>“{pendingDelete.meta.title || '未命名文章'}”及其图片将从本浏览器移除。</p><div className="dialog-actions"><button type="button" onClick={closeDelete}>取消</button><button type="button" onClick={() => void draftRepository.delete(pendingDelete.id).then(() => { closeDelete(); return refresh() }, (cause: unknown) => setError(errorMessage(cause)))}>删除草稿</button></div></section></div> : null}
-    {renameDraft ? <div className="modal-backdrop" role="presentation"><section className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="rename-draft-title"><h2 id="rename-draft-title">重命名草稿</h2><label htmlFor="rename-draft">标题<input id="rename-draft" value={renameValue} onChange={(event) => setRenameValue(event.target.value)} /></label><div className="dialog-actions"><button type="button" onClick={() => setRenameDraft(undefined)}>取消</button><button type="button" onClick={() => void draftRepository.rename(renameDraft.id, renameValue).then(() => { setRenameDraft(undefined); return refresh() }, (cause: unknown) => setError(errorMessage(cause)))}>保存名称</button></div></section></div> : null}
+    {drafts.length === 0 ? <p>还没有已保存的草稿。</p> : <ul className="draft-list">{drafts.map((draft) => <li key={draft.id}><DraftThumbnail draft={draft} /><div><h3>{draft.meta.title || '未命名文章'}</h3><p>{draft.meta.slug || '尚未设置 Slug'} · 修改于 {new Date(draft.updatedAt).toLocaleString('zh-CN')}</p></div><div className="draft-actions"><button type="button" onClick={() => void onOpen(draft)}>打开</button><button type="button" onClick={() => void draftRepository.duplicate(draft.id).then(refresh, (cause: unknown) => setError(errorMessage(cause)))}>复制</button><button ref={renameTrigger} type="button" onClick={(event) => { renameTrigger.current = event.currentTarget; setRenameDraft(draft); setRenameValue(draft.meta.title) }}>重命名</button><button type="button" onClick={() => void downloadDraft(draft)}>导出草稿</button><button ref={deleteTrigger} type="button" onClick={(event) => { deleteTrigger.current = event.currentTarget; setPendingDelete(draft) }}>删除</button></div></li>)}</ul>}
+    {pendingDelete ? <AccessibleDialog title="删除草稿？" onClose={closeDelete} returnFocus={() => dashboardRef.current}><p>“{pendingDelete.meta.title || '未命名文章'}”及其图片将从本浏览器移除。</p><div className="dialog-actions"><button type="button" onClick={closeDelete}>取消</button><button type="button" onClick={() => void draftRepository.delete(pendingDelete.id).then(() => { closeDelete(); dashboardRef.current?.focus(); return refresh() }, (cause: unknown) => setError(errorMessage(cause)))}>删除草稿</button></div></AccessibleDialog> : null}
+    {renameDraft ? <AccessibleDialog title="重命名草稿" onClose={() => setRenameDraft(undefined)} returnFocus={() => renameTrigger.current}><label htmlFor="rename-draft">标题<input id="rename-draft" value={renameValue} onChange={(event) => setRenameValue(event.target.value)} /></label><div className="dialog-actions"><button type="button" onClick={() => setRenameDraft(undefined)}>取消</button><button type="button" onClick={() => void draftRepository.rename(renameDraft.id, renameValue).then(() => { setRenameDraft(undefined); renameTrigger.current?.focus(); return refresh() }, (cause: unknown) => setError(errorMessage(cause)))}>保存名称</button></div></AccessibleDialog> : null}
   </section>
 }
