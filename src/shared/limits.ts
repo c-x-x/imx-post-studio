@@ -1,0 +1,4 @@
+export const MAX_SOURCE_BYTES = 25 * 1024 * 1024
+export const MAX_ARCHIVE_ENTRIES = 500
+export const MAX_ARCHIVE_FILE_BYTES = 25 * 1024 * 1024
+export const MAX_ARCHIVE_TOTAL_BYTES = 250 * 1024 * 1024
