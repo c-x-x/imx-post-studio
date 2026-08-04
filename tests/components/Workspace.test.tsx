@@ -1,0 +1,44 @@
+import { cleanup, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { afterEach, describe, expect, it } from 'vitest'
+import { App } from '../../src/app/App'
+
+describe('article workspace', () => {
+  afterEach(cleanup)
+
+  it('updates the IMX preview title from metadata and keeps a manually edited slug', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: '新建文章' }))
+    await user.type(screen.getByLabelText('标题'), 'Hugo 图片处理指南')
+    await user.clear(screen.getByLabelText('Slug'))
+    await user.type(screen.getByLabelText('Slug'), 'my-manual-slug')
+    await user.click(screen.getByRole('button', { name: '生成拼音 Slug' }))
+
+    expect(screen.getByLabelText('Slug')).toHaveValue('hugo-tu-pian-chu-li-zhi-nan')
+    await user.clear(screen.getByLabelText('Slug'))
+    await user.type(screen.getByLabelText('Slug'), 'my-manual-slug')
+    await user.type(screen.getByLabelText('标题'), ' 新版')
+
+    const preview = screen.getByTitle('IMX 文章预览')
+    expect(preview.getAttribute('srcdoc')).toContain('Hugo 图片处理指南 新版')
+    expect(screen.getByLabelText('Slug')).toHaveValue('my-manual-slug')
+  })
+
+  it('shows an imported body image and blocks a production export for an invalid slug', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: '新建文章' }))
+
+    const png = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], '封面 图.PNG', { type: 'image/png' })
+    await user.upload(screen.getByLabelText('添加正文图片'), png)
+    expect(screen.getByRole('listitem', { name: /feng-mian-tu\.png/ })).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('标题'), 'Exportable title')
+    await user.type(screen.getByLabelText('Slug'), 'Invalid slug')
+    const exportArea = screen.getByRole('group', { name: '文章包操作' })
+    expect(within(exportArea).getByRole('button', { name: '导出文章' })).toBeDisabled()
+    expect(within(exportArea).getByText('Slug 只能包含小写英文、数字和单个连字符')).toBeInTheDocument()
+  })
+})

@@ -1,13 +1,56 @@
-:root {
-  font-family: system-ui, sans-serif;
-  color: #1f2937;
-  background: #f8fafc;
-}
-
-body {
-  margin: 0;
-}
-
-.app-shell {
-  padding: 2rem;
-}
+:root { font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #172033; background: #f1f5f9; }
+* { box-sizing: border-box; }
+body { min-width: 0; margin: 0; }
+button, input, textarea { font: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .58; }
+.app-shell { max-width: 1800px; margin: 0 auto; padding: 1rem; }
+.app-header, .dashboard-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.app-header h1, .dashboard-heading h2 { margin: 0; }
+.app-header p, .dashboard-heading p { margin: .3rem 0 0; color: #475569; }
+.app-header-actions, .bundle-row, .draft-actions, .dialog-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.app-header button, .bundle-actions button, .draft-actions button, .dialog-actions button, .dashboard-heading button, .editor-toolbar button { border: 1px solid #94a3b8; border-radius: .4rem; background: white; padding: .45rem .7rem; color: #172033; }
+.app-header-actions button:first-child, .dashboard-heading button, .dialog-actions button:last-child { border-color: #1d4ed8; background: #1d4ed8; color: white; }
+.notifications { min-height: 1.9rem; margin: .6rem 0; }
+.notification-status { margin: 0; color: #166534; }
+.notification-alert, .field-error { color: #b42318; }
+.workspace-tabs { display: none; }
+.workspace-grid { display: grid; grid-template-columns: minmax(250px, 320px) minmax(360px, 1fr) minmax(360px, 1fr); gap: 1rem; align-items: start; }
+.workspace-panel, .draft-dashboard { min-width: 0; border: 1px solid #cbd5e1; border-radius: .7rem; background: white; padding: 1rem; }
+.workspace-inspector { display: grid; gap: 1.2rem; }
+.metadata-panel h2, .media-panel h2 { margin-top: 0; font-size: 1.05rem; }
+.metadata-field { display: grid; gap: .35rem; margin: .75rem 0; }
+.metadata-field input, .metadata-field textarea, .loose-import input, .confirm-dialog input { width: 100%; border: 1px solid #94a3b8; border-radius: .35rem; padding: .45rem; }
+.slug-control { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .4rem; }
+.field-error { margin: .2rem 0; font-size: .9rem; }
+.check-field { display: flex; align-items: center; gap: .45rem; margin: .6rem 0; }
+.chips { display: flex; flex-wrap: wrap; gap: .35rem; }
+.chip { display: inline-flex; align-items: center; gap: .2rem; border-radius: 999px; background: #dbeafe; padding: .15rem .25rem .15rem .55rem; }
+.chip button { min-width: 1.35rem; border: 0; border-radius: 999px; background: transparent; }
+.file-button { display: inline-flex; align-items: center; border: 1px solid #94a3b8; border-radius: .4rem; background: white; padding: .45rem .7rem; cursor: pointer; }
+.file-button input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.media-actions { padding: .7rem; border: 1px dashed #94a3b8; border-radius: .5rem; }
+.media-actions p { margin: .6rem 0 0; color: #475569; font-size: .9rem; }
+.media-list, .draft-list { display: grid; gap: .6rem; margin: .8rem 0 0; padding: 0; list-style: none; }
+.media-list li { display: flex; align-items: center; justify-content: space-between; gap: .6rem; border-bottom: 1px solid #e2e8f0; padding: .5rem 0; overflow-wrap: anywhere; }
+.media-list button { margin-left: .3rem; }
+.bundle-actions { display: grid; gap: .6rem; border-top: 1px solid #e2e8f0; padding-top: 1rem; }
+.loose-import { display: grid; gap: .6rem; color: #475569; }
+.loose-import label { display: grid; gap: .3rem; }
+.emergency-export { margin: 0; border-left: 4px solid #b42318; padding: .5rem .7rem; background: #fff1f0; color: #7a271a; }
+.emergency-export button { margin-left: .5rem; }
+.backup-reminder { border-left: 4px solid #ca8a04; padding: .5rem .7rem; background: #fffbeb; color: #854d0e; }
+.draft-list > li { display: grid; grid-template-columns: 86px minmax(0, 1fr) auto; align-items: center; gap: .8rem; border: 1px solid #e2e8f0; border-radius: .5rem; padding: .7rem; }
+.draft-list h3, .draft-list p { margin: 0; }
+.draft-list p { margin-top: .3rem; color: #64748b; font-size: .9rem; }
+.draft-thumbnail { width: 86px; height: 52px; object-fit: cover; border-radius: .3rem; }
+.draft-thumbnail-empty { display: grid; place-items: center; background: #e2e8f0; color: #475569; font-size: .78rem; }
+.modal-backdrop { position: fixed; z-index: 10; inset: 0; display: grid; place-items: center; padding: 1rem; background: rgb(15 23 42 / .55); }
+.confirm-dialog, .crop-dialog { width: min(100%, 560px); border-radius: .65rem; background: white; padding: 1.1rem; box-shadow: 0 20px 44px rgb(15 23 42 / .35); }
+.confirm-dialog h2, .crop-dialog h2 { margin-top: 0; }
+.crop-canvas { position: relative; height: min(48vh, 360px); margin: .75rem 0; background: #0f172a; }
+.dialog-actions { justify-content: flex-end; margin-top: 1rem; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; } }
+@media (max-width: 1023px) { .app-header { align-items: flex-start; flex-direction: column; } .workspace-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; margin-bottom: .75rem; } .workspace-tabs button { border: 1px solid #94a3b8; border-radius: .4rem; background: white; padding: .55rem; } .workspace-tabs button[aria-selected='true'] { border-color: #1d4ed8; background: #dbeafe; color: #1e3a8a; } .workspace-grid { display: block; } .workspace-grid .workspace-panel { display: none; } .workspace-grid[data-tab='settings'] .workspace-inspector, .workspace-grid[data-tab='write'] .workspace-editor, .workspace-grid[data-tab='preview'] .workspace-preview { display: block; } .workspace-preview { padding: .5rem; } .preview-viewport-mobile { max-width: 100%; } }
+@media (max-width: 620px) { .app-shell { padding: .65rem; } .slug-control { grid-template-columns: 1fr; } .draft-list > li { grid-template-columns: 70px minmax(0, 1fr); } .draft-actions { grid-column: 1 / -1; } .draft-thumbnail { width: 70px; } }
