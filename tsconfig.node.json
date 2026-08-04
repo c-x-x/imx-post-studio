@@ -5,6 +5,7 @@
     "target": "ES2023",
     "lib": ["ES2023"],
     "skipLibCheck": true,
+    "strict": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "allowImportingTsExtensions": true,
