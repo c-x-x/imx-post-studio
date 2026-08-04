@@ -12,6 +12,16 @@ function bodyImage(name: string): MediaAsset {
   }
 }
 
+function coverImage(name: string): MediaAsset {
+  return {
+    id: name,
+    name,
+    kind: 'cover',
+    mime: 'image/webp',
+    blob: new Blob(['cover'], { type: 'image/webp' }),
+  }
+}
+
 describe('Markdown image references', () => {
   it('finds local Hugo image paths from Markdown image nodes', () => {
     expect(findImageReferences('![图](images/a.png)')).toEqual(['images/a.png'])
@@ -35,12 +45,38 @@ describe('Markdown image references', () => {
     })
   })
 
-  it('treats malformed, unsafe, protocol-relative, and non-images paths as external', () => {
+  it('leaves only protocol-relative and non-images destinations external', () => {
     expect(
       findImageReferences(
-        '![bad](images/%E0%A4%A.png) ![traversal](images/%2e%2e/a.png) ![protocol](//cdn.example/a.png) ![other](uploads/a.png)',
+        '![protocol](//cdn.example/a.png) ![other](uploads/a.png)',
       ),
     ).toEqual([])
+  })
+
+  it('blocks malformed, traversal, unsupported, and noncanonical local image destinations', () => {
+    const markdown = [
+      '![svg](images/a.svg)',
+      '![upper](images/A.PNG)',
+      '![malformed](images/%E0%A4%A.png)',
+      '![traversal](images/%2e%2e/a.png)',
+      '![nested](images/a%2Fb.png)',
+      '![nul](images/a%00.png)',
+      '![backslash](images/a%5Cb.png)',
+    ].join(' ')
+
+    expect(findImageReferences(markdown)).toEqual([])
+    expect(validateMediaReferences(markdown, [])).toEqual({
+      missing: [
+        'images/a.svg',
+        'images/A.PNG',
+        'images/%E0%A4%A.png',
+        'images/%2e%2e/a.png',
+        'images/a%2Fb.png',
+        'images/a%00.png',
+        'images/a%5Cb.png',
+      ],
+      unused: [],
+    })
   })
 
   it('resolves full, collapsed, and shortcut image references through definitions', () => {
@@ -65,6 +101,19 @@ describe('Markdown image references', () => {
     expect(validateMediaReferences('![图](images/missing.png)', [])).toEqual({
       missing: ['images/missing.png'],
       unused: [],
+    })
+  })
+
+  it('reports only unreferenced body media as unused', () => {
+    expect(
+      validateMediaReferences('![used](images/used.png)', [
+        bodyImage('used.png'),
+        bodyImage('unused.png'),
+        coverImage('cover.webp'),
+      ]),
+    ).toEqual({
+      missing: [],
+      unused: ['images/unused.png'],
     })
   })
 })

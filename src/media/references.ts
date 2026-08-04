@@ -9,7 +9,12 @@ function normalizedIdentifier(identifier: string): string {
   return identifier.trim().replace(/\s+/g, ' ').toLowerCase()
 }
 
-function canonicalLocalImageReference(url: string): string | undefined {
+interface LocalReference {
+  canonical?: string
+  invalid?: string
+}
+
+function canonicalLocalImageReference(url: string): LocalReference | undefined {
   const lowerUrl = url.toLowerCase()
   if (
     lowerUrl.startsWith('http:')
@@ -32,26 +37,29 @@ function canonicalLocalImageReference(url: string): string | undefined {
   try {
     decodedPath = decodeURIComponent(encodedPath)
   } catch {
-    return undefined
+    return { invalid: encodedPath }
   }
 
   if (decodedPath.includes('\\') || decodedPath.includes('\0')) {
-    return undefined
+    return { invalid: encodedPath }
   }
 
   const segments = decodedPath.split('/')
   if (segments.length !== 2 || segments[0] !== 'images' || !segments[1]) {
-    return undefined
+    return { invalid: encodedPath }
   }
 
   const name = segments[1]
-  return safeMediaName(name) === name ? `images/${name}` : undefined
+  return safeMediaName(name) === name
+    ? { canonical: `images/${name}` }
+    : { invalid: encodedPath }
 }
 
-export function findImageReferences(markdown: string): string[] {
+function analyzeImageReferences(markdown: string): { references: string[]; invalid: string[] } {
   const tree = unified().use(remarkParse).parse(markdown) as Root
   const definitions = new Map<string, string>()
   const references: string[] = []
+  const invalid: string[] = []
   const seen = new Set<string>()
 
   visit(tree, 'definition', (node: Definition) => {
@@ -62,10 +70,14 @@ export function findImageReferences(markdown: string): string[] {
   })
 
   const addReference = (url: string) => {
-    const reference = canonicalLocalImageReference(url)
-    if (reference && !seen.has(reference)) {
-      seen.add(reference)
-      references.push(reference)
+    const localReference = canonicalLocalImageReference(url)
+    if (localReference?.canonical && !seen.has(localReference.canonical)) {
+      seen.add(localReference.canonical)
+      references.push(localReference.canonical)
+    }
+    if (localReference?.invalid && !seen.has(localReference.invalid)) {
+      seen.add(localReference.invalid)
+      invalid.push(localReference.invalid)
     }
   }
 
@@ -80,18 +92,22 @@ export function findImageReferences(markdown: string): string[] {
     }
   })
 
-  return references
+  return { references, invalid }
+}
+
+export function findImageReferences(markdown: string): string[] {
+  return analyzeImageReferences(markdown).references
 }
 
 export function validateMediaReferences(
   markdown: string,
   media: MediaAsset[],
 ): { missing: string[]; unused: string[] } {
-  const references = findImageReferences(markdown)
+  const { references, invalid } = analyzeImageReferences(markdown)
   const available = new Set(media.map((asset) => `images/${asset.name}`))
 
   return {
-    missing: references.filter((reference) => !available.has(reference)),
+    missing: [...references.filter((reference) => !available.has(reference)), ...invalid],
     unused: media
       .filter((asset) => asset.kind === 'body' && !references.includes(`images/${asset.name}`))
       .map((asset) => `images/${asset.name}`),
