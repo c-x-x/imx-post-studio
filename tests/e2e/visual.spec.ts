@@ -61,30 +61,66 @@ const visualOptions = {
   threshold: 0.2,
 }
 
-async function assertPreviewCaptureReady(page: Page, viewport: 'desktop' | 'mobile'): Promise<void> {
-  const iframe = page.getByTitle('IMX 文章预览')
-  const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
-  const expectedWidth = viewport === 'desktop' ? 1024 : 390
+async function openPreviewCapturePage(page: Page, viewport: 'desktop' | 'mobile'): Promise<Page> {
+  const srcDoc = await page.getByTitle('IMX 文章预览').getAttribute('srcdoc')
+  if (!srcDoc) throw new Error('IMX preview did not expose srcDoc for visual capture')
 
-  await expect.poll(() => iframe.evaluate((element) => element.clientWidth)).toBeGreaterThanOrEqual(expectedWidth)
-  await expect.poll(() => preview.locator('html').evaluate((root) => root.ownerDocument.defaultView?.innerWidth ?? 0)).toBeGreaterThanOrEqual(expectedWidth)
-  await expect.poll(() => preview.locator('body').evaluate((body) => body.getBoundingClientRect().width)).toBeGreaterThanOrEqual(expectedWidth)
-  await expect(preview.getByRole('heading', { name: '预览层级', level: 2 })).toBeVisible()
-  await expect(preview.getByRole('heading', { name: '表格与说明', level: 3 })).toBeVisible()
-  await expect(preview.locator('table')).toBeVisible()
-  await expect(preview.locator('blockquote')).toBeVisible()
-  await expect(preview.locator('pre code')).toBeVisible()
-  await expect(preview.locator('.article-content ul li')).toHaveCount(2)
-  await expect(preview.locator('img[src^="blob:"]')).toHaveCount(1)
-  expect(await preview.locator('img[src^="blob:"]').evaluate((image) => ({
+  const capturePage = await page.context().newPage()
+  await capturePage.setViewportSize({ width: viewport === 'desktop' ? 1180 : 390, height: 900 })
+  await capturePage.goto('/')
+  await capturePage.setContent(srcDoc, { waitUntil: 'load' })
+  await expect.poll(() => capturePage.evaluate(() => location.origin)).toBe('http://127.0.0.1:4173')
+  return capturePage
+}
+
+async function assertPreviewCaptureReady(capturePage: Page, viewport: 'desktop' | 'mobile'): Promise<void> {
+  const expectedWidth = viewport === 'desktop' ? 1180 : 390
+
+  await expect.poll(() => capturePage.evaluate(() => window.innerWidth)).toBe(expectedWidth)
+  await expect(capturePage.getByRole('heading', { name: '预览层级', level: 2 })).toBeVisible()
+  await expect(capturePage.getByRole('heading', { name: '表格与说明', level: 3 })).toBeVisible()
+  await expect(capturePage.locator('table')).toBeVisible()
+  await expect(capturePage.locator('blockquote')).toBeVisible()
+  await expect(capturePage.locator('pre code')).toBeVisible()
+  await expect(capturePage.locator('.article-content ul li')).toHaveCount(2)
+  await expect(capturePage.locator('img[src^="blob:"]')).toHaveCount(1)
+  expect(await capturePage.locator('img[src^="blob:"]').evaluate((image) => ({
     complete: (image as HTMLImageElement).complete,
     width: (image as HTMLImageElement).naturalWidth,
     height: (image as HTMLImageElement).naturalHeight,
   }))).toEqual({ complete: true, width: 640, height: 360 })
-  await expect.poll(() => preview.locator('html').evaluate((root) => {
-    const document = root.ownerDocument
-    return Math.ceil(Math.max(root.scrollHeight, document.body.scrollHeight)) <= window.innerHeight
-  })).toBe(true)
+  const fontProof = await capturePage.evaluate(async () => {
+    await document.fonts.ready
+    const [interFaces, notoFaces] = await Promise.all([
+      document.fonts.load('400 1em "IMX Inter"', 'IMX'),
+      document.fonts.load('400 1em "IMX Noto Serif SC"', '预览'),
+    ])
+    return {
+      inter: interFaces.some((face) => face.family.replaceAll('"', '') === 'IMX Inter' && face.status === 'loaded'),
+      noto: notoFaces.some((face) => face.family.replaceAll('"', '') === 'IMX Noto Serif SC' && face.status === 'loaded'),
+    }
+  })
+  expect(fontProof).toEqual({ inter: true, noto: true })
+
+  if (viewport === 'desktop') {
+    expect(await capturePage.locator('.toc').evaluate((toc) => {
+      const tocBoxes = [toc, toc.querySelector('.toc-title'), toc.querySelector('nav')]
+        .filter((element): element is Element => element !== null)
+        .map((element) => element.getBoundingClientRect())
+      return tocBoxes.length === 3 && tocBoxes.every((bounds) => bounds.width > 0
+        && bounds.left >= 0 && bounds.right <= window.innerWidth && bounds.top >= 0)
+    })).toBe(true)
+  }
+}
+
+async function matchPreviewScreenshot(page: Page, name: string, viewport: 'desktop' | 'mobile'): Promise<void> {
+  const capturePage = await openPreviewCapturePage(page, viewport)
+  try {
+    await assertPreviewCaptureReady(capturePage, viewport)
+    await expect(capturePage).toHaveScreenshot(name, { ...visualOptions, fullPage: true })
+  } finally {
+    await capturePage.close()
+  }
 }
 
 test.describe('IMX visual regressions', () => {
@@ -103,9 +139,7 @@ test.describe('IMX visual regressions', () => {
 
   test('matches the light desktop article preview', async ({ page }) => {
     await seedPreview(page)
-    const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
-    await assertPreviewCaptureReady(page, 'desktop')
-    await expect(preview.locator('body')).toHaveScreenshot('imx-preview-light-desktop.png', visualOptions)
+    await matchPreviewScreenshot(page, 'imx-preview-light-desktop.png', 'desktop')
   })
 
   test('matches the dark desktop article preview', async ({ page }) => {
@@ -113,8 +147,7 @@ test.describe('IMX visual regressions', () => {
     await page.getByRole('button', { name: '深色预览' }).click()
     const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
     await expect(preview.locator('html')).toHaveAttribute('data-theme', 'dark')
-    await assertPreviewCaptureReady(page, 'desktop')
-    await expect(preview.locator('body')).toHaveScreenshot('imx-preview-dark-desktop.png', visualOptions)
+    await matchPreviewScreenshot(page, 'imx-preview-dark-desktop.png', 'desktop')
   })
 
   test('matches the light mobile article preview', async ({ page }) => {
@@ -122,9 +155,7 @@ test.describe('IMX visual regressions', () => {
     await page.setViewportSize({ width: 390, height: 844 })
     await page.getByRole('tab', { name: '预览' }).click()
     await page.getByRole('button', { name: '移动预览' }).click()
-    const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
-    await assertPreviewCaptureReady(page, 'mobile')
-    await expect(preview.locator('body')).toHaveScreenshot('imx-preview-light-mobile.png', visualOptions)
+    await matchPreviewScreenshot(page, 'imx-preview-light-mobile.png', 'mobile')
   })
 
   test('matches the dark mobile article preview', async ({ page }) => {
@@ -134,7 +165,7 @@ test.describe('IMX visual regressions', () => {
     await page.getByRole('button', { name: '移动预览' }).click()
     await page.getByRole('button', { name: '深色预览' }).click()
     const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
-    await assertPreviewCaptureReady(page, 'mobile')
-    await expect(preview.locator('body')).toHaveScreenshot('imx-preview-dark-mobile.png', visualOptions)
+    await expect(preview.locator('html')).toHaveAttribute('data-theme', 'dark')
+    await matchPreviewScreenshot(page, 'imx-preview-dark-mobile.png', 'mobile')
   })
 })
