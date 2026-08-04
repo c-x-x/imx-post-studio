@@ -33,36 +33,46 @@ function isNormalizedLocalImage(path: string): boolean {
   return segments.length === 2 && safeMediaName(segments[1]) === segments[1]
 }
 
-function estimateWords(markdown: string): number {
-  const plain = markdown
-    .replace(/```[\s\S]*?```/g, '')
-    .replace(/`[^`]*`/g, '')
-    .replace(/<[^>]*>/g, ' ')
-  const han = plain.match(/[\u3400-\u9fff]/g)?.length ?? 0
-  const words = plain.match(/[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*/g)?.length ?? 0
+function estimateWords(text: string): number {
+  const han = text.match(/[\u3400-\u9fff]/g)?.length ?? 0
+  const words = text.match(/[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*/g)?.length ?? 0
   return han + words
 }
 
-function collectHeadingsAndRewriteImages(resolveLocalImage: (path: string) => string | undefined, headings: TocHeading[]) {
+function isSafeBlobUrl(url: string | undefined): url is string {
+  return typeof url === 'string' && /^blob:[^\s]+$/i.test(url)
+}
+
+function renderedText(node: Root | Root['children'][number], skip = false): string {
+  if (node.type === 'text') return skip ? '' : node.value
+  if (!('children' in node)) return ''
+  const omit = skip || (node.type === 'element' && (node.tagName === 'code' || node.tagName === 'style'))
+  return node.children.map((child) => renderedText(child, omit)).join('')
+}
+
+function collectHeadingsRewriteImagesAndMeasure(resolveLocalImage: (path: string) => string | undefined, headings: TocHeading[], metrics: { wordCount: number }) {
   return (tree: Root) => {
     const slugger = new GithubSlugger()
     visit(tree, 'element', (node: Element) => {
-      if (/^h[1-6]$/.test(node.tagName)) {
+      if (/^h[2-5]$/.test(node.tagName)) {
         const text = elementText(node).trim()
-        const id = slugger.slug(text)
+        const id = `imx-heading-${slugger.slug(text)}`
         node.properties.id = id
         headings.push({ id, depth: Number(node.tagName[1]), text })
       }
       if (node.tagName === 'img') {
         const source = typeof node.properties.src === 'string' ? node.properties.src : ''
-        const resolved = isNormalizedLocalImage(source) ? resolveLocalImage(source) : undefined
-        if (resolved) node.properties.src = resolved
-        else delete node.properties.src
+        if (isNormalizedLocalImage(source)) {
+          const resolved = resolveLocalImage(source)
+          if (isSafeBlobUrl(resolved)) node.properties.src = resolved
+          else delete node.properties.src
+        }
       }
       if (node.tagName === 'a' && typeof node.properties.href === 'string' && !/^(https?:|mailto:|#)/i.test(node.properties.href)) {
         delete node.properties.href
       }
     })
+    metrics.wordCount = estimateWords(renderedText(tree))
   }
 }
 
@@ -71,6 +81,7 @@ export async function renderMarkdown(
   resolveLocalImage: (path: string) => string | undefined,
 ): Promise<RenderedMarkdown> {
   const headings: TocHeading[] = []
+  const metrics = { wordCount: 0 }
   const processor = unified()
     .use(remarkParse)
     .use(remarkGfm)
@@ -78,14 +89,14 @@ export async function renderMarkdown(
     .use(rehypeRaw)
     .use(rehypeSanitize)
     .use(rehypeHighlight, { detect: false })
-    .use(() => collectHeadingsAndRewriteImages(resolveLocalImage, headings))
+    .use(() => collectHeadingsRewriteImagesAndMeasure(resolveLocalImage, headings, metrics))
     .use(rehypeStringify)
 
   const output = await processor.process(markdown)
   return {
     html: String(output),
     toc: nestToc(headings),
-    wordCount: estimateWords(markdown),
-    readingMinutes: Math.ceil(estimateWords(markdown) / 300),
+    wordCount: metrics.wordCount,
+    readingMinutes: metrics.wordCount === 0 ? 0 : Math.ceil(metrics.wordCount / 300),
   }
 }

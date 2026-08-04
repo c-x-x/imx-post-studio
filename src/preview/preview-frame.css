@@ -1,0 +1,17 @@
+.preview-viewport {
+  width: 100%;
+  max-width: 100%;
+  margin-inline: auto;
+  overflow: hidden;
+}
+
+.preview-viewport-mobile {
+  width: 390px;
+}
+
+.preview-frame {
+  display: block;
+  width: 100%;
+  min-height: 720px;
+  border: 0;
+}

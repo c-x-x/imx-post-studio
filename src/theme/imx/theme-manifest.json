@@ -4,11 +4,15 @@
   "version": "v1.4.9",
   "commit": "6f08e8e",
   "sourceCommit": "6f08e8e5bba774a8e1fa0c2fa911c7435dddd9c7",
-  "syncedAt": "2026-08-04T10:00:50.282Z",
+  "syncedAt": "2026-07-28T18:55:29+08:00",
   "sourceFiles": [
     {
       "path": "LICENSE",
       "sha256": "0430d664811b8d60345dbb908f979e088b8f09dcca7bb5ac890c4a087de3c2c7"
+    },
+    {
+      "path": "assets/css/fonts.css",
+      "sha256": "42459d3d6a6898fe31e9dd1dcaa8ba914fcec65abd674f64373b143c5eeba2ff"
     },
     {
       "path": "assets/css/tokens.css",
@@ -73,16 +77,32 @@
     {
       "path": "assets/fonts/imx/noto-serif-sc-700-extended.woff2",
       "sha256": "6a910bf112c062ae6bbecec50185601a34a333a4c81b7779063f66b0a654a048"
+    },
+    {
+      "path": "static/fonts/imx/OFL-Inter.txt",
+      "sha256": "262481e844521b326f5ecd053e59b98c8b2da78c8ee1bdbb6e8174305e54935a"
+    },
+    {
+      "path": "static/fonts/imx/OFL-Noto-Serif-SC.txt",
+      "sha256": "07673599d63040a2d00a8735cce78bcf7af54d72e43f6cb5bd3efd8fe227bd28"
     }
   ],
   "files": [
     {
       "path": "src/theme/imx/imx-preview.css",
-      "sha256": "6108f81229566d785048cdafb2deec7c52ce4e5c8865fca2af69989bd96e8c71"
+      "sha256": "2aa8834f21449a2f0af58161c0c9d892d67393cad0ef8a06de07a61d52644646"
     },
     {
       "path": "src/theme/imx/LICENSE.imx",
       "sha256": "0430d664811b8d60345dbb908f979e088b8f09dcca7bb5ac890c4a087de3c2c7"
+    },
+    {
+      "path": "src/theme/imx/OFL-Inter.txt",
+      "sha256": "262481e844521b326f5ecd053e59b98c8b2da78c8ee1bdbb6e8174305e54935a"
+    },
+    {
+      "path": "src/theme/imx/OFL-Noto-Serif-SC.txt",
+      "sha256": "07673599d63040a2d00a8735cce78bcf7af54d72e43f6cb5bd3efd8fe227bd28"
     },
     {
       "path": "public/imx/fonts/inter-variable.woff2",
