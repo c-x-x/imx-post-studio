@@ -98,9 +98,12 @@ GitHub Actions 会在 `main` 推送和 pull request 上执行同一组检查，�
 ## Vercel 静态部署
 
 `vercel.json` 将 Vite 产物设为 `dist`，把 SPA 路径重写到 `/index.html`，并为所有
-路径发送 CSP、`nosniff`、无 Referrer 和受限的 Permissions Policy。CSP 仅允许自身
-脚本；`'unsafe-inline'` 只用于预览文档所需的内联样式。它允许本地 `blob:`/`data:`
-图片与无脚本 iframe 预览，同时禁止被外部页面嵌入和 object 内容。
+路径发送 CSP、`nosniff`、无 Referrer 和受限的 Permissions Policy。CSP 的脚本源
+仅允许自身脚本，并以 `'wasm-unsafe-eval'` 允许 WebKit 封面转换所需的 WebAssembly
+回退；它不允许 `'unsafe-eval'` 或内联脚本。`'unsafe-inline'` 只用于预览文档所需的
+内联样式。`worker-src 'self' blob:` 仅允许在本地生成 ZIP 所需的 Worker。策略允许
+本地 `blob:`/`data:` 图片与无脚本 iframe 预览，同时禁止被外部页面嵌入和 object
+内容。
 
 连接 Vercel 的 Git 集成后，从仓库根目录构建即可使用这些设置。此配置不部署项目；
 发布和生产 URL 验证属于单独的发布流程。
