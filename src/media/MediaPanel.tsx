@@ -20,6 +20,11 @@ interface MediaPanelProps {
   onIntakeBusyChange?: (busy: boolean) => void
 }
 
+interface IntakeToken {
+  generation: number
+  draftId: string
+}
+
 const COVER_TYPES = new Set<MediaMime>(['image/jpeg', 'image/png', 'image/webp'])
 const IMAGE_TYPES = new Set<MediaMime>(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 
@@ -71,39 +76,52 @@ export function MediaPanel({ draftId = 'default-draft', media, body, onAddBatch,
     if (mounted.current) intakeBusyCallback.current?.(activeIntakes.current > 0)
   }
 
+  const beginIntake = (): IntakeToken => {
+    const token = { generation: generation.current, draftId: draftIdRef.current }
+    activeIntakes.current += 1
+    reportIntakeBusy()
+    return token
+  }
+
+  const intakeIsCurrent = (token: IntakeToken): boolean => {
+    return mounted.current && !disabledRef.current && generation.current === token.generation && draftIdRef.current === token.draftId
+  }
+
+  const finishIntake = () => {
+    activeIntakes.current = Math.max(0, activeIntakes.current - 1)
+    reportIntakeBusy()
+  }
+
   const queueFiles = (files: File[]) => {
     if (files.length === 0 || disabled || disabledRef.current) return
     setError(undefined)
-    const intakeGeneration = generation.current
-    const intakeDraftId = draftIdRef.current
-    activeIntakes.current += 1
-    reportIntakeBusy()
+    const token = beginIntake()
     intakeQueue.current = intakeQueue.current
       .then(async () => {
         const assets = await prepareBodyMediaBatch(files, namesRef.current)
-        if (!mounted.current || disabledRef.current || generation.current !== intakeGeneration || draftIdRef.current !== intakeDraftId) return
+        if (!intakeIsCurrent(token)) return
         namesRef.current = new Set([...namesRef.current, ...assets.map((asset) => asset.name)])
         onAddBatch(assets)
       })
       .catch((cause: unknown) => {
-        if (mounted.current && generation.current === intakeGeneration && draftIdRef.current === intakeDraftId) {
+        if (intakeIsCurrent(token)) {
           setError(cause instanceof Error ? cause.message : '无法添加图片')
         }
       })
-      .finally(() => {
-        activeIntakes.current = Math.max(0, activeIntakes.current - 1)
-        reportIntakeBusy()
-      })
+      .finally(finishIntake)
   }
 
   const selectCover = async (file: File | undefined) => {
     if (!file || disabled || disabledRef.current) return
     setError(undefined)
+    const token = beginIntake()
     try {
       await prevalidateCover(file)
-      setPendingCover(file)
+      if (intakeIsCurrent(token)) setPendingCover(file)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '无法读取封面')
+      if (intakeIsCurrent(token)) setError(cause instanceof Error ? cause.message : '无法读取封面')
+    } finally {
+      finishIntake()
     }
   }
 

@@ -10,8 +10,8 @@ import { importRecoveryBundle } from './recovery-bundle'
 
 interface BundleActionsProps {
   draft: ArticleDraft
-  onReplace: (draft: ArticleDraft) => Promise<void> | void
-  onNew: (draft: ArticleDraft) => Promise<void> | void
+  onReplace: (draft: ArticleDraft) => Promise<boolean | void> | boolean | void
+  onNew: (draft: ArticleDraft) => Promise<boolean | void> | boolean | void
   onStatus: (message: string) => void
   disabled?: boolean
 }
@@ -101,6 +101,16 @@ export function BundleActions({ draft, onReplace, onNew, onStatus, disabled = fa
     }
   }
 
+  const completeImport = async (operation: (draft: ArticleDraft) => Promise<boolean | void> | boolean | void, close: () => void) => {
+    if (disabled || !pendingImport) return
+    setError(undefined)
+    try {
+      if (await operation(pendingImport) !== false) close()
+    } catch (cause) {
+      setError(errorMessage(cause))
+    }
+  }
+
   return <section className="bundle-actions" role="group" aria-label="文章包操作">
     <div className="bundle-row">
       <label className="file-button">导入 ZIP<input disabled={disabled} ref={importTrigger} aria-label="导入 ZIP" type="file" accept="application/zip,.zip" onChange={(event) => {
@@ -119,7 +129,7 @@ export function BundleActions({ draft, onReplace, onNew, onStatus, disabled = fa
     {exportError ? <p id="production-export-error" className="field-error">{exportError}</p> : null}
     <details className="loose-import"><summary>从 index.md 和图片导入</summary><label>index.md<input disabled={disabled} aria-label="导入 index.md" type="file" accept="text/markdown,.md" onChange={(event) => setLooseIndex(event.target.files?.[0])} /></label><label>图片<input disabled={disabled} aria-label="导入图片文件" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={(event) => setLooseImages(Array.from(event.target.files ?? []))} /></label><button type="button" disabled={disabled || !looseIndex} onClick={() => void stageImport(() => importLooseArticle(looseIndex!, looseImages))}>验证并导入文件</button></details>
     {error ? <p role="alert" className="field-error">{error}</p> : null}
-    {pendingImport ? <AccessibleDialog title="导入已验证" onClose={() => setPendingImport(undefined)} returnFocus={() => pendingImportTrigger.current}><p>ZIP 已完整验证。请选择替换当前文章，或作为一篇新草稿打开。</p><div className="dialog-actions"><DialogClose>{(close) => <button type="button" disabled={disabled} onClick={close}>取消</button>}</DialogClose><button type="button" disabled={disabled} onClick={() => void Promise.resolve(onReplace(pendingImport)).then(() => setPendingImport(undefined))}>替换当前文章</button><button type="button" disabled={disabled} onClick={() => void Promise.resolve(onNew(pendingImport)).then(() => setPendingImport(undefined))}>作为新草稿打开</button></div></AccessibleDialog> : null}
+    {pendingImport ? <AccessibleDialog title="导入已验证" onClose={() => setPendingImport(undefined)} returnFocus={() => pendingImportTrigger.current}><p>ZIP 已完整验证。请选择替换当前文章，或作为一篇新草稿打开。</p><div className="dialog-actions"><DialogClose>{(close) => <button type="button" disabled={disabled} onClick={close}>取消</button>}</DialogClose><DialogClose>{(close) => <button type="button" disabled={disabled} onClick={() => void completeImport(onReplace, close)}>替换当前文章</button>}</DialogClose><DialogClose>{(close) => <button type="button" disabled={disabled} onClick={() => void completeImport(onNew, close)}>作为新草稿打开</button>}</DialogClose></div></AccessibleDialog> : null}
     {productionDialog ? <AccessibleDialog title="导出 Hugo 文章包" onClose={() => setProductionDialog(false)} returnFocus={() => productionTrigger.current}>{warnings.length > 0 ? <><p>导出前请确认这些提醒：</p><ul>{warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></> : <p>验证通过，准备下载 Hugo leaf bundle。</p>}<div className="dialog-actions"><DialogClose>{(close) => <button type="button" disabled={disabled} onClick={close}>取消</button>}</DialogClose><button type="button" disabled={disabled} onClick={() => void exportProduction(false)}>保留 draft = true</button><button type="button" disabled={disabled} onClick={() => void exportProduction(true)}>设为 draft = false</button></div></AccessibleDialog> : null}
   </section>
 }

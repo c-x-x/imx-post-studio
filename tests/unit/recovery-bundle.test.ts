@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { BlobReader, BlobWriter, TextReader, ZipWriter } from '@zip.js/zip.js'
-import { exportRecoveryBundle, importRecoveryBundle } from '../../src/bundles/recovery-bundle'
-import type { ArticleDraft } from '../../src/metadata/article'
-import { MAX_ARCHIVE_FILE_BYTES } from '../../src/shared/limits'
+import { assertRecoveryBundleExportable, exportRecoveryBundle, importRecoveryBundle } from '../../src/bundles/recovery-bundle'
+import type { ArticleDraft, MediaAsset } from '../../src/metadata/article'
+import { MAX_ARCHIVE_ENTRIES, MAX_ARCHIVE_FILE_BYTES, MAX_ARCHIVE_TOTAL_BYTES } from '../../src/shared/limits'
 
 function incompleteDraft(): ArticleDraft {
   return {
@@ -33,6 +33,20 @@ async function archiveWith(entries: Array<{ name: string; data: string | Blob }>
   return writer.close()
 }
 
+function mediaAsset(index: number, blob = new Blob()): MediaAsset {
+  return { id: `asset-${index}`, name: `asset-${index}.png`, kind: 'body', mime: 'image/png', blob }
+}
+
+function draftWithMedia(media: MediaAsset[], body = ''): ArticleDraft {
+  return { ...incompleteDraft(), body, media }
+}
+
+function blobReportingSize(size: number): Blob {
+  const blob = new Blob()
+  Object.defineProperty(blob, 'size', { value: size })
+  return blob
+}
+
 describe('emergency recovery bundle', () => {
   it('round-trips an invalid, incomplete draft without normal article export validation', async () => {
     const source = incompleteDraft()
@@ -52,5 +66,36 @@ describe('emergency recovery bundle', () => {
     await expect(importRecoveryBundle(await archiveWith([{ name: 'recovery.json', data: '{"format":"imx-post-studio-recovery-v1"}' }]))).rejects.toThrow('无法恢复紧急备份')
     await expect(importRecoveryBundle(await archiveWith([{ name: 'recovery.json', data: new Blob([new Uint8Array(MAX_ARCHIVE_FILE_BYTES + 1)]) }]))).rejects.toThrow('无法恢复紧急备份')
     await expect(importRecoveryBundle(new Blob(['not a ZIP']))).rejects.toThrow('无法恢复紧急备份')
+  })
+
+  it('permits 499 media entries but rejects the 500-media ZIP that import cannot accept', async () => {
+    const importable = draftWithMedia(Array.from({ length: MAX_ARCHIVE_ENTRIES - 1 }, (_value, index) => mediaAsset(index)))
+    expect(() => assertRecoveryBundleExportable(importable)).not.toThrow()
+    expect((await importRecoveryBundle(await exportRecoveryBundle(importable))).media).toHaveLength(MAX_ARCHIVE_ENTRIES - 1)
+
+    const tooMany = draftWithMedia(Array.from({ length: MAX_ARCHIVE_ENTRIES }, (_value, index) => mediaAsset(index)))
+    expect(() => assertRecoveryBundleExportable(tooMany)).toThrow('条目数')
+    await expect(exportRecoveryBundle(tooMany)).rejects.toThrow('条目数')
+  })
+
+  it('preflights manifest, media, and exact aggregate recovery limits before ZIP writing', async () => {
+    expect(() => assertRecoveryBundleExportable(draftWithMedia([], 'x'.repeat(MAX_ARCHIVE_FILE_BYTES + 1)))).toThrow('recovery.json')
+    expect(() => assertRecoveryBundleExportable(draftWithMedia([mediaAsset(0, blobReportingSize(MAX_ARCHIVE_FILE_BYTES + 1))]))).toThrow('media/0')
+
+    const prefix = Array.from({ length: 9 }, (_value, index) => mediaAsset(index, blobReportingSize(MAX_ARCHIVE_FILE_BYTES)))
+    let low = 0
+    let high = MAX_ARCHIVE_FILE_BYTES
+    while (low < high) {
+      const middle = Math.ceil((low + high) / 2)
+      try {
+        assertRecoveryBundleExportable(draftWithMedia([...prefix, mediaAsset(9, blobReportingSize(middle))]))
+        low = middle
+      } catch {
+        high = middle - 1
+      }
+    }
+    expect(() => assertRecoveryBundleExportable(draftWithMedia([...prefix, mediaAsset(9, blobReportingSize(low))]))).not.toThrow()
+    expect(() => assertRecoveryBundleExportable(draftWithMedia([...prefix, mediaAsset(9, blobReportingSize(low + 1))]))).toThrow('总大小')
+    expect(low).toBeLessThan(MAX_ARCHIVE_TOTAL_BYTES - 9 * MAX_ARCHIVE_FILE_BYTES)
   })
 })

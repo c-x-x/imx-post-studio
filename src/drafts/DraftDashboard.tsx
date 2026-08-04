@@ -7,7 +7,7 @@ import { shouldShowBackupReminder } from './backup-reminder'
 import { draftRepository } from './repository'
 
 interface DraftDashboardProps {
-  onOpen: (draft: ArticleDraft) => Promise<void> | void
+  onOpen: (draft: ArticleDraft) => Promise<boolean | void> | boolean | void
   disabled?: boolean
 }
 

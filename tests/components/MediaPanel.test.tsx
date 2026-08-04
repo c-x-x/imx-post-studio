@@ -70,4 +70,38 @@ describe('MediaPanel intake', () => {
     await act(async () => { resolveRead?.(png.buffer) })
     expect(onAddBatch).not.toHaveBeenCalled()
   })
+
+  it('treats delayed cover validation as draft-scoped intake work', async () => {
+    let resolveRead: ((value: ArrayBuffer) => void) | undefined
+    const delayed = new File([png], 'cover.png', { type: 'image/png' })
+    Object.defineProperty(delayed, 'arrayBuffer', {
+      value: () => new Promise<ArrayBuffer>((resolve) => { resolveRead = resolve }),
+    })
+    const onIntakeBusyChange = vi.fn()
+    const props = {
+      media: [], body: '', onAddBatch: vi.fn(), onReplaceCover: vi.fn(), onRemove: vi.fn(), onInsertImage: vi.fn(), onIntakeBusyChange,
+    }
+    const { rerender } = render(<MediaPanel draftId="old" {...props} />)
+    fireEvent.change(screen.getByLabelText('选择封面'), { target: { files: [delayed] } })
+    expect(onIntakeBusyChange).toHaveBeenLastCalledWith(true)
+
+    rerender(<MediaPanel draftId="new" {...props} />)
+    await act(async () => { resolveRead?.(png.buffer) })
+    await waitFor(() => expect(onIntakeBusyChange).toHaveBeenLastCalledWith(false))
+    expect(screen.queryByRole('dialog', { name: '裁剪封面' })).not.toBeInTheDocument()
+  })
+
+  it('clears delayed cover intake when the panel unmounts', async () => {
+    let resolveRead: ((value: ArrayBuffer) => void) | undefined
+    const delayed = new File([png], 'cover.png', { type: 'image/png' })
+    Object.defineProperty(delayed, 'arrayBuffer', {
+      value: () => new Promise<ArrayBuffer>((resolve) => { resolveRead = resolve }),
+    })
+    const onIntakeBusyChange = vi.fn()
+    const { unmount } = render(<MediaPanel draftId="old" media={[]} body="" onAddBatch={vi.fn()} onReplaceCover={vi.fn()} onRemove={vi.fn()} onInsertImage={vi.fn()} onIntakeBusyChange={onIntakeBusyChange} />)
+    fireEvent.change(screen.getByLabelText('选择封面'), { target: { files: [delayed] } })
+    unmount()
+    await act(async () => { resolveRead?.(png.buffer) })
+    expect(onIntakeBusyChange).toHaveBeenLastCalledWith(false)
+  })
 })

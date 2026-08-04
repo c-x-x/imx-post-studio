@@ -113,16 +113,16 @@ export function App() {
     dispatch(action)
   }
 
-  const requestTransition = async (continueTransition: () => void, label: string): Promise<void> => {
+  const requestTransition = async (continueTransition: () => void, label: string): Promise<boolean> => {
     if (view !== 'workspace') {
       continueTransition()
-      return
+      return true
     }
     if (intakeBusyRef.current) {
       setNotice('正在读取媒体，请完成后再切换文章')
-      return
+      return false
     }
-    if (transitionInFlight.current) return
+    if (transitionInFlight.current) return false
     transitionInFlight.current = true
     setTransitioning(true)
     try {
@@ -136,43 +136,45 @@ export function App() {
       } while (savedRevision !== draftRevision.current)
       setTransitionFailure(undefined)
       continueTransition()
+      return true
     } catch (cause) {
       setTransitionFailure({ id: ++transitionId.current, label, continue: continueTransition, message: errorMessage(cause) })
+      return false
     } finally {
       transitionInFlight.current = false
       setTransitioning(false)
     }
   }
 
-  const startNew = async () => requestTransition(() => {
+  const startNew = () => requestTransition(() => {
     dispatchDraft({ type: 'new', draft: createArticleDraft() }, true)
     setTab('settings')
     setView('workspace')
     setNotice('已创建新文章')
   }, '新建文章')
 
-  const openDraft = async (next: ArticleDraft) => requestTransition(() => {
+  const openDraft = (next: ArticleDraft) => requestTransition(() => {
     dispatchDraft({ type: 'replace', draft: next }, true)
     setTab('settings')
     setView('workspace')
     setNotice('草稿已打开')
   }, '打开草稿')
 
-  const replaceImportedDraft = async (next: ArticleDraft) => requestTransition(() => {
+  const replaceImportedDraft = (next: ArticleDraft) => requestTransition(() => {
     dispatchDraft({ type: 'replace-import-content', draft: next }, true)
     setTab('settings')
     setView('workspace')
     setNotice('已替换当前草稿内容')
   }, '替换当前文章')
 
-  const openImportedAsNew = async (next: ArticleDraft) => requestTransition(() => {
+  const openImportedAsNew = (next: ArticleDraft) => requestTransition(() => {
     dispatchDraft({ type: 'new', draft: createImportedDraft(next) }, true)
     setTab('settings')
     setView('workspace')
     setNotice('已作为新草稿打开')
   }, '作为新草稿打开')
 
-  const showDashboard = async () => requestTransition(() => {
+  const showDashboard = () => requestTransition(() => {
     setView('dashboard')
     setNotice('当前草稿已保存到草稿库')
   }, '打开草稿库')
@@ -205,7 +207,7 @@ export function App() {
   }
   const discardFailedTransition = () => {
     const failure = failedTransitionRef.current
-    if (!failure || transitionDecisionInFlight.current || transitionInFlight.current) return
+    if (!failure || transitionDecisionInFlight.current || transitionInFlight.current || intakeBusyRef.current) return
     transitionDecisionInFlight.current = true
     transitionInFlight.current = true
     setTransitioning(true)
@@ -221,7 +223,7 @@ export function App() {
   const alerts: ReactNode[] = []
   if (saveStatus.state === 'failed') alerts.push(<p key="autosave">{saveStatus.message}</p>)
   if (failedTransition) {
-    alerts.push(<div key="transition"><p>保存当前草稿失败，未执行“{failedTransition.label}”：{failedTransition.message}</p><div className="recovery-actions"><button type="button" disabled={transitioning} onClick={retryFailedTransition}>重试保存</button><button type="button" disabled={transitioning} onClick={discardFailedTransition}>放弃未保存更改</button></div></div>)
+    alerts.push(<div key="transition"><p>保存当前草稿失败，未执行“{failedTransition.label}”：{failedTransition.message}</p><div className="recovery-actions"><button type="button" disabled={transitioning || intakeBusy} onClick={retryFailedTransition}>重试保存</button><button type="button" disabled={transitioning || intakeBusy} onClick={discardFailedTransition}>放弃未保存更改</button></div></div>)
   }
   if (recoveryNeeded) alerts.push(<button key="recovery-export" type="button" disabled={transitioning || intakeBusy} onClick={() => void exportRecovery()}>紧急导出恢复备份</button>)
   if (previewError) alerts.push(<p key="preview">{previewError}</p>)

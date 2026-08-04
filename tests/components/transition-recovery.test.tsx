@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { put, list } = vi.hoisted(() => ({ put: vi.fn(), list: vi.fn() }))
+const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 
 vi.mock('../../src/drafts/repository', () => ({
   draftRepository: { put, list, get: vi.fn(), duplicate: vi.fn(), rename: vi.fn(), delete: vi.fn() },
@@ -102,5 +103,40 @@ describe('workspace transitions', () => {
 
     expect(screen.getByRole('region', { name: '草稿库' })).toBeInTheDocument()
     expect(put).toHaveBeenCalledTimes(2)
+  })
+
+  it('blocks new, dashboard, and import transitions while delayed cover validation is active', async () => {
+    let resolveRead: ((value: ArrayBuffer) => void) | undefined
+    const delayed = new File([png], 'cover.png', { type: 'image/png' })
+    Object.defineProperty(delayed, 'arrayBuffer', {
+      value: () => new Promise<ArrayBuffer>((resolve) => { resolveRead = resolve }),
+    })
+    render(<App />)
+    await startWorkspace()
+    fireEvent.change(screen.getByLabelText('选择封面'), { target: { files: [delayed] } })
+
+    expect(screen.getByRole('button', { name: '新建文章' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '草稿库' })).toBeDisabled()
+    expect(screen.getByLabelText('导入 ZIP')).toBeDisabled()
+    await act(async () => { resolveRead?.(png.buffer) })
+  })
+
+  it('does not let failed-transition discard continue while body intake is active', async () => {
+    let resolveRead: ((value: ArrayBuffer) => void) | undefined
+    const delayed = new File([png], 'body.png', { type: 'image/png' })
+    Object.defineProperty(delayed, 'arrayBuffer', {
+      value: () => new Promise<ArrayBuffer>((resolve) => { resolveRead = resolve }),
+    })
+    put.mockRejectedValueOnce(new Error('Quota exceeded'))
+    render(<App />)
+    await startWorkspace()
+    fireEvent.click(screen.getByRole('button', { name: '草稿库' }))
+    await act(async () => { await Promise.resolve() })
+    fireEvent.change(screen.getByLabelText('添加正文图片'), { target: { files: [delayed] } })
+
+    expect(screen.getByRole('button', { name: '放弃未保存更改' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: '放弃未保存更改' }))
+    expect(screen.getByRole('region', { name: '文章工作区' })).toBeInTheDocument()
+    await act(async () => { resolveRead?.(png.buffer) })
   })
 })

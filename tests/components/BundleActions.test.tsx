@@ -45,4 +45,35 @@ describe('BundleActions production choices', () => {
     await user.click(screen.getByRole('button', { name: '作为新草稿打开' }))
     expect(onNew).toHaveBeenCalledWith(expect.objectContaining({ id: 'export' }))
   })
+
+  it.each([
+    ['替换当前文章', 'onReplace'],
+    ['作为新草稿打开', 'onNew'],
+  ] as const)('closes successful %s through the dialog focus-return path', async (choice, callback) => {
+    const user = userEvent.setup()
+    const onReplace = vi.fn().mockResolvedValue(true)
+    const onNew = vi.fn().mockResolvedValue(true)
+    render(<BundleActions draft={draft()} onReplace={onReplace} onNew={onNew} onStatus={() => undefined} />)
+
+    const trigger = screen.getByLabelText('导入紧急恢复 ZIP')
+    const recovery = new File([await exportRecoveryBundle(draft())], 'recovery.zip', { type: 'application/zip' })
+    await user.upload(trigger, recovery)
+    await screen.findByRole('dialog', { name: '导入已验证' })
+    await user.click(screen.getByRole('button', { name: choice }))
+
+    expect(callback === 'onReplace' ? onReplace : onNew).toHaveBeenCalledOnce()
+    expect(trigger).toHaveFocus()
+  })
+
+  it('keeps the validated import dialog open when its transition reports failure', async () => {
+    const user = userEvent.setup()
+    render(<BundleActions draft={draft()} onReplace={() => false} onNew={() => true} onStatus={() => undefined} />)
+
+    const recovery = new File([await exportRecoveryBundle(draft())], 'recovery.zip', { type: 'application/zip' })
+    await user.upload(screen.getByLabelText('导入紧急恢复 ZIP'), recovery)
+    await screen.findByRole('dialog', { name: '导入已验证' })
+    await user.click(screen.getByRole('button', { name: '替换当前文章' }))
+
+    expect(screen.getByRole('dialog', { name: '导入已验证' })).toBeInTheDocument()
+  })
 })

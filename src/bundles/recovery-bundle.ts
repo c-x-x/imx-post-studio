@@ -1,5 +1,6 @@
 import { BlobReader, BlobWriter, TextReader, TextWriter, ZipReader, ZipWriter, type Entry, type FileEntry } from '@zip.js/zip.js'
 import type { ArticleDraft, ArticleMeta, MediaAsset, MediaKind, MediaMime } from '../metadata/article'
+import { MAX_ARCHIVE_ENTRIES, MAX_ARCHIVE_FILE_BYTES, MAX_ARCHIVE_TOTAL_BYTES } from '../shared/limits'
 import { validateArchiveEntries, validateArchivePath } from './archive-path'
 
 const FORMAT = 'imx-post-studio-recovery-v1'
@@ -23,6 +24,10 @@ interface RecoveryPayload {
   format: typeof FORMAT
   draft: Omit<ArticleDraft, 'media'>
   media: RecoveryMedia[]
+}
+
+interface RecoveryExportPlan {
+  manifest: string
 }
 
 type JsonRecord = Record<string, unknown>
@@ -50,11 +55,11 @@ function payloadFor(draft: ArticleDraft): RecoveryPayload {
 }
 
 export async function exportRecoveryBundle(draft: ArticleDraft): Promise<Blob> {
-  const payload = payloadFor(draft)
+  const { manifest } = prepareRecoveryExport(draft)
   const writer = new ZipWriter(new BlobWriter('application/zip'))
   let closed = false
   try {
-    await writer.add('recovery.json', new TextReader(JSON.stringify(payload)))
+    await writer.add('recovery.json', new TextReader(manifest))
     for (let index = 0; index < draft.media.length; index += 1) {
       await writer.add(`media/${index}`, new BlobReader(draft.media[index].blob))
     }
@@ -133,6 +138,53 @@ function parsePayload(value: unknown): RecoveryPayload {
     names.add(record.name)
   }
   return { format: FORMAT, draft: parseDraft(value.draft), media }
+}
+
+function manifestByteLength(manifest: string): number {
+  return new TextEncoder().encode(manifest).byteLength
+}
+
+function prepareRecoveryExport(draft: ArticleDraft): RecoveryExportPlan {
+  const payload = payloadFor(draft)
+  // Parsing the just-created payload keeps this exporter in lockstep with the
+  // exact structural constraints used by the transactional importer.
+  parsePayload(payload)
+  let manifest: string
+  try {
+    manifest = JSON.stringify(payload)
+  } catch (cause) {
+    throw recoveryError(cause instanceof Error ? `备份清单无法序列化：${cause.message}` : '备份清单无法序列化')
+  }
+  const manifestBytes = manifestByteLength(manifest)
+  if (payload.media.length + 1 > MAX_ARCHIVE_ENTRIES) {
+    throw recoveryError(`ZIP 条目数不能超过 ${MAX_ARCHIVE_ENTRIES}`)
+  }
+  if (manifestBytes > MAX_ARCHIVE_FILE_BYTES) {
+    throw recoveryError(`recovery.json 不能超过 ${MAX_ARCHIVE_FILE_BYTES / (1024 * 1024)} MiB`)
+  }
+
+  let total = manifestBytes
+  try { validateArchivePath('recovery.json') } catch (cause) {
+    throw recoveryError(cause instanceof Error ? cause.message : 'recovery.json 路径无效')
+  }
+  for (const record of payload.media) {
+    try { validateArchivePath(record.path) } catch (cause) {
+      throw recoveryError(cause instanceof Error ? cause.message : `媒体路径无效：${record.path}`)
+    }
+    if (record.bytes > MAX_ARCHIVE_FILE_BYTES) {
+      throw recoveryError(`${record.path} 不能超过 ${MAX_ARCHIVE_FILE_BYTES / (1024 * 1024)} MiB`)
+    }
+    total += record.bytes
+    if (!Number.isSafeInteger(total) || total > MAX_ARCHIVE_TOTAL_BYTES) {
+      throw recoveryError(`ZIP 解压总大小不能超过 ${MAX_ARCHIVE_TOTAL_BYTES / (1024 * 1024)} MiB`)
+    }
+  }
+  return { manifest }
+}
+
+/** Throws before opening a ZIP writer when a draft cannot round-trip through recovery import. */
+export function assertRecoveryBundleExportable(draft: ArticleDraft): void {
+  prepareRecoveryExport(draft)
 }
 
 function assertSupportedEntry(entry: Entry): void {
