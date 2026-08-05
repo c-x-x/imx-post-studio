@@ -4,6 +4,7 @@ import { getDraftDatabase, type StoredArticleDraft, type StoredMediaAsset } from
 
 const MEDIA_MIMES = new Set<MediaMime>(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 const MEDIA_KINDS = new Set<MediaKind>(['cover', 'body'])
+const draftMutations = new Map<string, Promise<void>>()
 
 interface MediaSnapshot extends Omit<MediaAsset, 'blob'> {
   blob: Blob
@@ -161,6 +162,17 @@ function currentTimestamp(): string {
   return new Date().toISOString()
 }
 
+function enqueueDraftMutation<T>(id: string, operation: () => Promise<T>): Promise<T> {
+  const previous = draftMutations.get(id) ?? Promise.resolve()
+  const running = previous.catch(() => undefined).then(operation)
+  const settled = running.then(() => undefined, () => undefined)
+  draftMutations.set(id, settled)
+  void settled.then(() => {
+    if (draftMutations.get(id) === settled) draftMutations.delete(id)
+  })
+  return running
+}
+
 async function readDraft(id: string): Promise<ArticleDraft | undefined> {
   try {
     const database = await getDraftDatabase()
@@ -175,12 +187,14 @@ async function saveDraft(draft: ArticleDraft): Promise<void> {
   // Take every mutable value before opening IndexedDB. Blob contents are
   // immutable, so retaining the Blob long enough to copy its bytes is safe.
   const storedDraft = serializeDraft(draft)
-  try {
-    const database = await getDraftDatabase()
-    await database.put('drafts', await storedDraft)
-  } catch (error) {
-    throw storageError('保存草稿', error)
-  }
+  return enqueueDraftMutation(draft.id, async () => {
+    try {
+      const database = await getDraftDatabase()
+      await database.put('drafts', await storedDraft)
+    } catch (error) {
+      throw storageError('保存草稿', error)
+    }
+  })
 }
 
 export const draftRepository = {
@@ -250,11 +264,13 @@ export const draftRepository = {
   },
 
   async delete(id: string): Promise<void> {
-    try {
-      const database = await getDraftDatabase()
-      await database.delete('drafts', id)
-    } catch (error) {
-      throw storageError('删除草稿', error)
-    }
+    return enqueueDraftMutation(id, async () => {
+      try {
+        const database = await getDraftDatabase()
+        await database.delete('drafts', id)
+      } catch (error) {
+        throw storageError('删除草稿', error)
+      }
+    })
   },
 }

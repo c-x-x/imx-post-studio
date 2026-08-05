@@ -212,6 +212,27 @@ describe('draftRepository', () => {
     await expect(draftRepository.delete('already-missing')).resolves.toBeUndefined()
     await expect(draftRepository.duplicate('missing-draft')).rejects.toThrow('草稿不存在')
   })
+
+  it('keeps a later delete final when an earlier draft write is still serializing media', async () => {
+    const bytes = deferred<ArrayBuffer>()
+    const delayedBlob = new NativeBlob([imageBytes], { type: 'image/png' })
+    vi.spyOn(delayedBlob, 'arrayBuffer').mockReturnValue(bytes.promise)
+    const current = draft({
+      id: 'delete-after-pending-put',
+      media: [{ ...draft().media[0], blob: delayedBlob }],
+    })
+
+    const saving = draftRepository.put(current)
+    const deleting = draftRepository.delete(current.id)
+    let deleteCompleted = false
+    void deleting.then(() => { deleteCompleted = true })
+    await new Promise((resolve) => window.setTimeout(resolve, 0))
+    expect(deleteCompleted).toBe(false)
+
+    bytes.resolve(new Uint8Array(imageBytes).buffer)
+    await Promise.all([saving, deleting])
+    expect(await draftRepository.get(current.id)).toBeUndefined()
+  })
 })
 
 function deferred<T>() {
