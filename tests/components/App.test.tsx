@@ -6,6 +6,6 @@ describe('App', () => {
   it('identifies the local-only IMX writing workspace', () => {
     render(<App />)
     expect(screen.getByRole('heading', { name: 'IMX Post Studio' })).toBeInTheDocument()
-    expect(screen.getByText('文章和图片仅在此浏览器中处理')).toBeInTheDocument()
+    expect(screen.getByLabelText('文章和图片仅在此浏览器中处理')).toHaveTextContent('本地处理')
   })
 })

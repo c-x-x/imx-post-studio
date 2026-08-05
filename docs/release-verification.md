@@ -42,6 +42,24 @@ local release-verifier phase before external publication.
   The original `hugo-theme-imx` and `c-x-x.github.io` worktrees were clean
   before and after the copied-site build.
 
+## IMX Dock and immersive-sidebar proof (2026-08-05)
+
+- The Studio Dock structure, liquid-glass styling, responsive treatment, and
+  attraction/merge behavior are adapted from the read-only
+  `hugo-theme-imx` source at commit `6f08e8e`.
+- `npm test`: 31 files and 195 tests passed.
+- `npm run lint`, `npm run typecheck`, and `npm run check:theme`: passed.
+- `npm run build`: passed. Vite still reports the existing non-blocking warning
+  that the main JavaScript chunk is larger than 500 kB after minification.
+- `npm run test:e2e`: 45 tests passed across Chromium, Firefox, and WebKit;
+  12 browser-inapplicable screenshot/CSP cases were skipped by their existing
+  project rules.
+- Browser proof covers desktop Dock attraction and merge, persisted sidebar
+  collapse with a hidden scrollbar and expanded editor, mobile navigation and
+  preview without horizontal overflow, modal stacking, focus preservation,
+  the full author/export/re-import flow, security checks, and approved preview
+  screenshots.
+
 ## External publication and deployment evidence
 
 These values were recorded from the authorized GitHub publication and Vercel

@@ -70,7 +70,7 @@ export function ImxDock({
       <div className="imx-dock__actions">
         {view === 'workspace'
           ? <button ref={previewTrigger} className="imx-dock__preview" type="button" disabled={disabled} onClick={onPreview}>预览文章</button>
-          : <span className="imx-dock__privacy" title="文章和图片仅在此浏览器中处理">本地处理</span>}
+          : <span className="imx-dock__privacy" aria-label="文章和图片仅在此浏览器中处理" title="文章和图片仅在此浏览器中处理">本地处理</span>}
         <button className={`imx-dock__menu-toggle${menuOpen ? ' active' : ''}`} type="button" aria-label={menuOpen ? '关闭菜单' : '打开菜单'} aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>
           <span className="imx-dock__menu-icon" aria-hidden="true">
             <svg className="imx-dock__menu-icon-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h16" /></svg>

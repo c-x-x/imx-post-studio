@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useReducer, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useReducer, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import type { ArticleDraft, MediaAsset } from '../metadata/article'
 import { createArticleDraft } from '../metadata/article'
 import { MarkdownEditor, type MarkdownEditorHandle } from '../editor/MarkdownEditor'
@@ -263,7 +263,8 @@ export function App() {
   if (recoveryNeeded) alerts.push(<button key="recovery-export" type="button" disabled={transitioning || intakeBusy} onClick={() => void exportRecovery()}>紧急导出恢复备份</button>)
   if (previewError) alerts.push(<p key="preview">{previewError}</p>)
   if (recoveryError) alerts.push(<p key="recovery-error">{recoveryError}</p>)
-  const toggleSettings = () => {
+  const toggleSettings = (event: MouseEvent<HTMLButtonElement>) => {
+    event.currentTarget.focus()
     setSettingsCollapsed((current) => {
       const next = !current
       writeSettingsCollapsed(next)

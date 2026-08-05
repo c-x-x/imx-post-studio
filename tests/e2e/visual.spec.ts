@@ -151,20 +151,21 @@ test.describe('IMX visual regressions', () => {
     await expect(page.locator('.vite-error-overlay, [data-nextjs-dialog], #webpack-dev-server-client-overlay')).toHaveCount(0)
     await expect(page.getByRole('button', { name: '新建文章' })).toBeVisible()
     await expect(page.getByRole('button', { name: '草稿库' })).toBeVisible()
-    const shellStyle = await page.locator('.app-header').evaluate((header) => {
-      const headerStyle = getComputedStyle(header)
+    const shellStyle = await page.locator('.imx-dock').evaluate((dock) => {
+      const dockStyle = getComputedStyle(dock)
+      const containerStyle = getComputedStyle(dock.querySelector('.imx-dock__container')!)
       const bodyStyle = getComputedStyle(document.body)
       return {
         bodyBackground: bodyStyle.backgroundColor,
-        borderRadius: headerStyle.borderRadius,
-        fontFamily: headerStyle.fontFamily,
-        position: headerStyle.position,
+        columns: containerStyle.gridTemplateColumns.split(' ').length,
+        fontFamily: dockStyle.fontFamily,
+        position: dockStyle.position,
       }
     })
     expect(shellStyle).toMatchObject({
       bodyBackground: 'rgb(242, 239, 232)',
-      borderRadius: '34px',
-      position: 'sticky',
+      columns: 3,
+      position: 'fixed',
     })
     expect(shellStyle.fontFamily).toContain('IMX Inter')
   })

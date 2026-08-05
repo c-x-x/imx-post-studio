@@ -20,6 +20,7 @@ describe('article workspace', () => {
 
     expect(workspace).toHaveAttribute('data-inspector-collapsed', 'true')
     expect(screen.getByRole('button', { name: '展开文章设置' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: '展开文章设置' })).toHaveFocus()
     first.unmount()
 
     render(<App />)

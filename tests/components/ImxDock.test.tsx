@@ -40,6 +40,7 @@ describe('IMX Studio Dock', () => {
 
     expect(screen.getByRole('button', { name: '草稿库' })).toHaveAttribute('aria-current', 'page')
     expect(screen.queryByRole('button', { name: '预览文章' })).not.toBeInTheDocument()
+    expect(screen.getByLabelText('文章和图片仅在此浏览器中处理')).toHaveTextContent('本地处理')
   })
 
   it('opens and dismisses the mobile navigation accessibly', async () => {

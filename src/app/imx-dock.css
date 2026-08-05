@@ -386,8 +386,16 @@
     transform: none;
   }
 
-  .imx-dock__preview,
   .imx-dock__privacy { display: none; }
+
+  .imx-dock__preview {
+    display: inline-flex;
+    align-items: center;
+    min-height: 38px;
+    padding: 0 .7rem;
+    font-size: .76rem;
+    white-space: nowrap;
+  }
 
   .imx-dock__menu-toggle { display: grid; place-items: center; }
   .imx-dock__menu-toggle.active { color: var(--imx-accent); background: rgba(122, 90, 50, .12); }
