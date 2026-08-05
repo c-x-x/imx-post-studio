@@ -21,9 +21,33 @@ describe('article workspace', () => {
     await user.type(screen.getByLabelText('Slug'), 'my-manual-slug')
     await user.type(screen.getByLabelText('标题'), ' 新版')
 
+    expect(screen.queryByTitle('IMX 文章预览')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '预览文章' }))
     const preview = screen.getByTitle('IMX 文章预览')
     expect(preview.getAttribute('srcdoc')).toContain('Hugo 图片处理指南 新版')
     expect(screen.getByLabelText('Slug')).toHaveValue('my-manual-slug')
+  })
+
+  it('mounts preview only on request, destroys it on Escape, and restores trigger focus', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: '新建文章' }))
+    const trigger = screen.getByRole('button', { name: '预览文章' })
+    expect(screen.getAllByRole('tab')).toHaveLength(2)
+    expect(screen.queryByTitle('IMX 文章预览')).not.toBeInTheDocument()
+    expect(document.body).not.toHaveClass('preview-open')
+
+    await user.click(trigger)
+    expect(await screen.findByRole('dialog', { name: 'IMX 文章预览' })).toBeInTheDocument()
+    expect(screen.getByTitle('IMX 文章预览')).toBeInTheDocument()
+    expect(document.body).toHaveClass('preview-open')
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'IMX 文章预览' })).not.toBeInTheDocument()
+    expect(screen.queryByTitle('IMX 文章预览')).not.toBeInTheDocument()
+    expect(document.body).not.toHaveClass('preview-open')
+    expect(trigger).toHaveFocus()
   })
 
   it('shows an imported body image and blocks a production export for an invalid slug', async () => {

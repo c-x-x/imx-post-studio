@@ -50,6 +50,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     <div className="editor-toolbar" role="toolbar" aria-label="Markdown 格式">
       {toolbar.map(({ label, command }) => <button key={label} type="button" disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={() => applyCommand(command)}>{label}</button>)}
     </div>
-    <CodeMirror ref={editorRef} value={value} height="min(65vh, 760px)" extensions={[markdown(), EditorView.contentAttributes.of({ 'aria-label': 'Markdown 编辑器' })]} editable={!disabled} onChange={onChange} placeholder="从这里开始写 Markdown…" />
+    <CodeMirror ref={editorRef} value={value} height="calc(100dvh - 190px)" extensions={[markdown(), EditorView.contentAttributes.of({ 'aria-label': 'Markdown 编辑器' })]} editable={!disabled} onChange={onChange} placeholder="从这里开始写 Markdown…" />
   </section>
 })

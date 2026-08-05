@@ -14,11 +14,12 @@ import { DraftDashboard } from '../drafts/DraftDashboard'
 import { draftRepository } from '../drafts/repository'
 import { useAutosave } from '../drafts/use-autosave'
 import { appReducer, createImportedDraft } from './app-state'
+import { AccessibleDialog, DialogClose } from './AccessibleDialog'
 import { Notifications } from './notifications'
 import './app.css'
 
 type View = 'dashboard' | 'workspace'
-type WorkspaceTab = 'settings' | 'write' | 'preview'
+type WorkspaceTab = 'settings' | 'write'
 
 interface FailedTransition {
   id: number
@@ -53,6 +54,7 @@ export function App() {
   const [draft, dispatch] = useReducer(appReducer, undefined, () => createArticleDraft())
   const [view, setView] = useState<View>('dashboard')
   const [tab, setTab] = useState<WorkspaceTab>('settings')
+  const [previewOpen, setPreviewOpen] = useState(false)
   const [rendered, setRendered] = useState<RenderedMarkdown>(emptyRendered)
   const [notice, setNotice] = useState('')
   const [previewError, setPreviewError] = useState<string>()
@@ -70,6 +72,7 @@ export function App() {
   const failedTransitionRef = useRef<FailedTransition | undefined>(undefined)
   const importFocusTarget = useRef<(() => HTMLElement | null) | undefined>(undefined)
   const editorRef = useRef<MarkdownEditorHandle>(null)
+  const previewTrigger = useRef<HTMLButtonElement>(null)
   const urls = useRef(new ObjectUrlRegistry())
   const previousMedia = useRef<MediaAsset[]>([])
   const saveStatus = useAutosave(view === 'workspace' ? draft : null)
@@ -96,6 +99,7 @@ export function App() {
     previousMedia.current = draft.media
   }, [draft.media])
   useEffect(() => {
+    if (!previewOpen) return
     let cancelled = false
     void renderMarkdown(draft.body, (path) => {
       const name = path.slice('images/'.length)
@@ -113,7 +117,12 @@ export function App() {
       },
     )
     return () => { cancelled = true }
-  }, [draft.body, draft.media])
+  }, [draft.body, draft.media, previewOpen])
+  useEffect(() => {
+    if (!previewOpen) return
+    document.body.classList.add('preview-open')
+    return () => document.body.classList.remove('preview-open')
+  }, [previewOpen])
 
   const setTransitionFailure = (failure: FailedTransition | undefined) => {
     failedTransitionRef.current = failure
@@ -212,6 +221,16 @@ export function App() {
       : notice
   const recoveryNeeded = saveStatus.state === 'failed' || Boolean(failedTransition)
   const workspaceLocked = transitioning || intakeBusy
+  const openPreview = () => {
+    setRendered(emptyRendered)
+    setPreviewError(undefined)
+    setPreviewOpen(true)
+  }
+  const closePreview = () => {
+    setPreviewOpen(false)
+    setRendered(emptyRendered)
+    setPreviewError(undefined)
+  }
   const retryFailedTransition = () => {
     const failure = failedTransitionRef.current
     if (!failure || transitionDecisionInFlight.current || transitionInFlight.current) return
@@ -243,17 +262,17 @@ export function App() {
   if (recoveryError) alerts.push(<p key="recovery-error">{recoveryError}</p>)
 
   return <main className="app-shell">
-    <header className="app-header"><div><h1>IMX Post Studio</h1><p>文章和图片仅在此浏览器中处理</p></div><div className="app-header-actions"><button type="button" disabled={workspaceLocked} onClick={() => void startNew()}>新建文章</button><button type="button" disabled={workspaceLocked} onClick={() => void showDashboard()}>草稿库</button></div></header>
+    <header className="app-header"><div className="app-brand"><span className="app-brand-mark" aria-hidden="true">IMX</span><div><h1>IMX Post Studio</h1><p>文章和图片仅在此浏览器中处理</p></div></div><div className="app-header-actions">{view === 'workspace' ? <button ref={previewTrigger} className="preview-trigger" type="button" disabled={workspaceLocked} onClick={openPreview}>预览文章</button> : null}<button type="button" disabled={workspaceLocked} onClick={() => void startNew()}>新建文章</button><button type="button" disabled={workspaceLocked} onClick={() => void showDashboard()}>草稿库</button></div></header>
     <Notifications status={status} alert={alerts.length > 0 ? <>{alerts}</> : undefined} />
     {view === 'dashboard' ? <DraftDashboard onOpen={openDraft} disabled={workspaceLocked} /> : <section className="workspace" aria-label="文章工作区" aria-busy={workspaceLocked}>
       <nav className="workspace-tabs" role="tablist" aria-label="工作区视图">
-        {([['settings', '设置'], ['write', '写作'], ['preview', '预览']] as const).map(([id, label]) => <button key={id} id={`tab-${id}`} type="button" disabled={workspaceLocked} role="tab" aria-selected={tab === id} aria-controls={`panel-${id}`} onClick={() => setTab(id)}>{label}</button>)}
+        {([['settings', '设置'], ['write', '写作']] as const).map(([id, label]) => <button key={id} id={`tab-${id}`} type="button" disabled={workspaceLocked} role="tab" aria-selected={tab === id} aria-controls={`panel-${id}`} onClick={() => setTab(id)}>{label}</button>)}
       </nav>
       <div className="workspace-grid" data-tab={tab}>
         <aside id="panel-settings" className="workspace-panel workspace-inspector" role="tabpanel" aria-labelledby="tab-settings"><MetadataPanel disabled={workspaceLocked} meta={draft.meta} onChange={(field, value) => dispatchDraft({ type: 'set-meta', field, value })} /><MediaPanel draftId={draft.id} disabled={transitioning} media={draft.media} body={draft.body} onAddBatch={(assets) => dispatchDraft({ type: 'add-media-batch', assets })} onReplaceCover={(asset) => dispatchDraft({ type: 'replace-cover', asset })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onInsertImage={(asset) => editorRef.current?.insertImage(asset.name, assetAlt(asset))} onIntakeBusyChange={(busy) => { intakeBusyRef.current = busy; setIntakeBusy(busy) }} /><BundleActions disabled={workspaceLocked} draft={draft} onReplace={replaceImportedDraft} onNew={openImportedAsNew} onStatus={setNotice} onImportFocusRequest={(target) => { importFocusTarget.current = target; setImportFocusVersion((current) => current + 1) }} /></aside>
         <section id="panel-write" className="workspace-panel workspace-editor" role="tabpanel" aria-labelledby="tab-write"><h2 className="visually-hidden">写作</h2><MarkdownEditor disabled={workspaceLocked} ref={editorRef} value={draft.body} onChange={(body) => dispatchDraft({ type: 'set-body', body })} /></section>
-        <section id="panel-preview" className="workspace-panel workspace-preview" role="tabpanel" aria-labelledby="tab-preview"><PreviewFrame meta={draft.meta} rendered={rendered} css={previewCss} /></section>
       </div>
     </section>}
+    {previewOpen ? <AccessibleDialog title="IMX 文章预览" className="preview-dialog" onClose={closePreview} returnFocus={() => previewTrigger.current}><DialogClose>{(close) => <PreviewFrame meta={draft.meta} rendered={rendered} css={previewCss} onClose={() => close()} />}</DialogClose></AccessibleDialog> : null}
   </main>
 }

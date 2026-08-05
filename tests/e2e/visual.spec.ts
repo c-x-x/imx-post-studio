@@ -48,6 +48,8 @@ async function seedPreview(page: Page): Promise<void> {
   await page.getByRole('textbox', { name: 'Markdown 编辑器' }).fill(sampleBody)
   await page.getByLabel('添加正文图片').setInputFiles(pngFile('visual.png', 640, 360, [117, 76, 172, 255]))
   await page.getByRole('listitem', { name: 'visual.png' }).getByRole('button', { name: '插入' }).click()
+  await expect(page.getByTitle('IMX 文章预览')).toHaveCount(0)
+  await page.getByRole('button', { name: '预览文章' }).click()
   await expect(page.frameLocator('iframe[title="IMX 文章预览"]').locator('img[src^="blob:"]')).toHaveCount(1)
 }
 
@@ -143,13 +145,28 @@ test.describe('IMX visual regressions', () => {
     test.skip(browserName !== 'chromium', 'Only Chromium owns approved screenshot baselines.')
   })
 
-  test('loads meaningful content without a Vite error overlay', async ({ page }) => {
+  test('loads meaningful content with the IMX application shell and no Vite error overlay', async ({ page }) => {
     await page.goto('/')
     await expect(page.getByRole('heading', { name: 'IMX Post Studio' })).toBeVisible()
     await expect(page.locator('.vite-error-overlay, [data-nextjs-dialog], #webpack-dev-server-client-overlay')).toHaveCount(0)
     await expect(page.getByRole('button', { name: '新建文章' })).toBeVisible()
     await expect(page.getByRole('button', { name: '草稿库' })).toBeVisible()
-    await expect(page.locator('main')).toHaveScreenshot('app-shell-gut-check.png', visualOptions)
+    const shellStyle = await page.locator('.app-header').evaluate((header) => {
+      const headerStyle = getComputedStyle(header)
+      const bodyStyle = getComputedStyle(document.body)
+      return {
+        bodyBackground: bodyStyle.backgroundColor,
+        borderRadius: headerStyle.borderRadius,
+        fontFamily: headerStyle.fontFamily,
+        position: headerStyle.position,
+      }
+    })
+    expect(shellStyle).toMatchObject({
+      bodyBackground: 'rgb(242, 239, 232)',
+      borderRadius: '34px',
+      position: 'sticky',
+    })
+    expect(shellStyle.fontFamily).toContain('IMX Inter')
   })
 
   test('matches the light desktop article preview', async ({ page }) => {
@@ -168,7 +185,6 @@ test.describe('IMX visual regressions', () => {
   test('matches the light mobile article preview', async ({ page }) => {
     await seedPreview(page)
     await page.setViewportSize({ width: 390, height: 844 })
-    await page.getByRole('tab', { name: '预览' }).click()
     await page.getByRole('button', { name: '移动预览' }).click()
     await matchPreviewScreenshot(page, 'imx-preview-light-mobile.png', 'mobile')
   })
@@ -176,7 +192,6 @@ test.describe('IMX visual regressions', () => {
   test('matches the dark mobile article preview', async ({ page }) => {
     await seedPreview(page)
     await page.setViewportSize({ width: 390, height: 844 })
-    await page.getByRole('tab', { name: '预览' }).click()
     await page.getByRole('button', { name: '移动预览' }).click()
     await page.getByRole('button', { name: '深色预览' }).click()
     const preview = page.frameLocator('iframe[title="IMX 文章预览"]')

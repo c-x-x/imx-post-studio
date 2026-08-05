@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { PreviewFrame } from '../../src/preview/PreviewFrame'
 import { buildPreviewDocument } from '../../src/preview/build-preview-document'
 import type { ArticleMeta } from '../../src/metadata/article'
@@ -11,8 +11,10 @@ const meta: ArticleMeta = {
 
 describe('PreviewFrame', () => {
   it('keeps accessible controls outside a fully sandboxed, script-free IMX iframe and changes preview geometry', () => {
-    render(<PreviewFrame meta={meta} rendered={{ html: '<h2 id="imx-heading-a">A</h2>', toc: [], wordCount: 120, readingMinutes: 1 }} css={'body { color: red; }'} />)
+    const onClose = vi.fn()
+    render(<PreviewFrame meta={meta} rendered={{ html: '<h2 id="imx-heading-a">A</h2>', toc: [], wordCount: 120, readingMinutes: 1 }} css={'body { color: red; }'} onClose={onClose} />)
 
+    const close = screen.getByRole('button', { name: '返回编辑' })
     const mobile = screen.getByRole('button', { name: '移动预览' })
     const desktop = screen.getByRole('button', { name: '桌面预览' })
     const iframe = screen.getByTitle('IMX 文章预览')
@@ -26,6 +28,9 @@ describe('PreviewFrame', () => {
     expect(screen.getByLabelText('预览画布，可水平滚动')).toHaveAttribute('tabindex', '0')
     expect(desktop).toHaveAttribute('aria-pressed', 'true')
     expect(iframe).toHaveStyle({ width: '1180px' })
+
+    fireEvent.click(close)
+    expect(onClose).toHaveBeenCalledOnce()
 
     fireEvent.click(mobile)
     expect(mobile).toHaveAttribute('aria-pressed', 'true')

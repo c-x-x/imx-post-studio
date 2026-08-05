@@ -71,6 +71,8 @@ test('sanitizes hostile preview HTML and preserves the sandboxed IMX document co
     '<img src="images/missing.png" onerror="window.__imx_image = true">',
   ].join('\n'))
 
+  await expect(page.getByTitle('IMX 文章预览')).toHaveCount(0)
+  await page.getByRole('button', { name: '预览文章' }).click()
   const iframe = page.getByTitle('IMX 文章预览')
   await expect(iframe).toHaveAttribute('sandbox', 'allow-same-origin')
   await expect(iframe).not.toHaveAttribute('sandbox', /allow-scripts/)
@@ -219,6 +221,8 @@ test('renders a real Blob body image inside the script-free preview iframe', asy
   await page.getByLabel('添加正文图片').setInputFiles(pngFile('blob-proof.png', 64, 36, [64, 158, 112, 255]))
   const image = page.getByRole('listitem', { name: 'blob-proof.png' })
   await image.getByRole('button', { name: '插入' }).click()
+  await expect(page.getByTitle('IMX 文章预览')).toHaveCount(0)
+  await page.getByRole('button', { name: '预览文章' }).click()
   const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
   await expect(preview.locator('img[src^="blob:"]')).toHaveCount(1)
   await expect(preview.locator('script')).toHaveCount(0)
