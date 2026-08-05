@@ -15,6 +15,7 @@ import { draftRepository } from '../drafts/repository'
 import { useAutosave } from '../drafts/use-autosave'
 import { appReducer, createImportedDraft } from './app-state'
 import { AccessibleDialog, DialogClose } from './AccessibleDialog'
+import { ImxDock } from './ImxDock'
 import { Notifications } from './notifications'
 import { readSettingsCollapsed, writeSettingsCollapsed } from './sidebar-preference'
 import './app.css'
@@ -271,7 +272,7 @@ export function App() {
   }
 
   return <main className="app-shell">
-    <header className="app-header"><div className="app-brand"><span className="app-brand-mark" aria-hidden="true">IMX</span><div><h1>IMX Post Studio</h1><p>文章和图片仅在此浏览器中处理</p></div></div><div className="app-header-actions">{view === 'workspace' ? <button ref={previewTrigger} className="preview-trigger" type="button" disabled={workspaceLocked} onClick={openPreview}>预览文章</button> : null}<button type="button" disabled={workspaceLocked} onClick={() => void startNew()}>新建文章</button><button type="button" disabled={workspaceLocked} onClick={() => void showDashboard()}>草稿库</button></div></header>
+    <ImxDock view={view} disabled={workspaceLocked} previewTrigger={previewTrigger} onPreview={openPreview} onNew={() => void startNew()} onDashboard={() => void showDashboard()} />
     <Notifications status={status} alert={alerts.length > 0 ? <>{alerts}</> : undefined} />
     {view === 'dashboard' ? <DraftDashboard onOpen={openDraft} disabled={workspaceLocked} /> : <section className="workspace" aria-label="文章工作区" aria-busy={workspaceLocked} data-inspector-collapsed={settingsCollapsed}>
       <nav className="workspace-tabs" role="tablist" aria-label="工作区视图">

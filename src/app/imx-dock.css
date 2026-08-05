@@ -1,0 +1,455 @@
+/* Adapted from hugo-theme-imx 6f08e8e: navigation.css, navigation-liquid.css and responsive.css. */
+.imx-dock {
+  --home-dock-attraction: 0;
+  --home-dock-actions-shift: 0px;
+  --home-dock-brand-shift: 0px;
+  --home-dock-group-shift: 0px;
+  --home-dock-part-bg-alpha: .8;
+  --home-dock-part-border-alpha: .14;
+  --home-dock-part-overlay-alpha: 1;
+  --home-dock-part-scale: 1;
+  --home-dock-part-shadow-alpha: .11;
+  --home-dock-shell-opacity: 0;
+  --home-dock-shell-scale-x: 1;
+  --home-dock-shell-scale-y: .9;
+  --home-dock-shell-width: 0px;
+  --home-dock-shell-x: 0px;
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  z-index: 1000;
+  width: calc(100vw - clamp(1.5rem, 4vw, 4rem));
+  color: var(--imx-ink);
+  translate: -50% 0;
+  transition: top .3s ease, transform .38s cubic-bezier(.33, 1, .68, 1);
+}
+
+.imx-dock__container {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(.65rem, 1.7vw, 1.25rem);
+}
+
+.imx-dock__container > * {
+  position: relative;
+  z-index: 1;
+}
+
+.imx-dock__shell {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  z-index: 0;
+  display: block;
+  width: var(--home-dock-shell-width);
+  overflow: hidden;
+  border: 1px solid rgba(60, 55, 48, .14);
+  border-radius: 999px;
+  background: rgba(251, 250, 247, .68);
+  box-shadow: 0 14px 34px rgba(44, 40, 34, .1), inset 0 1px 0 rgba(255, 255, 255, .58);
+  opacity: var(--home-dock-shell-opacity);
+  transform: translate3d(var(--home-dock-shell-x), 0, 0) scale3d(var(--home-dock-shell-scale-x), var(--home-dock-shell-scale-y), 1);
+  transform-origin: center;
+  pointer-events: none;
+  will-change: transform, opacity;
+  contain: layout paint style;
+}
+
+.imx-dock__brand,
+.imx-dock__actions,
+.imx-dock__menu {
+  border: 1px solid rgba(75, 64, 52, calc(var(--home-dock-part-border-alpha) * 1));
+  background: rgba(251, 250, 247, calc(.68 * var(--home-dock-part-overlay-alpha)));
+  box-shadow: 0 7px 26px rgba(75, 64, 52, var(--home-dock-part-shadow-alpha));
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.imx-dock__brand,
+.imx-dock__actions {
+  min-height: 54px;
+  overflow: hidden;
+  border-radius: 26px;
+}
+
+.imx-dock__brand::before,
+.imx-dock__actions::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 18%;
+  left: 18%;
+  height: 1px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .62), transparent);
+  opacity: var(--home-dock-part-overlay-alpha);
+  pointer-events: none;
+}
+
+.imx-dock__brand {
+  display: flex;
+  align-items: center;
+  justify-self: start;
+  gap: .58rem;
+  padding: .52rem 1.05rem .52rem .9rem;
+  transform: translate3d(var(--home-dock-brand-shift), 0, 0) scale(var(--home-dock-part-scale));
+  white-space: nowrap;
+  will-change: transform;
+}
+
+.imx-dock__brand h1 {
+  margin: 0;
+  color: var(--imx-ink);
+  font-family: 'IMX Inter', sans-serif;
+  font-size: 1.12rem;
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+
+.imx-dock__logo-wrap {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+}
+
+.imx-dock__logo,
+.imx-dock__logo-ink {
+  grid-area: 1 / 1;
+  width: 30px;
+  height: 30px;
+  overflow: visible;
+  color: var(--imx-ink);
+  transition: opacity .2s ease, transform .84s cubic-bezier(.16, 1, .3, 1), filter .2s ease;
+}
+
+.imx-dock__logo { opacity: .92; }
+
+.imx-dock__logo-ink {
+  opacity: 0;
+  transform: scale(.18);
+  transform-origin: center;
+}
+
+.imx-dock__logo-ink path {
+  stroke-dasharray: 1.04;
+  stroke-dashoffset: 1.04;
+}
+
+.imx-dock__logo-ink-dot {
+  opacity: 0;
+  transform: scale(.34);
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: opacity .24s ease, transform .42s cubic-bezier(.16, 1, .3, 1);
+}
+
+.imx-dock__brand-default-logo:hover .imx-dock__logo {
+  opacity: .08;
+  transform: translateY(-1px) scale(.88);
+  filter: blur(.4px);
+}
+
+.imx-dock__brand-default-logo:hover .imx-dock__logo-ink {
+  opacity: 1;
+  transform: translateY(-1px) scale(1.04);
+  filter: drop-shadow(0 7px 16px rgba(15, 23, 42, .18));
+}
+
+.imx-dock__brand-default-logo:hover .imx-dock__logo-ink path {
+  animation: imxDockLogoInkDraw .9s cubic-bezier(.16, 1, .3, 1) forwards;
+  animation-delay: calc(110ms + var(--i, 0) * 18ms);
+}
+
+.imx-dock__brand-default-logo:hover .imx-dock__logo-ink-dot {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.imx-dock__menu {
+  display: flex;
+  align-items: center;
+  gap: .12rem;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  border-width: 1.5px;
+  border-radius: 30px;
+  list-style: none;
+  isolation: isolate;
+  contain: layout style;
+}
+
+.imx-dock__menu li { display: inline-flex; }
+
+.imx-dock__menu button {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  min-height: 52px;
+  padding: 0 1.45rem;
+  border: 0;
+  border-radius: 16px;
+  color: var(--imx-ink);
+  background: transparent;
+  font: 500 .92rem 'IMX Inter', sans-serif;
+  letter-spacing: .01em;
+  white-space: nowrap;
+  opacity: .7;
+  transition: color .2s ease, opacity .2s ease, transform .24s cubic-bezier(.16, 1, .3, 1), background-color .2s ease;
+}
+
+.imx-dock__menu button:hover:not(:disabled) {
+  color: var(--imx-accent);
+  opacity: 1;
+  transform: translateY(-2px);
+}
+
+.imx-dock__menu button.active {
+  color: var(--imx-accent);
+  background: rgba(122, 90, 50, .12);
+  font-weight: 650;
+  opacity: 1;
+}
+
+.imx-dock__menu.has-active button:not(.active) { opacity: .5; }
+
+.imx-dock__menu-outline {
+  position: absolute;
+  inset: -1.5px;
+  display: block !important;
+  border: 1.5px solid rgba(15, 23, 42, calc(.14 * var(--home-dock-part-overlay-alpha)));
+  border-radius: inherit;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), 0 0 0 .35px rgba(255, 255, 255, .2);
+  opacity: var(--home-dock-part-overlay-alpha);
+  pointer-events: none;
+}
+
+.imx-dock__actions {
+  display: flex;
+  align-items: center;
+  justify-self: end;
+  justify-content: center;
+  min-width: 72px;
+  padding: 0 .46rem;
+  border-radius: 999px;
+  transform: translate3d(var(--home-dock-actions-shift), 0, 0) scale(var(--home-dock-part-scale));
+  will-change: transform;
+}
+
+.imx-dock__actions::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  z-index: 0;
+  border-radius: inherit;
+  background: radial-gradient(ellipse 64% 72% at 35% 22%, rgba(255, 255, 255, .58), transparent 36%), linear-gradient(145deg, rgba(255, 255, 255, .24), transparent 54%);
+  opacity: var(--home-dock-part-overlay-alpha);
+  pointer-events: none;
+}
+
+.imx-dock__preview,
+.imx-dock__privacy,
+.imx-dock__menu-toggle {
+  position: relative;
+  z-index: 1;
+}
+
+.imx-dock__preview {
+  min-height: 42px;
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 999px;
+  color: var(--imx-paper);
+  background: linear-gradient(145deg, #88653d, #674823);
+  box-shadow: 0 5px 16px rgba(86, 61, 33, .2), inset 0 1px 0 rgba(255, 255, 255, .2);
+  font-weight: 650;
+}
+
+.imx-dock__privacy {
+  padding: 0 .45rem;
+  color: var(--imx-ink-muted);
+  font-size: .76rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.imx-dock__menu-toggle {
+  display: none;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  color: var(--imx-ink);
+  background: transparent;
+}
+
+.imx-dock__menu-icon {
+  position: relative;
+  display: block;
+  width: 21px;
+  height: 21px;
+  margin: auto;
+}
+
+.imx-dock__menu-icon svg {
+  position: absolute;
+  inset: 0;
+  width: 21px;
+  height: 21px;
+  transition: opacity .18s ease, transform .3s cubic-bezier(.2, .8, .2, 1);
+}
+
+.imx-dock__menu-icon-open { opacity: 1; transform: rotate(0) scale(1); }
+.imx-dock__menu-icon-close { opacity: 0; transform: rotate(-32deg) scale(.72); }
+.imx-dock__menu-toggle.active .imx-dock__menu-icon-open { opacity: 0; transform: rotate(32deg) scale(.72); }
+.imx-dock__menu-toggle.active .imx-dock__menu-icon-close { opacity: 1; transform: rotate(0) scale(1); }
+
+.imx-dock.is-dock-attracting .imx-dock__menu button:hover,
+.imx-dock.is-dock-merged .imx-dock__menu button:hover { transform: none; }
+
+@keyframes imxDockLogoInkDraw {
+  to { stroke-dashoffset: 0; }
+}
+
+@media (max-width: 768px) {
+  .imx-dock {
+    top: max(10px, env(safe-area-inset-top));
+    width: calc(100% - 20px);
+    max-width: 420px;
+  }
+
+  .imx-dock__container {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'brand actions';
+    width: 100%;
+    min-height: 64px;
+    padding: 6px 7px 6px 10px;
+    column-gap: 6px;
+    border: 1px solid rgba(75, 64, 52, .12);
+    border-radius: 24px;
+    background: rgba(251, 250, 247, .68);
+    box-shadow: 0 12px 30px rgba(44, 40, 34, .1), inset 0 1px 0 rgba(255, 255, 255, .72);
+    backdrop-filter: blur(22px) saturate(165%);
+    -webkit-backdrop-filter: blur(22px) saturate(165%);
+  }
+
+  .imx-dock__shell { display: none; }
+
+  .imx-dock__brand {
+    grid-area: brand;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    height: 50px;
+    padding: 0 .45rem 0 .3rem;
+    overflow: hidden;
+    border: 0;
+    border-radius: 16px;
+    background: transparent;
+    box-shadow: none;
+    transform: none;
+  }
+
+  .imx-dock__brand::before,
+  .imx-dock__actions::before,
+  .imx-dock__actions::after { display: none; }
+
+  .imx-dock__brand h1 {
+    overflow: hidden;
+    font-size: 1rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .imx-dock__brand-default-logo:hover .imx-dock__logo { opacity: .92; transform: none; filter: none; }
+  .imx-dock__brand-default-logo:hover .imx-dock__logo-ink { opacity: 0; transform: scale(.18); filter: none; }
+  .imx-dock__brand-default-logo:hover .imx-dock__logo-ink path { animation: none; }
+
+  .imx-dock__actions {
+    grid-area: actions;
+    min-width: 0;
+    min-height: 0;
+    height: 46px;
+    padding: 3px;
+    border: 0;
+    border-radius: 17px;
+    background: rgba(75, 64, 52, .055);
+    box-shadow: none;
+    transform: none;
+  }
+
+  .imx-dock__preview,
+  .imx-dock__privacy { display: none; }
+
+  .imx-dock__menu-toggle { display: grid; place-items: center; }
+  .imx-dock__menu-toggle.active { color: var(--imx-accent); background: rgba(122, 90, 50, .12); }
+
+  .imx-dock__menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    left: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2px;
+    min-height: 50px;
+    padding: 5px;
+    border: 1px solid rgba(75, 64, 52, .12);
+    border-radius: 18px;
+    background: rgba(251, 250, 247, .9);
+    box-shadow: 0 14px 34px rgba(44, 40, 34, .12), inset 0 1px 0 rgba(255, 255, 255, .64);
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate3d(0, -7px, 0) scale(.985);
+    transform-origin: top center;
+    transition: opacity .2s ease, transform .3s cubic-bezier(.2, .8, .2, 1), visibility 0s linear .3s;
+  }
+
+  .imx-dock__menu.active {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate3d(0, 0, 0) scale(1);
+    transition-delay: 0s;
+  }
+
+  .imx-dock__menu li { display: flex; min-width: 0; }
+
+  .imx-dock__menu button {
+    justify-content: center;
+    width: 100%;
+    min-height: 38px;
+    padding: 0 .2rem;
+    border-radius: 13px;
+    font-size: .84rem;
+    font-weight: 620;
+    transform: none;
+  }
+
+  .imx-dock__menu-outline { display: none !important; }
+}
+
+@media (max-width: 380px) {
+  .imx-dock__brand h1 { font-size: .9rem; }
+  .imx-dock__logo-wrap { width: 28px; height: 28px; }
+  .imx-dock__logo,
+  .imx-dock__logo-ink { width: 27px; height: 27px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .imx-dock *,
+  .imx-dock *::before,
+  .imx-dock *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+  .imx-dock__brand-default-logo:hover .imx-dock__logo { opacity: 1; filter: none; transform: none; }
+  .imx-dock__brand-default-logo:hover .imx-dock__logo-ink { opacity: 0; }
+  .imx-dock__brand-default-logo:hover .imx-dock__logo-ink path { animation: none; }
+}
