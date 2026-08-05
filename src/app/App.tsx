@@ -22,6 +22,7 @@ import { Notifications } from './notifications'
 import { readSettingsCollapsed, writeSettingsCollapsed } from './sidebar-preference'
 import { applyTheme, resolveInitialTheme, writeThemePreference, type AppTheme } from './theme-preference'
 import { TransitionConfirmDialog, type ConfirmedIntent } from './TransitionConfirmDialog'
+import { useUnsavedChangesWarning } from './use-unsaved-changes-warning'
 import './app.css'
 
 type View = 'home' | 'dashboard' | 'workspace'
@@ -69,6 +70,7 @@ export function App() {
   const [transitioning, setTransitioning] = useState(false)
   const [intakeBusy, setIntakeBusy] = useState(false)
   const [draftStarted, setDraftStartedState] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [importFocusVersion, setImportFocusVersion] = useState(0)
   const [settingsCollapsed, setSettingsCollapsed] = useState(readSettingsCollapsed)
   const [theme, setTheme] = useState<AppTheme>(resolveInitialTheme)
@@ -88,7 +90,9 @@ export function App() {
   const confirmReturnFocus = useRef<HTMLElement | null>(null)
   const urls = useRef(new ObjectUrlRegistry())
   const previousMedia = useRef<MediaAsset[]>([])
-  const saveStatus = useAutosave(view === 'workspace' && draftStarted ? draft : null)
+  const saveStatus = useAutosave(view === 'workspace' && draftStarted && hasUnsavedChanges ? draft : null)
+
+  useUnsavedChangesWarning(hasUnsavedChanges)
 
   useLayoutEffect(() => { draftRef.current = draft }, [draft])
   useLayoutEffect(() => { applyTheme(theme) }, [theme])
@@ -137,6 +141,11 @@ export function App() {
     document.body.classList.add('preview-open')
     return () => document.body.classList.remove('preview-open')
   }, [previewOpen])
+  useEffect(() => {
+    if (view === 'workspace' && hasUnsavedChanges && saveStatus.state === 'saved') {
+      setHasUnsavedChanges(false)
+    }
+  }, [hasUnsavedChanges, saveStatus, view])
 
   const setTransitionFailure = (failure: FailedTransition | undefined) => {
     failedTransitionRef.current = failure
@@ -152,6 +161,7 @@ export function App() {
     if (transitionInFlight.current && !allowDuringTransition) return
     draftRevision.current += 1
     setDraftStarted(true)
+    setHasUnsavedChanges(true)
     dispatch(action)
   }
 
@@ -161,6 +171,7 @@ export function App() {
       savedRevision = draftRevision.current
       await draftRepository.put(draftRef.current)
     } while (savedRevision !== draftRevision.current)
+    setHasUnsavedChanges(false)
   }
 
   const requestTransition = async (continueTransition: () => void, label: string): Promise<boolean> => {
@@ -200,6 +211,7 @@ export function App() {
     }
     dispatchDraft({ type: 'new', draft: createArticleDraft() }, true)
     setDraftStarted(false)
+    setHasUnsavedChanges(false)
     setTab('settings')
     setView('workspace')
     setNotice('已创建新文章')
@@ -225,6 +237,7 @@ export function App() {
   const openDraft = (next: ArticleDraft) => requestTransition(() => {
     dispatchDraft({ type: 'replace', draft: next }, true)
     setDraftStarted(true)
+    setHasUnsavedChanges(false)
     setTab('settings')
     setView('workspace')
     setNotice('草稿已打开')
@@ -251,7 +264,10 @@ export function App() {
     setNotice(draftStartedRef.current ? '当前草稿已保存到草稿库' : '已打开草稿库')
   }, '打开草稿库')
 
-  const showHome = () => askForConfirmedIntent('home')
+  const showHome = () => {
+    setView('home')
+    setNotice('已返回首页')
+  }
 
   const showWorkspace = () => {
     setView('workspace')

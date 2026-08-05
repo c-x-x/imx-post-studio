@@ -28,18 +28,19 @@ describe('workspace transitions', () => {
   })
   afterEach(() => { cleanup(); vi.useRealTimers() })
 
-  it('asks before leaving even an untouched blank article and can continue without saving', async () => {
+  it('returns home immediately and restores the same in-memory article', async () => {
     render(<App />)
     await startWorkspace()
+    fireEvent.change(screen.getByLabelText('标题'), { target: { value: '仍在内存' } })
     put.mockClear()
 
     fireEvent.click(screen.getByRole('button', { name: '首页' }))
-    await act(async () => { await Promise.resolve() })
 
-    expect(screen.getByRole('dialog', { name: '返回首页前是否保存？' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '不保存并继续' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(put).not.toHaveBeenCalled()
     expect(screen.getByRole('region', { name: 'IMX Post Studio 介绍' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '文章' }))
+    expect(screen.getByLabelText('标题')).toHaveValue('仍在内存')
   })
 
   it('explicitly saves the current article without leaving the workspace', async () => {
@@ -75,7 +76,6 @@ describe('workspace transitions', () => {
     expect(screen.getByLabelText('标题')).toHaveValue('')
     put.mockClear()
     fireEvent.click(screen.getByRole('button', { name: '首页' }))
-    fireEvent.click(screen.getByRole('button', { name: '不保存并继续' }))
     expect(put).not.toHaveBeenCalled()
   })
 
@@ -111,17 +111,19 @@ describe('workspace transitions', () => {
     expect(screen.getByText('已创建新文章')).toBeInTheDocument()
   })
 
-  it('opens the same home confirmation from the clickable Studio brand', async () => {
+  it('returns home immediately from the clickable Studio brand without losing the article', async () => {
     render(<App />)
     await startWorkspace()
+    fireEvent.change(screen.getByLabelText('标题'), { target: { value: 'Logo 返回后保留' } })
     put.mockClear()
 
     fireEvent.click(screen.getByRole('button', { name: 'IMX Post Studio，返回首页' }))
-    expect(screen.getByRole('dialog', { name: '返回首页前是否保存？' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '不保存并继续' }))
 
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(put).not.toHaveBeenCalled()
     expect(screen.getByRole('region', { name: 'IMX Post Studio 介绍' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '文章' }))
+    expect(screen.getByLabelText('标题')).toHaveValue('Logo 返回后保留')
   })
 
   it('keeps the confirmation open when save-before-new fails', async () => {
