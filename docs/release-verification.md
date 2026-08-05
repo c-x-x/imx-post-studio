@@ -52,7 +52,7 @@ that portion of the release check.
 | Field | Value |
 | --- | --- |
 | Public GitHub repository URL | `https://github.com/c-x-x/imx-post-studio` (public) |
-| GitHub default branch and CI run URL/status | `main` at `e47cfbdc9f6a7eaaa8d79ffddcfee608dbe0adee`; [GitHub Actions run 30931426055](https://github.com/c-x-x/imx-post-studio/actions/runs/30931426055) passed (lint, typecheck, 180 unit tests, build, theme manifest, and 48 Playwright cases including expected skips). |
+| GitHub default branch and CI run URL/status | Default branch: `main`. The application commit `e47cfbdc9f6a7eaaa8d79ffddcfee608dbe0adee` passed [run 30931426055](https://github.com/c-x-x/imx-post-studio/actions/runs/30931426055). The first Git-triggered production deployment commit `a72488792961ca39c34e63dd20ce2ef020905bcf` passed [run 30969483926](https://github.com/c-x-x/imx-post-studio/actions/runs/30969483926): lint, typecheck, 180 unit tests, build, theme manifest, and the complete Playwright E2E suite. |
 | Production Vercel URL | `https://imx-post-studio.vercel.app` |
 | Vercel project/deployment ID, commit, READY status, duration | Project `prj_dp5tWkWeYlG6XZroxi4Ax5aPsoCD`; bootstrap deployment `dpl_AeVoWbPszR8rBT4hi1CkG1LfVHV1` built the fixed public GitHub commit `e47cfbd…` and reached `READY` in about 17 seconds. The project is subsequently connected to the GitHub repository for normal Git-triggered deployments. |
 | Production HTTP security headers | `200` for `/`; CSP restricts every source to the static app contract (`connect-src 'self'`, `frame-ancestors 'none'`, no object sources); `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and the camera/microphone/geolocation/payment/USB Permissions Policy are present. |
