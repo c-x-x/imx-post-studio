@@ -227,7 +227,8 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
 .markdown-grid h3 { margin: 0 0 10px; font-family: var(--imx-font-reading); font-size: 1rem; }
 .markdown-grid pre { max-width: 100%; margin: 0; overflow: auto; padding: 12px; border-radius: 10px; color: var(--imx-ink-secondary); background: var(--imx-paper-deep); font-size: .76rem; line-height: 1.6; }
 
-.article-actions { display: flex; justify-content: flex-end; margin: 4px 0 10px; }
+.article-actions { display: flex; justify-content: flex-end; gap: 10px; margin: 4px 0 10px; }
+.article-actions .article-save { border-color: var(--imx-accent); color: var(--imx-paper); background: linear-gradient(145deg, #88653d, #674823); }
 
 .notification-status { margin: 0; color: #52653e; }
 

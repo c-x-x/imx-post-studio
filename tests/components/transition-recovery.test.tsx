@@ -28,6 +28,49 @@ describe('workspace transitions', () => {
   })
   afterEach(() => { cleanup(); vi.useRealTimers() })
 
+  it('does not persist an untouched blank article when leaving the workspace', async () => {
+    render(<App />)
+    await startWorkspace()
+    put.mockClear()
+
+    fireEvent.click(screen.getByRole('button', { name: '首页' }))
+    await act(async () => { await Promise.resolve() })
+
+    expect(put).not.toHaveBeenCalled()
+    expect(screen.getByRole('region', { name: 'IMX Post Studio 介绍' })).toBeInTheDocument()
+  })
+
+  it('explicitly saves the current article without leaving the workspace', async () => {
+    render(<App />)
+    await startWorkspace()
+    fireEvent.change(screen.getByLabelText('标题'), { target: { value: '手动保存' } })
+    put.mockClear()
+
+    fireEvent.click(screen.getByRole('button', { name: '保存到草稿库' }))
+    await act(async () => { await Promise.resolve() })
+
+    expect(put).toHaveBeenCalledWith(expect.objectContaining({ meta: expect.objectContaining({ title: '手动保存' }) }))
+    expect(screen.getByRole('region', { name: '文章工作区' })).toBeInTheDocument()
+    expect(screen.getByText('已保存到草稿库')).toBeInTheDocument()
+  })
+
+  it('saves a started article before creating a fresh unsaved article', async () => {
+    render(<App />)
+    await startWorkspace()
+    fireEvent.change(screen.getByLabelText('标题'), { target: { value: '上一份文章' } })
+    put.mockClear()
+
+    fireEvent.click(screen.getByRole('button', { name: '新建文章' }))
+    await act(async () => { await Promise.resolve() })
+
+    expect(put).toHaveBeenCalledWith(expect.objectContaining({ meta: expect.objectContaining({ title: '上一份文章' }) }))
+    expect(screen.getByLabelText('标题')).toHaveValue('')
+    put.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: '首页' }))
+    await act(async () => { await Promise.resolve() })
+    expect(put).not.toHaveBeenCalled()
+  })
+
   it('flushes the latest draft before dashboard navigation can cancel the 800 ms autosave timer', async () => {
     render(<App />)
     await startWorkspace()
@@ -96,6 +139,7 @@ describe('workspace transitions', () => {
     put.mockImplementationOnce(() => new Promise<void>((resolve) => { resolveRetry = resolve }))
     render(<App />)
     await startWorkspace()
+    fireEvent.change(screen.getByLabelText('标题'), { target: { value: '需要恢复的文章' } })
     fireEvent.click(screen.getByRole('button', { name: '草稿库' }))
     await act(async () => { await Promise.resolve() })
 
@@ -133,6 +177,7 @@ describe('workspace transitions', () => {
     put.mockRejectedValueOnce(new Error('Quota exceeded'))
     render(<App />)
     await startWorkspace()
+    fireEvent.change(screen.getByLabelText('标题'), { target: { value: '未保存文章' } })
     fireEvent.click(screen.getByRole('button', { name: '草稿库' }))
     await act(async () => { await Promise.resolve() })
     fireEvent.change(screen.getByLabelText('添加正文图片'), { target: { files: [delayed] } })
@@ -147,6 +192,7 @@ describe('workspace transitions', () => {
     vi.useRealTimers()
     render(<App />)
     await startWorkspace()
+    fireEvent.change(screen.getByLabelText('标题'), { target: { value: '导入前文章' } })
     const trigger = screen.getByLabelText('导入紧急恢复 ZIP')
     const recovery = await fileFromBlob(await exportRecoveryBundle(createArticleDraft()), 'recovery.zip')
     fireEvent.change(trigger, { target: { files: [recovery] } })

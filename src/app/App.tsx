@@ -16,6 +16,7 @@ import { draftRepository } from '../drafts/repository'
 import { useAutosave } from '../drafts/use-autosave'
 import { appReducer, createImportedDraft } from './app-state'
 import { AccessibleDialog, DialogClose } from './AccessibleDialog'
+import { ArticleActions } from './ArticleActions'
 import { ImxDock } from './ImxDock'
 import { Notifications } from './notifications'
 import { readSettingsCollapsed, writeSettingsCollapsed } from './sidebar-preference'
@@ -65,6 +66,7 @@ export function App() {
   const [failedTransition, setFailedTransition] = useState<FailedTransition>()
   const [transitioning, setTransitioning] = useState(false)
   const [intakeBusy, setIntakeBusy] = useState(false)
+  const [draftStarted, setDraftStartedState] = useState(false)
   const [importFocusVersion, setImportFocusVersion] = useState(0)
   const [settingsCollapsed, setSettingsCollapsed] = useState(readSettingsCollapsed)
   const transitionInFlight = useRef(false)
@@ -72,6 +74,7 @@ export function App() {
   const transitionId = useRef(0)
   const draftRevision = useRef(0)
   const draftRef = useRef(draft)
+  const draftStartedRef = useRef(false)
   const intakeBusyRef = useRef(false)
   const failedTransitionRef = useRef<FailedTransition | undefined>(undefined)
   const importFocusTarget = useRef<(() => HTMLElement | null) | undefined>(undefined)
@@ -79,7 +82,7 @@ export function App() {
   const previewTrigger = useRef<HTMLButtonElement>(null)
   const urls = useRef(new ObjectUrlRegistry())
   const previousMedia = useRef<MediaAsset[]>([])
-  const saveStatus = useAutosave(view === 'workspace' ? draft : null)
+  const saveStatus = useAutosave(view === 'workspace' && draftStarted ? draft : null)
 
   useLayoutEffect(() => { draftRef.current = draft }, [draft])
   useLayoutEffect(() => {
@@ -133,14 +136,20 @@ export function App() {
     setFailedTransition(failure)
   }
 
+  const setDraftStarted = (started: boolean) => {
+    draftStartedRef.current = started
+    setDraftStartedState(started)
+  }
+
   const dispatchDraft = (action: Parameters<typeof appReducer>[1], allowDuringTransition = false) => {
     if (transitionInFlight.current && !allowDuringTransition) return
     draftRevision.current += 1
+    setDraftStarted(true)
     dispatch(action)
   }
 
   const requestTransition = async (continueTransition: () => void, label: string): Promise<boolean> => {
-    if (view !== 'workspace') {
+    if (view !== 'workspace' || !draftStartedRef.current) {
       continueTransition()
       return true
     }
@@ -174,6 +183,7 @@ export function App() {
 
   const startNew = () => requestTransition(() => {
     dispatchDraft({ type: 'new', draft: createArticleDraft() }, true)
+    setDraftStarted(false)
     setTab('settings')
     setView('workspace')
     setNotice('已创建新文章')
@@ -181,6 +191,7 @@ export function App() {
 
   const openDraft = (next: ArticleDraft) => requestTransition(() => {
     dispatchDraft({ type: 'replace', draft: next }, true)
+    setDraftStarted(true)
     setTab('settings')
     setView('workspace')
     setNotice('草稿已打开')
@@ -188,6 +199,7 @@ export function App() {
 
   const replaceImportedDraft = (next: ArticleDraft) => requestTransition(() => {
     dispatchDraft({ type: 'replace-import-content', draft: next }, true)
+    setDraftStarted(true)
     setTab('settings')
     setView('workspace')
     setNotice('已替换当前草稿内容')
@@ -195,6 +207,7 @@ export function App() {
 
   const openImportedAsNew = (next: ArticleDraft) => requestTransition(() => {
     dispatchDraft({ type: 'new', draft: createImportedDraft(next) }, true)
+    setDraftStarted(true)
     setTab('settings')
     setView('workspace')
     setNotice('已作为新草稿打开')
@@ -202,7 +215,7 @@ export function App() {
 
   const showDashboard = () => requestTransition(() => {
     setView('dashboard')
-    setNotice('当前草稿已保存到草稿库')
+    setNotice(draftStartedRef.current ? '当前草稿已保存到草稿库' : '已打开草稿库')
   }, '打开草稿库')
 
   const showHome = () => requestTransition(() => {
@@ -213,6 +226,27 @@ export function App() {
   const showWorkspace = () => {
     setView('workspace')
     setNotice('文章编辑器已打开')
+  }
+
+  const saveCurrentDraft = async () => {
+    if (transitionInFlight.current || intakeBusyRef.current) return
+    transitionInFlight.current = true
+    setTransitioning(true)
+    setRecoveryError(undefined)
+    try {
+      let savedRevision: number
+      do {
+        savedRevision = draftRevision.current
+        await draftRepository.put(draftRef.current)
+      } while (savedRevision !== draftRevision.current)
+      setDraftStarted(true)
+      setNotice('已保存到草稿库')
+    } catch (cause) {
+      setRecoveryError(`保存到草稿库失败：${errorMessage(cause)}`)
+    } finally {
+      transitionInFlight.current = false
+      setTransitioning(false)
+    }
   }
 
   const exportRecovery = async () => {
@@ -287,7 +321,7 @@ export function App() {
     <ImxDock view={view} disabled={workspaceLocked} previewTrigger={previewTrigger} onPreview={openPreview} onHome={() => void showHome()} onArticle={showWorkspace} onDashboard={() => void showDashboard()} />
     <Notifications status={status} alert={alerts.length > 0 ? <>{alerts}</> : undefined} />
     {view === 'home' ? <HomePage disabled={workspaceLocked} onArticle={showWorkspace} onDashboard={() => void showDashboard()} /> : view === 'dashboard' ? <DraftDashboard onOpen={openDraft} disabled={workspaceLocked} /> : <section className="workspace" aria-label="文章工作区" aria-busy={workspaceLocked} data-inspector-collapsed={settingsCollapsed}>
-      <div className="article-actions"><button type="button" disabled={workspaceLocked} onClick={() => void startNew()}>新建文章</button></div>
+      <ArticleActions disabled={workspaceLocked} onNew={() => void startNew()} onSave={() => void saveCurrentDraft()} />
       <nav className="workspace-tabs" role="tablist" aria-label="工作区视图">
         {([['settings', '设置'], ['write', '写作']] as const).map(([id, label]) => <button key={id} id={`tab-${id}`} type="button" disabled={workspaceLocked} role="tab" aria-selected={tab === id} aria-controls={`panel-${id}`} onClick={() => setTab(id)}>{label}</button>)}
       </nav>
