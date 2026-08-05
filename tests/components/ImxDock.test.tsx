@@ -4,13 +4,14 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ImxDock } from '../../src/app/ImxDock'
 
-function props(view: 'dashboard' | 'workspace' = 'workspace') {
+function props(view: 'home' | 'dashboard' | 'workspace' = 'workspace') {
   return {
     view,
     disabled: false,
     previewTrigger: createRef<HTMLButtonElement>(),
     onPreview: vi.fn(),
-    onNew: vi.fn(),
+    onHome: vi.fn(),
+    onArticle: vi.fn(),
     onDashboard: vi.fn(),
   }
 }
@@ -27,11 +28,13 @@ describe('IMX Studio Dock', () => {
     expect(screen.getByRole('heading', { name: 'IMX Post Studio' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '草稿库' })).toHaveAttribute('aria-current', 'false')
     await user.click(screen.getByRole('button', { name: '预览文章' }))
-    await user.click(screen.getByRole('button', { name: '新建文章' }))
+    await user.click(screen.getByRole('button', { name: '首页' }))
+    await user.click(screen.getByRole('button', { name: '文章' }))
     await user.click(screen.getByRole('button', { name: '草稿库' }))
 
     expect(callbacks.onPreview).toHaveBeenCalledOnce()
-    expect(callbacks.onNew).toHaveBeenCalledOnce()
+    expect(callbacks.onHome).toHaveBeenCalledOnce()
+    expect(callbacks.onArticle).toHaveBeenCalledOnce()
     expect(callbacks.onDashboard).toHaveBeenCalledOnce()
   })
 
@@ -41,6 +44,15 @@ describe('IMX Studio Dock', () => {
     expect(screen.getByRole('button', { name: '草稿库' })).toHaveAttribute('aria-current', 'page')
     expect(screen.queryByRole('button', { name: '预览文章' })).not.toBeInTheDocument()
     expect(screen.getByLabelText('文章和图片仅在此浏览器中处理')).toHaveTextContent('本地处理')
+  })
+
+  it('marks the home and article actions current for their views', () => {
+    const home = render(<ImxDock {...props('home')} />)
+    expect(screen.getByRole('button', { name: '首页' })).toHaveAttribute('aria-current', 'page')
+    home.unmount()
+
+    render(<ImxDock {...props('workspace')} />)
+    expect(screen.getByRole('button', { name: '文章' })).toHaveAttribute('aria-current', 'page')
   })
 
   it('opens and dismisses the mobile navigation accessibly', async () => {
@@ -61,9 +73,9 @@ describe('IMX Studio Dock', () => {
     render(<ImxDock {...callbacks} />)
 
     await user.click(screen.getByRole('button', { name: '打开菜单' }))
-    await user.click(screen.getByRole('button', { name: '新建文章' }))
+    await user.click(screen.getByRole('button', { name: '文章' }))
 
-    expect(callbacks.onNew).toHaveBeenCalledOnce()
+    expect(callbacks.onArticle).toHaveBeenCalledOnce()
     expect(screen.getByRole('button', { name: '打开菜单' })).toHaveAttribute('aria-expanded', 'false')
   })
 })

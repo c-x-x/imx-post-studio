@@ -14,7 +14,7 @@ import { createArticleDraft } from '../../src/metadata/article'
 import { fileFromBlob } from '../helpers/test-files'
 
 async function startWorkspace() {
-  fireEvent.click(screen.getByRole('button', { name: '新建文章' }))
+  fireEvent.click(screen.getByRole('button', { name: '文章' }))
   await act(async () => { await Promise.resolve() })
 }
 

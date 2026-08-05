@@ -13,7 +13,7 @@ describe('article workspace', () => {
     const user = userEvent.setup()
     const first = render(<App />)
 
-    await user.click(screen.getByRole('button', { name: '新建文章' }))
+    await user.click(screen.getByRole('button', { name: '文章' }))
     const workspace = screen.getByRole('region', { name: '文章工作区' })
     const collapse = screen.getByRole('button', { name: '折叠文章设置' })
     await user.click(collapse)
@@ -24,7 +24,7 @@ describe('article workspace', () => {
     first.unmount()
 
     render(<App />)
-    await user.click(screen.getByRole('button', { name: '新建文章' }))
+    await user.click(screen.getByRole('button', { name: '文章' }))
     expect(screen.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-inspector-collapsed', 'true')
     await user.click(screen.getByRole('button', { name: '展开文章设置' }))
     expect(screen.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-inspector-collapsed', 'false')
@@ -34,7 +34,7 @@ describe('article workspace', () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await user.click(screen.getByRole('button', { name: '新建文章' }))
+    await user.click(screen.getByRole('button', { name: '文章' }))
     await user.type(screen.getByLabelText('标题'), 'Hugo 图片处理指南')
     await user.clear(screen.getByLabelText('Slug'))
     await user.type(screen.getByLabelText('Slug'), 'my-manual-slug')
@@ -56,7 +56,7 @@ describe('article workspace', () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await user.click(screen.getByRole('button', { name: '新建文章' }))
+    await user.click(screen.getByRole('button', { name: '文章' }))
     const trigger = screen.getByRole('button', { name: '预览文章' })
     expect(screen.getAllByRole('tab')).toHaveLength(2)
     expect(screen.queryByTitle('IMX 文章预览')).not.toBeInTheDocument()
@@ -77,7 +77,7 @@ describe('article workspace', () => {
   it('shows an imported body image and blocks a production export for an invalid slug', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await user.click(screen.getByRole('button', { name: '新建文章' }))
+    await user.click(screen.getByRole('button', { name: '文章' }))
 
     const png = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], '封面 图.PNG', { type: 'image/png' })
     await user.upload(screen.getByLabelText('添加正文图片'), png)

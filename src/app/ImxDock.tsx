@@ -4,11 +4,12 @@ import { useSharedDock } from './use-shared-dock'
 import './imx-dock.css'
 
 export interface ImxDockProps {
-  view: 'dashboard' | 'workspace'
+  view: 'home' | 'dashboard' | 'workspace'
   disabled: boolean
   previewTrigger: RefObject<HTMLButtonElement | null>
   onPreview: () => void
-  onNew: () => void
+  onHome: () => void
+  onArticle: () => void
   onDashboard: () => void
 }
 
@@ -17,7 +18,8 @@ export function ImxDock({
   disabled,
   previewTrigger,
   onPreview,
-  onNew,
+  onHome,
+  onArticle,
   onDashboard,
 }: ImxDockProps) {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -62,8 +64,9 @@ export function ImxDock({
         <ImxLogo />
         <h1>IMX Post Studio</h1>
       </div>
-      <ul className={`imx-dock__menu${menuOpen ? ' active' : ''}${view === 'dashboard' ? ' has-active' : ''}`}>
-        <li><button type="button" disabled={disabled} onClick={() => choose(onNew)}>新建文章</button></li>
+      <ul className={`imx-dock__menu has-active${menuOpen ? ' active' : ''}`}>
+        <li><button className={view === 'home' ? 'active' : undefined} type="button" disabled={disabled} aria-current={view === 'home' ? 'page' : 'false'} onClick={() => choose(onHome)}>首页</button></li>
+        <li><button className={view === 'workspace' ? 'active' : undefined} type="button" disabled={disabled} aria-current={view === 'workspace' ? 'page' : 'false'} onClick={() => choose(onArticle)}>文章</button></li>
         <li><button className={view === 'dashboard' ? 'active' : undefined} type="button" disabled={disabled} aria-current={view === 'dashboard' ? 'page' : 'false'} onClick={() => choose(onDashboard)}>草稿库</button></li>
         <li className="imx-dock__menu-outline" aria-hidden="true" />
       </ul>

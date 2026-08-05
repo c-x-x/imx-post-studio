@@ -11,6 +11,7 @@ import previewCss from '../theme/imx/imx-preview.css?raw'
 import { BundleActions } from '../bundles/BundleActions'
 import { exportRecoveryBundle } from '../bundles/recovery-bundle'
 import { DraftDashboard } from '../drafts/DraftDashboard'
+import { HomePage } from '../home/HomePage'
 import { draftRepository } from '../drafts/repository'
 import { useAutosave } from '../drafts/use-autosave'
 import { appReducer, createImportedDraft } from './app-state'
@@ -20,7 +21,7 @@ import { Notifications } from './notifications'
 import { readSettingsCollapsed, writeSettingsCollapsed } from './sidebar-preference'
 import './app.css'
 
-type View = 'dashboard' | 'workspace'
+type View = 'home' | 'dashboard' | 'workspace'
 type WorkspaceTab = 'settings' | 'write'
 
 interface FailedTransition {
@@ -54,7 +55,7 @@ function downloadRecovery(blob: Blob): void {
 
 export function App() {
   const [draft, dispatch] = useReducer(appReducer, undefined, () => createArticleDraft())
-  const [view, setView] = useState<View>('dashboard')
+  const [view, setView] = useState<View>('home')
   const [tab, setTab] = useState<WorkspaceTab>('settings')
   const [previewOpen, setPreviewOpen] = useState(false)
   const [rendered, setRendered] = useState<RenderedMarkdown>(emptyRendered)
@@ -204,6 +205,16 @@ export function App() {
     setNotice('当前草稿已保存到草稿库')
   }, '打开草稿库')
 
+  const showHome = () => requestTransition(() => {
+    setView('home')
+    setNotice('已返回首页')
+  }, '打开首页')
+
+  const showWorkspace = () => {
+    setView('workspace')
+    setNotice('文章编辑器已打开')
+  }
+
   const exportRecovery = async () => {
     if (transitionInFlight.current || intakeBusyRef.current) return
     setRecoveryError(undefined)
@@ -273,9 +284,10 @@ export function App() {
   }
 
   return <main className="app-shell">
-    <ImxDock view={view} disabled={workspaceLocked} previewTrigger={previewTrigger} onPreview={openPreview} onNew={() => void startNew()} onDashboard={() => void showDashboard()} />
+    <ImxDock view={view} disabled={workspaceLocked} previewTrigger={previewTrigger} onPreview={openPreview} onHome={() => void showHome()} onArticle={showWorkspace} onDashboard={() => void showDashboard()} />
     <Notifications status={status} alert={alerts.length > 0 ? <>{alerts}</> : undefined} />
-    {view === 'dashboard' ? <DraftDashboard onOpen={openDraft} disabled={workspaceLocked} /> : <section className="workspace" aria-label="文章工作区" aria-busy={workspaceLocked} data-inspector-collapsed={settingsCollapsed}>
+    {view === 'home' ? <HomePage disabled={workspaceLocked} onArticle={showWorkspace} onDashboard={() => void showDashboard()} /> : view === 'dashboard' ? <DraftDashboard onOpen={openDraft} disabled={workspaceLocked} /> : <section className="workspace" aria-label="文章工作区" aria-busy={workspaceLocked} data-inspector-collapsed={settingsCollapsed}>
+      <div className="article-actions"><button type="button" disabled={workspaceLocked} onClick={() => void startNew()}>新建文章</button></div>
       <nav className="workspace-tabs" role="tablist" aria-label="工作区视图">
         {([['settings', '设置'], ['write', '写作']] as const).map(([id, label]) => <button key={id} id={`tab-${id}`} type="button" disabled={workspaceLocked} role="tab" aria-selected={tab === id} aria-controls={`panel-${id}`} onClick={() => setTab(id)}>{label}</button>)}
       </nav>

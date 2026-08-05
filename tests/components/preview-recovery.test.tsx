@@ -20,7 +20,7 @@ describe('preview failure recovery', () => {
     render(<App />)
 
     expect(renderMarkdown).not.toHaveBeenCalled()
-    await user.click(screen.getByRole('button', { name: '新建文章' }))
+    await user.click(screen.getByRole('button', { name: '文章' }))
     await user.click(screen.getByRole('button', { name: '预览文章' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('预览更新失败：renderer failed')
   })
