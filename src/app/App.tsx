@@ -21,6 +21,7 @@ import { ImxDock } from './ImxDock'
 import { Notifications } from './notifications'
 import { readSettingsCollapsed, writeSettingsCollapsed } from './sidebar-preference'
 import { applyTheme, resolveInitialTheme, writeThemePreference, type AppTheme } from './theme-preference'
+import { TransitionConfirmDialog, type ConfirmedIntent } from './TransitionConfirmDialog'
 import './app.css'
 
 type View = 'home' | 'dashboard' | 'workspace'
@@ -71,6 +72,8 @@ export function App() {
   const [importFocusVersion, setImportFocusVersion] = useState(0)
   const [settingsCollapsed, setSettingsCollapsed] = useState(readSettingsCollapsed)
   const [theme, setTheme] = useState<AppTheme>(resolveInitialTheme)
+  const [pendingIntent, setPendingIntent] = useState<ConfirmedIntent>()
+  const [pendingIntentError, setPendingIntentError] = useState<string>()
   const transitionInFlight = useRef(false)
   const transitionDecisionInFlight = useRef(false)
   const transitionId = useRef(0)
@@ -82,6 +85,7 @@ export function App() {
   const importFocusTarget = useRef<(() => HTMLElement | null) | undefined>(undefined)
   const editorRef = useRef<MarkdownEditorHandle>(null)
   const previewTrigger = useRef<HTMLButtonElement>(null)
+  const confirmReturnFocus = useRef<HTMLElement | null>(null)
   const urls = useRef(new ObjectUrlRegistry())
   const previousMedia = useRef<MediaAsset[]>([])
   const saveStatus = useAutosave(view === 'workspace' && draftStarted ? draft : null)
@@ -151,6 +155,14 @@ export function App() {
     dispatch(action)
   }
 
+  const persistLatestDraft = async () => {
+    let savedRevision: number
+    do {
+      savedRevision = draftRevision.current
+      await draftRepository.put(draftRef.current)
+    } while (savedRevision !== draftRevision.current)
+  }
+
   const requestTransition = async (continueTransition: () => void, label: string): Promise<boolean> => {
     if (view !== 'workspace' || !draftStartedRef.current) {
       continueTransition()
@@ -167,11 +179,7 @@ export function App() {
       // Any mutation that somehow reaches the reducer during the asynchronous put
       // increments this revision. In that case persist the newest snapshot before
       // allowing a view or identity change to discard the outgoing reducer value.
-      let savedRevision: number
-      do {
-        savedRevision = draftRevision.current
-        await draftRepository.put(draftRef.current)
-      } while (savedRevision !== draftRevision.current)
+      await persistLatestDraft()
       setTransitionFailure(undefined)
       continueTransition()
       return true
@@ -184,13 +192,35 @@ export function App() {
     }
   }
 
-  const startNew = () => requestTransition(() => {
+  const executeConfirmedIntent = (intent: ConfirmedIntent) => {
+    if (intent === 'home') {
+      setView('home')
+      setNotice('已返回首页')
+      return
+    }
     dispatchDraft({ type: 'new', draft: createArticleDraft() }, true)
     setDraftStarted(false)
     setTab('settings')
     setView('workspace')
     setNotice('已创建新文章')
-  }, '新建文章')
+  }
+
+  const askForConfirmedIntent = (intent: ConfirmedIntent) => {
+    if (intent === 'home' && view !== 'workspace') {
+      executeConfirmedIntent(intent)
+      return
+    }
+    if (intakeBusyRef.current) {
+      setNotice('正在读取媒体，请完成后再切换文章')
+      return
+    }
+    if (transitionInFlight.current || pendingIntent) return
+    confirmReturnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    setPendingIntentError(undefined)
+    setPendingIntent(intent)
+  }
+
+  const startNew = () => askForConfirmedIntent('new')
 
   const openDraft = (next: ArticleDraft) => requestTransition(() => {
     dispatchDraft({ type: 'replace', draft: next }, true)
@@ -221,10 +251,7 @@ export function App() {
     setNotice(draftStartedRef.current ? '当前草稿已保存到草稿库' : '已打开草稿库')
   }, '打开草稿库')
 
-  const showHome = () => requestTransition(() => {
-    setView('home')
-    setNotice('已返回首页')
-  }, '打开首页')
+  const showHome = () => askForConfirmedIntent('home')
 
   const showWorkspace = () => {
     setView('workspace')
@@ -245,11 +272,7 @@ export function App() {
     setTransitioning(true)
     setRecoveryError(undefined)
     try {
-      let savedRevision: number
-      do {
-        savedRevision = draftRevision.current
-        await draftRepository.put(draftRef.current)
-      } while (savedRevision !== draftRevision.current)
+      await persistLatestDraft()
       setDraftStarted(true)
       setNotice('已保存到草稿库')
     } catch (cause) {
@@ -311,6 +334,36 @@ export function App() {
       setTransitioning(false)
     }
   }
+  const cancelConfirmedIntent = () => {
+    if (transitionInFlight.current) return
+    setPendingIntent(undefined)
+    setPendingIntentError(undefined)
+  }
+  const discardConfirmedIntent = () => {
+    if (!pendingIntent || transitionInFlight.current || intakeBusyRef.current) return
+    const intent = pendingIntent
+    setPendingIntent(undefined)
+    setPendingIntentError(undefined)
+    executeConfirmedIntent(intent)
+  }
+  const saveAndContinueConfirmedIntent = async () => {
+    if (!pendingIntent || transitionInFlight.current || intakeBusyRef.current) return
+    const intent = pendingIntent
+    transitionInFlight.current = true
+    setTransitioning(true)
+    setPendingIntentError(undefined)
+    try {
+      await persistLatestDraft()
+      setDraftStarted(true)
+      setPendingIntent(undefined)
+      executeConfirmedIntent(intent)
+    } catch (cause) {
+      setPendingIntentError(`保存到草稿库失败：${errorMessage(cause)}`)
+    } finally {
+      transitionInFlight.current = false
+      setTransitioning(false)
+    }
+  }
   const alerts: ReactNode[] = []
   if (saveStatus.state === 'failed') alerts.push(<p key="autosave">{saveStatus.message}</p>)
   if (failedTransition) {
@@ -342,6 +395,7 @@ export function App() {
         <section id="panel-write" className="workspace-panel workspace-editor" role="tabpanel" aria-labelledby="tab-write"><h2 className="visually-hidden">写作</h2><MarkdownEditor disabled={workspaceLocked} ref={editorRef} value={draft.body} onChange={(body) => dispatchDraft({ type: 'set-body', body })} /></section>
       </div>
     </section>}
+    {pendingIntent ? <TransitionConfirmDialog intent={pendingIntent} busy={transitioning || intakeBusy} error={pendingIntentError} onCancel={cancelConfirmedIntent} onDiscard={discardConfirmedIntent} onSave={() => void saveAndContinueConfirmedIntent()} returnFocus={() => confirmReturnFocus.current} /> : null}
     {previewOpen ? <AccessibleDialog title="IMX 文章预览" className="preview-dialog" onClose={closePreview} returnFocus={() => previewTrigger.current}><DialogClose>{(close) => <PreviewFrame meta={draft.meta} rendered={rendered} css={previewCss} onClose={() => close()} />}</DialogClose></AccessibleDialog> : null}
   </main>
 }

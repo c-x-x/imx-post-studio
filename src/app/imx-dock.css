@@ -97,13 +97,15 @@
   justify-self: start;
   gap: .58rem;
   padding: .52rem 1.05rem .52rem .9rem;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
   transform: translate3d(var(--home-dock-brand-shift), 0, 0) scale(var(--home-dock-part-scale));
   white-space: nowrap;
   will-change: transform;
 }
 
-.imx-dock__brand h1 {
-  margin: 0;
+.imx-dock__brand-title {
   color: var(--imx-ink);
   font-family: 'IMX Inter', sans-serif;
   font-size: 1.12rem;

@@ -28,7 +28,7 @@ describe('workspace transitions', () => {
   })
   afterEach(() => { cleanup(); vi.useRealTimers() })
 
-  it('does not persist an untouched blank article when leaving the workspace', async () => {
+  it('asks before leaving even an untouched blank article and can continue without saving', async () => {
     render(<App />)
     await startWorkspace()
     put.mockClear()
@@ -36,6 +36,8 @@ describe('workspace transitions', () => {
     fireEvent.click(screen.getByRole('button', { name: '首页' }))
     await act(async () => { await Promise.resolve() })
 
+    expect(screen.getByRole('dialog', { name: '返回首页前是否保存？' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '不保存并继续' }))
     expect(put).not.toHaveBeenCalled()
     expect(screen.getByRole('region', { name: 'IMX Post Studio 介绍' })).toBeInTheDocument()
   })
@@ -60,15 +62,82 @@ describe('workspace transitions', () => {
     fireEvent.change(screen.getByLabelText('标题'), { target: { value: '上一份文章' } })
     put.mockClear()
 
-    fireEvent.click(screen.getByRole('button', { name: '新建文章' }))
+    const newArticle = screen.getByRole('button', { name: '新建文章' })
+    newArticle.focus()
+    fireEvent.click(newArticle)
+    await act(async () => { await Promise.resolve() })
+
+    expect(screen.getByRole('dialog', { name: '新建文章前是否保存？' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '保存到草稿库并继续' }))
     await act(async () => { await Promise.resolve() })
 
     expect(put).toHaveBeenCalledWith(expect.objectContaining({ meta: expect.objectContaining({ title: '上一份文章' }) }))
     expect(screen.getByLabelText('标题')).toHaveValue('')
     put.mockClear()
     fireEvent.click(screen.getByRole('button', { name: '首页' }))
-    await act(async () => { await Promise.resolve() })
+    fireEvent.click(screen.getByRole('button', { name: '不保存并继续' }))
     expect(put).not.toHaveBeenCalled()
+  })
+
+  it('cancels a new article transition without changing or saving the current article', async () => {
+    render(<App />)
+    await startWorkspace()
+    fireEvent.change(screen.getByLabelText('标题'), { target: { value: '继续写作' } })
+    put.mockClear()
+
+    const newArticle = screen.getByRole('button', { name: '新建文章' })
+    newArticle.focus()
+    fireEvent.click(newArticle)
+    expect(screen.getByRole('dialog', { name: '新建文章前是否保存？' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '取消' }))
+
+    expect(put).not.toHaveBeenCalled()
+    expect(screen.getByRole('region', { name: '文章工作区' })).toBeInTheDocument()
+    expect(screen.getByLabelText('标题')).toHaveValue('继续写作')
+    expect(screen.getByRole('button', { name: '新建文章' })).toHaveFocus()
+  })
+
+  it('creates a new article without an extra save when discard is chosen', async () => {
+    render(<App />)
+    await startWorkspace()
+    fireEvent.change(screen.getByLabelText('标题'), { target: { value: '不保存这次修改' } })
+    put.mockClear()
+
+    fireEvent.click(screen.getByRole('button', { name: '新建文章' }))
+    fireEvent.click(screen.getByRole('button', { name: '不保存并继续' }))
+
+    expect(put).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('标题')).toHaveValue('')
+    expect(screen.getByText('已创建新文章')).toBeInTheDocument()
+  })
+
+  it('opens the same home confirmation from the clickable Studio brand', async () => {
+    render(<App />)
+    await startWorkspace()
+    put.mockClear()
+
+    fireEvent.click(screen.getByRole('button', { name: 'IMX Post Studio，返回首页' }))
+    expect(screen.getByRole('dialog', { name: '返回首页前是否保存？' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '不保存并继续' }))
+
+    expect(put).not.toHaveBeenCalled()
+    expect(screen.getByRole('region', { name: 'IMX Post Studio 介绍' })).toBeInTheDocument()
+  })
+
+  it('keeps the confirmation open when save-before-new fails', async () => {
+    render(<App />)
+    await startWorkspace()
+    fireEvent.change(screen.getByLabelText('标题'), { target: { value: '不能丢失' } })
+    put.mockReset()
+    put.mockRejectedValueOnce(new Error('Quota exceeded'))
+
+    fireEvent.click(screen.getByRole('button', { name: '新建文章' }))
+    fireEvent.click(screen.getByRole('button', { name: '保存到草稿库并继续' }))
+    await act(async () => { await Promise.resolve() })
+
+    expect(screen.getByRole('dialog', { name: '新建文章前是否保存？' })).toHaveTextContent('保存到草稿库失败：Quota exceeded')
+    expect(screen.getByRole('region', { name: '文章工作区' })).toBeInTheDocument()
+    expect(screen.getByLabelText('标题')).toHaveValue('不能丢失')
   })
 
   it('flushes the latest draft before dashboard navigation can cancel the 800 ms autosave timer', async () => {

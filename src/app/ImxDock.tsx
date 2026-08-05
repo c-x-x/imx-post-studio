@@ -68,10 +68,11 @@ export function ImxDock({
   return <nav ref={navRef} className="imx-dock has-shared-dock" aria-label="Studio 导航">
     <div className="imx-dock__container">
       <span className="imx-dock__shell" aria-hidden="true" />
-      <div className="imx-dock__brand imx-dock__brand-default-logo">
+      <button className="imx-dock__brand imx-dock__brand-default-logo" type="button" disabled={disabled} aria-label="IMX Post Studio，返回首页" onClick={onHome}>
         <ImxLogo />
-        <h1>IMX Post Studio</h1>
-      </div>
+        <span className="imx-dock__brand-title">IMX Post Studio</span>
+      </button>
+      <h1 className="visually-hidden">IMX Post Studio</h1>
       <ul ref={menuRef} className={`imx-dock__menu has-active${menuOpen ? ' active' : ''}`}>
         <li><button className={view === 'home' ? 'active' : undefined} type="button" disabled={disabled} aria-current={view === 'home' ? 'page' : 'false'} onClick={() => choose(onHome)}>首页</button></li>
         <li><button className={view === 'workspace' ? 'active' : undefined} type="button" disabled={disabled} aria-current={view === 'workspace' ? 'page' : 'false'} onClick={() => choose(onArticle)}>文章</button></li>
