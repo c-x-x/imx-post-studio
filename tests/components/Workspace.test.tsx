@@ -4,7 +4,30 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { App } from '../../src/app/App'
 
 describe('article workspace', () => {
-  afterEach(cleanup)
+  afterEach(() => {
+    cleanup()
+    localStorage.removeItem('imx-post-studio:settings-collapsed')
+  })
+
+  it('collapses, persists, and restores the desktop settings sidebar', async () => {
+    const user = userEvent.setup()
+    const first = render(<App />)
+
+    await user.click(screen.getByRole('button', { name: '新建文章' }))
+    const workspace = screen.getByRole('region', { name: '文章工作区' })
+    const collapse = screen.getByRole('button', { name: '折叠文章设置' })
+    await user.click(collapse)
+
+    expect(workspace).toHaveAttribute('data-inspector-collapsed', 'true')
+    expect(screen.getByRole('button', { name: '展开文章设置' })).toHaveAttribute('aria-expanded', 'false')
+    first.unmount()
+
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: '新建文章' }))
+    expect(screen.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-inspector-collapsed', 'true')
+    await user.click(screen.getByRole('button', { name: '展开文章设置' }))
+    expect(screen.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-inspector-collapsed', 'false')
+  })
 
   it('updates the IMX preview title from metadata and keeps a manually edited slug', async () => {
     const user = userEvent.setup()

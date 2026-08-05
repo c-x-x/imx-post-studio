@@ -16,6 +16,7 @@ import { useAutosave } from '../drafts/use-autosave'
 import { appReducer, createImportedDraft } from './app-state'
 import { AccessibleDialog, DialogClose } from './AccessibleDialog'
 import { Notifications } from './notifications'
+import { readSettingsCollapsed, writeSettingsCollapsed } from './sidebar-preference'
 import './app.css'
 
 type View = 'dashboard' | 'workspace'
@@ -63,6 +64,7 @@ export function App() {
   const [transitioning, setTransitioning] = useState(false)
   const [intakeBusy, setIntakeBusy] = useState(false)
   const [importFocusVersion, setImportFocusVersion] = useState(0)
+  const [settingsCollapsed, setSettingsCollapsed] = useState(readSettingsCollapsed)
   const transitionInFlight = useRef(false)
   const transitionDecisionInFlight = useRef(false)
   const transitionId = useRef(0)
@@ -260,16 +262,24 @@ export function App() {
   if (recoveryNeeded) alerts.push(<button key="recovery-export" type="button" disabled={transitioning || intakeBusy} onClick={() => void exportRecovery()}>紧急导出恢复备份</button>)
   if (previewError) alerts.push(<p key="preview">{previewError}</p>)
   if (recoveryError) alerts.push(<p key="recovery-error">{recoveryError}</p>)
+  const toggleSettings = () => {
+    setSettingsCollapsed((current) => {
+      const next = !current
+      writeSettingsCollapsed(next)
+      return next
+    })
+  }
 
   return <main className="app-shell">
     <header className="app-header"><div className="app-brand"><span className="app-brand-mark" aria-hidden="true">IMX</span><div><h1>IMX Post Studio</h1><p>文章和图片仅在此浏览器中处理</p></div></div><div className="app-header-actions">{view === 'workspace' ? <button ref={previewTrigger} className="preview-trigger" type="button" disabled={workspaceLocked} onClick={openPreview}>预览文章</button> : null}<button type="button" disabled={workspaceLocked} onClick={() => void startNew()}>新建文章</button><button type="button" disabled={workspaceLocked} onClick={() => void showDashboard()}>草稿库</button></div></header>
     <Notifications status={status} alert={alerts.length > 0 ? <>{alerts}</> : undefined} />
-    {view === 'dashboard' ? <DraftDashboard onOpen={openDraft} disabled={workspaceLocked} /> : <section className="workspace" aria-label="文章工作区" aria-busy={workspaceLocked}>
+    {view === 'dashboard' ? <DraftDashboard onOpen={openDraft} disabled={workspaceLocked} /> : <section className="workspace" aria-label="文章工作区" aria-busy={workspaceLocked} data-inspector-collapsed={settingsCollapsed}>
       <nav className="workspace-tabs" role="tablist" aria-label="工作区视图">
         {([['settings', '设置'], ['write', '写作']] as const).map(([id, label]) => <button key={id} id={`tab-${id}`} type="button" disabled={workspaceLocked} role="tab" aria-selected={tab === id} aria-controls={`panel-${id}`} onClick={() => setTab(id)}>{label}</button>)}
       </nav>
       <div className="workspace-grid" data-tab={tab}>
         <aside id="panel-settings" className="workspace-panel workspace-inspector" role="tabpanel" aria-labelledby="tab-settings"><MetadataPanel disabled={workspaceLocked} meta={draft.meta} onChange={(field, value) => dispatchDraft({ type: 'set-meta', field, value })} /><MediaPanel draftId={draft.id} disabled={transitioning} media={draft.media} body={draft.body} onAddBatch={(assets) => dispatchDraft({ type: 'add-media-batch', assets })} onReplaceCover={(asset) => dispatchDraft({ type: 'replace-cover', asset })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onInsertImage={(asset) => editorRef.current?.insertImage(asset.name, assetAlt(asset))} onIntakeBusyChange={(busy) => { intakeBusyRef.current = busy; setIntakeBusy(busy) }} /><BundleActions disabled={workspaceLocked} draft={draft} onReplace={replaceImportedDraft} onNew={openImportedAsNew} onStatus={setNotice} onImportFocusRequest={(target) => { importFocusTarget.current = target; setImportFocusVersion((current) => current + 1) }} /></aside>
+        <button className="inspector-toggle" type="button" aria-controls="panel-settings" aria-expanded={!settingsCollapsed} aria-label={settingsCollapsed ? '展开文章设置' : '折叠文章设置'} title={settingsCollapsed ? '展开文章设置' : '折叠文章设置'} onClick={toggleSettings}><span aria-hidden="true">{settingsCollapsed ? '›' : '‹'}</span></button>
         <section id="panel-write" className="workspace-panel workspace-editor" role="tabpanel" aria-labelledby="tab-write"><h2 className="visually-hidden">写作</h2><MarkdownEditor disabled={workspaceLocked} ref={editorRef} value={draft.body} onChange={(body) => dispatchDraft({ type: 'set-body', body })} /></section>
       </div>
     </section>}
