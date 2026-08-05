@@ -201,6 +201,8 @@ test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle
   expect(sha256(reloadZip.entries.get(`${ARTICLE_SLUG}/images/workflow.png`)!)).toBe(sha256(bodyImage!))
 
   await page.getByRole('button', { name: '新建文章' }).click()
+  await expect(page.getByRole('dialog', { name: '新建文章前是否保存？' })).toBeVisible()
+  await page.getByRole('button', { name: '不保存并继续' }).click()
   await expect(page.getByLabel('标题')).toHaveValue('')
   await page.getByLabel('导入 ZIP').setInputFiles({
     name: `${ARTICLE_SLUG}.zip`,
