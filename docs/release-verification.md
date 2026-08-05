@@ -44,23 +44,26 @@ local release-verifier phase before external publication.
 
 ## External publication and deployment evidence
 
-The following values intentionally remain placeholders until the controller
-has completed the separately authorized GitHub and Vercel steps. Do not infer
-or fabricate them from a local build.
+These values were recorded from the authorized GitHub publication and Vercel
+production deployment. Browser-level production interaction remains explicitly
+marked below because the local browser policy service was unavailable during
+that portion of the release check.
 
 | Field | Value |
 | --- | --- |
-| Public GitHub repository URL | Pending external publication |
-| GitHub default branch and CI run URL/status | Pending external publication |
-| Production Vercel URL | Pending external deployment |
-| Vercel project/deployment ID, commit, READY status, duration | Pending external deployment |
-| Production HTTP security headers | Pending external deployment verification |
-| Production browser, autosave, preview, ZIP re-import, and network evidence | Pending external deployment verification |
-| Remaining production preview-fidelity boundary | Pending external deployment verification |
+| Public GitHub repository URL | `https://github.com/c-x-x/imx-post-studio` (public) |
+| GitHub default branch and CI run URL/status | `main` at `e47cfbdc9f6a7eaaa8d79ffddcfee608dbe0adee`; [GitHub Actions run 30931426055](https://github.com/c-x-x/imx-post-studio/actions/runs/30931426055) passed (lint, typecheck, 180 unit tests, build, theme manifest, and 48 Playwright cases including expected skips). |
+| Production Vercel URL | `https://imx-post-studio.vercel.app` |
+| Vercel project/deployment ID, commit, READY status, duration | Project `prj_dp5tWkWeYlG6XZroxi4Ax5aPsoCD`; bootstrap deployment `dpl_AeVoWbPszR8rBT4hi1CkG1LfVHV1` built the fixed public GitHub commit `e47cfbd…` and reached `READY` in about 17 seconds. The project is subsequently connected to the GitHub repository for normal Git-triggered deployments. |
+| Production HTTP security headers | `200` for `/`; CSP restricts every source to the static app contract (`connect-src 'self'`, `frame-ancestors 'none'`, no object sources); `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and the camera/microphone/geolocation/payment/USB Permissions Policy are present. |
+| Production browser, autosave, preview, ZIP re-import, and network evidence | The complete equivalent workflow passed locally and in GitHub CI. Production HTTP verification confirms the SPA, CSS, WebP WebAssembly modules, and all seven self-hosted IMX font assets return `200` with correct MIME types. Interactive browser verification could not be completed in this run because the local browser policy service refused all Vercel URLs; do not treat it as passed until rerun from a healthy browser session. |
+| Remaining production preview-fidelity boundary | The preview is pinned to IMX `v1.4.9` / `6f08e8e` and has approved desktop/mobile, light/dark visual baselines. It is intentionally not a per-keystroke Hugo build: Hugo shortcodes, syntax-highlighting details, and generated responsive image variants remain authoritative only after the exported bundle is built by Hugo. |
 
 ## Publication checklist
 
 - Re-run the local release gate and retain its exact output in the task report.
 - Confirm GitHub Actions succeeds on the published commit before deploying.
-- Verify the Production response, configured headers, browser behavior, and
-  absence of article-data upload requests before replacing the placeholders.
+- Verify the Production response and configured headers.
+- Re-run the production browser path from a healthy browser session: create a
+  draft, reload to confirm autosave, check both preview modes and viewports,
+  export/re-import a bundle, and confirm no article-data network upload occurs.

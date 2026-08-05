@@ -16,3 +16,5 @@ playwright-report/
 *.swo
 *~
 *.zip
+.vercel
+.env*
