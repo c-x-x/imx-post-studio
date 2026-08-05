@@ -202,7 +202,7 @@ test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle
 
   await page.getByRole('button', { name: '新建文章' }).click()
   await expect(page.getByRole('dialog', { name: '新建文章前是否保存？' })).toBeVisible()
-  await page.getByRole('button', { name: '不保存并继续' }).click()
+  await page.getByRole('button', { name: '删除草稿并继续' }).click()
   await expect(page.getByLabel('标题')).toHaveValue('')
   await page.getByLabel('导入 ZIP').setInputFiles({
     name: `${ARTICLE_SLUG}.zip`,
@@ -210,7 +210,10 @@ test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle
     buffer: productionZip.archive,
   })
   await expect(page.getByRole('dialog', { name: '导入已验证' })).toBeVisible()
-  await page.getByRole('button', { name: '作为新草稿打开' }).click()
+  const importAsNew = page.getByRole('button', { name: '作为新草稿打开' })
+  await importAsNew.hover()
+  await expect(importAsNew).toHaveCSS('transform', 'none')
+  await importAsNew.click()
   await assertEditorState(page, { draft: false, body: expectedBody })
 
   const roundTripDownload = page.waitForEvent('download')

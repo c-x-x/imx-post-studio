@@ -34,6 +34,21 @@ test('follows the system theme, persists a manual choice, and keeps the workspac
   await expect(page.getByRole('button', { name: '预览文章' })).toBeVisible()
 })
 
+test('warns on browser exit only until the current changes reach the draft library', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await page.getByLabel('标题').fill('首页往返时仍在内存')
+  await page.getByRole('button', { name: '首页', exact: true }).click()
+
+  await expect(page.getByRole('region', { name: 'IMX Post Studio 介绍' })).toBeVisible()
+  expect(await page.evaluate(() => window.dispatchEvent(new Event('beforeunload', { cancelable: true })))).toBe(false)
+
+  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await expect(page.getByLabel('标题')).toHaveValue('首页往返时仍在内存')
+  await expect(page.getByRole('status')).toContainText('已保存到本地草稿')
+  expect(await page.evaluate(() => window.dispatchEvent(new Event('beforeunload', { cancelable: true })))).toBe(true)
+})
+
 test('collapses the settings sidebar, expands the editor, and restores the preference', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: '文章', exact: true }).click()

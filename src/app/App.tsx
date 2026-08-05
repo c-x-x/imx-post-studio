@@ -90,7 +90,10 @@ export function App() {
   const confirmReturnFocus = useRef<HTMLElement | null>(null)
   const urls = useRef(new ObjectUrlRegistry())
   const previousMedia = useRef<MediaAsset[]>([])
-  const saveStatus = useAutosave(view === 'workspace' && draftStarted && hasUnsavedChanges && !newArticlePromptOpen ? draft : null)
+  const saveStatus = useAutosave(
+    view === 'workspace' && draftStarted && hasUnsavedChanges && !newArticlePromptOpen ? draft : null,
+    () => setHasUnsavedChanges(false),
+  )
 
   useUnsavedChangesWarning(hasUnsavedChanges)
 
@@ -141,12 +144,6 @@ export function App() {
     document.body.classList.add('preview-open')
     return () => document.body.classList.remove('preview-open')
   }, [previewOpen])
-  useEffect(() => {
-    if (view === 'workspace' && hasUnsavedChanges && saveStatus.state === 'saved') {
-      setHasUnsavedChanges(false)
-    }
-  }, [hasUnsavedChanges, saveStatus, view])
-
   const setTransitionFailure = (failure: FailedTransition | undefined) => {
     failedTransitionRef.current = failure
     setFailedTransition(failure)

@@ -16,9 +16,14 @@ interface RevisionStatus {
   status: SaveStatus
 }
 
-export function useAutosave(draft: ArticleDraft | null): SaveStatus {
+export function useAutosave(draft: ArticleDraft | null, onSaved?: (draft: ArticleDraft) => void): SaveStatus {
   const [revisionStatus, setRevisionStatus] = useState<RevisionStatus>({ draft: null, status: IDLE_STATUS })
   const generation = useRef(0)
+  const onSavedRef = useRef(onSaved)
+
+  useEffect(() => {
+    onSavedRef.current = onSaved
+  }, [onSaved])
 
   useEffect(() => {
     generation.current += 1
@@ -38,6 +43,7 @@ export function useAutosave(draft: ArticleDraft | null): SaveStatus {
         () => {
           if (generation.current === activeGeneration) {
             setRevisionStatus({ draft, status: { state: 'saved', at: new Date().toISOString() } })
+            onSavedRef.current?.(draft)
           }
         },
         (cause: unknown) => {

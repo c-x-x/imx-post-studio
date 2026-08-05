@@ -77,6 +77,18 @@ describe('useAutosave', () => {
     expect(result.current).toEqual(expect.objectContaining({ state: 'saved', at: expect.any(String) }))
   })
 
+  it('notifies the caller only after the current revision is stored', async () => {
+    const onSaved = vi.fn()
+    const current = draft('notify after save')
+    renderHook(() => useAutosave(current, onSaved))
+
+    expect(onSaved).not.toHaveBeenCalled()
+    await act(async () => vi.advanceTimersByTimeAsync(800))
+
+    expect(onSaved).toHaveBeenCalledOnce()
+    expect(onSaved).toHaveBeenCalledWith(current)
+  })
+
   it('does not report a newer revision as saved before its debounce completes', async () => {
     const { result, rerender } = renderHook(({ current }) => useAutosave(current), {
       initialProps: { current: draft('saved revision') },

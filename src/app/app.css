@@ -198,6 +198,10 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
   box-shadow: var(--imx-shadow-sm);
 }
 
+.dialog-actions button:hover:not(:disabled) {
+  transform: none;
+}
+
 .dialog-actions button:last-child {
   border-color: var(--imx-accent);
   color: var(--imx-primary-ink);
