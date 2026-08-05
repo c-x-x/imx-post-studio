@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react'
 import { ImxLogo } from './ImxLogo'
 import { useLiquidIndicator } from './use-liquid-indicator'
 import { useSharedDock } from './use-shared-dock'
+import type { AppTheme } from './theme-preference'
 import './imx-dock.css'
 
 export interface ImxDockProps {
@@ -12,6 +13,8 @@ export interface ImxDockProps {
   onHome: () => void
   onArticle: () => void
   onDashboard: () => void
+  theme: AppTheme
+  onToggleTheme: () => void
 }
 
 export function ImxDock({
@@ -22,6 +25,8 @@ export function ImxDock({
   onHome,
   onArticle,
   onDashboard,
+  theme,
+  onToggleTheme,
 }: ImxDockProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const navRef = useRef<HTMLElement>(null)
@@ -76,7 +81,9 @@ export function ImxDock({
       <div className="imx-dock__actions">
         {view === 'workspace'
           ? <button ref={previewTrigger} className="imx-dock__preview" type="button" disabled={disabled} onClick={onPreview}>预览文章</button>
-          : <span className="imx-dock__privacy" aria-label="文章和图片仅在此浏览器中处理" title="文章和图片仅在此浏览器中处理">本地处理</span>}
+          : <button className="imx-dock__theme" type="button" disabled={disabled} aria-label={theme === 'light' ? '切换到深色主题' : '切换到浅色主题'} title={theme === 'light' ? '切换到深色主题' : '切换到浅色主题'} onClick={onToggleTheme}>{theme === 'light'
+            ? <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20.2 15.2A8.6 8.6 0 0 1 8.8 3.8 8.6 8.6 0 1 0 20.2 15.2Z" /></svg>
+            : <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="12" r="3.5" /><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42" /></svg>}</button>}
         <button className={`imx-dock__menu-toggle${menuOpen ? ' active' : ''}`} type="button" aria-label={menuOpen ? '关闭菜单' : '打开菜单'} aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>
           <span className="imx-dock__menu-icon" aria-hidden="true">
             <svg className="imx-dock__menu-icon-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h16" /></svg>

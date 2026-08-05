@@ -13,6 +13,8 @@ function props(view: 'home' | 'dashboard' | 'workspace' = 'workspace') {
     onHome: vi.fn(),
     onArticle: vi.fn(),
     onDashboard: vi.fn(),
+    theme: 'light' as const,
+    onToggleTheme: vi.fn(),
   }
 }
 
@@ -38,12 +40,18 @@ describe('IMX Studio Dock', () => {
     expect(callbacks.onDashboard).toHaveBeenCalledOnce()
   })
 
-  it('marks the dashboard action current and omits preview outside a workspace', () => {
-    render(<ImxDock {...props('dashboard')} />)
+  it('shows a functional theme toggle outside the workspace and omits preview', async () => {
+    const user = userEvent.setup()
+    const callbacks = props('dashboard')
+    const dock = render(<ImxDock {...callbacks} />)
 
     expect(screen.getByRole('button', { name: '草稿库' })).toHaveAttribute('aria-current', 'page')
     expect(screen.queryByRole('button', { name: '预览文章' })).not.toBeInTheDocument()
-    expect(screen.getByLabelText('文章和图片仅在此浏览器中处理')).toHaveTextContent('本地处理')
+    await user.click(screen.getByRole('button', { name: '切换到深色主题' }))
+    expect(callbacks.onToggleTheme).toHaveBeenCalledOnce()
+
+    dock.rerender(<ImxDock {...props('workspace')} />)
+    expect(screen.queryByRole('button', { name: /切换到.*主题/ })).not.toBeInTheDocument()
   })
 
   it('marks the home and article actions current for their views', () => {

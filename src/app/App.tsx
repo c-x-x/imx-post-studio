@@ -20,6 +20,7 @@ import { ArticleActions } from './ArticleActions'
 import { ImxDock } from './ImxDock'
 import { Notifications } from './notifications'
 import { readSettingsCollapsed, writeSettingsCollapsed } from './sidebar-preference'
+import { applyTheme, resolveInitialTheme, writeThemePreference, type AppTheme } from './theme-preference'
 import './app.css'
 
 type View = 'home' | 'dashboard' | 'workspace'
@@ -69,6 +70,7 @@ export function App() {
   const [draftStarted, setDraftStartedState] = useState(false)
   const [importFocusVersion, setImportFocusVersion] = useState(0)
   const [settingsCollapsed, setSettingsCollapsed] = useState(readSettingsCollapsed)
+  const [theme, setTheme] = useState<AppTheme>(resolveInitialTheme)
   const transitionInFlight = useRef(false)
   const transitionDecisionInFlight = useRef(false)
   const transitionId = useRef(0)
@@ -85,6 +87,7 @@ export function App() {
   const saveStatus = useAutosave(view === 'workspace' && draftStarted ? draft : null)
 
   useLayoutEffect(() => { draftRef.current = draft }, [draft])
+  useLayoutEffect(() => { applyTheme(theme) }, [theme])
   useLayoutEffect(() => {
     if (!importFocusTarget.current || transitioning || intakeBusy) return
     const target = importFocusTarget.current()
@@ -228,6 +231,14 @@ export function App() {
     setNotice('文章编辑器已打开')
   }
 
+  const toggleTheme = () => {
+    setTheme((current) => {
+      const next = current === 'light' ? 'dark' : 'light'
+      writeThemePreference(next)
+      return next
+    })
+  }
+
   const saveCurrentDraft = async () => {
     if (transitionInFlight.current || intakeBusyRef.current) return
     transitionInFlight.current = true
@@ -318,7 +329,7 @@ export function App() {
   }
 
   return <main className="app-shell">
-    <ImxDock view={view} disabled={workspaceLocked} previewTrigger={previewTrigger} onPreview={openPreview} onHome={() => void showHome()} onArticle={showWorkspace} onDashboard={() => void showDashboard()} />
+    <ImxDock view={view} disabled={workspaceLocked} previewTrigger={previewTrigger} theme={theme} onToggleTheme={toggleTheme} onPreview={openPreview} onHome={() => void showHome()} onArticle={showWorkspace} onDashboard={() => void showDashboard()} />
     <Notifications status={status} alert={alerts.length > 0 ? <>{alerts}</> : undefined} />
     {view === 'home' ? <HomePage disabled={workspaceLocked} onArticle={showWorkspace} onDashboard={() => void showDashboard()} /> : view === 'dashboard' ? <DraftDashboard onOpen={openDraft} disabled={workspaceLocked} /> : <section className="workspace" aria-label="文章工作区" aria-busy={workspaceLocked} data-inspector-collapsed={settingsCollapsed}>
       <ArticleActions disabled={workspaceLocked} onNew={() => void startNew()} onSave={() => void saveCurrentDraft()} />

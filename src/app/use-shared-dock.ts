@@ -54,7 +54,7 @@ export function useSharedDock(navRef: RefObject<HTMLElement | null>): void {
     const menu = nav?.querySelector<HTMLElement>('.imx-dock__menu')
     const brand = nav?.querySelector<HTMLElement>('.imx-dock__brand')
     const actions = nav?.querySelector<HTMLElement>('.imx-dock__actions')
-    const actionControl = actions?.querySelector<HTMLElement>('.imx-dock__preview, .imx-dock__privacy, .imx-dock__menu-toggle')
+    const actionControl = actions?.querySelector<HTMLElement>('.imx-dock__preview, .imx-dock__theme, .imx-dock__menu-toggle')
     const shell = nav?.querySelector<HTMLElement>('.imx-dock__shell')
     if (!nav || !container || !menu || !brand || !actions || !actionControl || !shell) return
 

@@ -18,7 +18,7 @@ export function HomePage({ disabled, onArticle, onDashboard }: HomePageProps) {
   return <section className="home-page" aria-label="IMX Post Studio 介绍">
     <div className="home-hero">
       <p className="home-eyebrow">IMX POST STUDIO</p>
-      <h2>为 IMX 写作，也只在本地处理</h2>
+      <h2>文字是时间里的不死鸟</h2>
       <p>在浏览器里完成文章、图片与主题预览，最后导出可直接放入 Hugo 内容目录的文章包。</p>
       <div className="home-actions">
         <button className="home-primary" type="button" disabled={disabled} onClick={onArticle}>开始写文章</button>

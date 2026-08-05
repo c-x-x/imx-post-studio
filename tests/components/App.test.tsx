@@ -9,9 +9,9 @@ describe('App', () => {
   it('opens on an IMX introduction and Markdown guide', () => {
     render(<App />)
     expect(screen.getByRole('heading', { name: 'IMX Post Studio' })).toBeInTheDocument()
-    expect(screen.getByLabelText('文章和图片仅在此浏览器中处理')).toHaveTextContent('本地处理')
+    expect(screen.getByRole('button', { name: /切换到.*主题/ })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'IMX Post Studio 介绍' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: '为 IMX 写作，也只在本地处理' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '文字是时间里的不死鸟' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Markdown 语法速查' })).toBeInTheDocument()
   })
 
