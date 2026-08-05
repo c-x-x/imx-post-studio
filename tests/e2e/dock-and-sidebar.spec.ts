@@ -37,9 +37,26 @@ test('follows the system theme, persists a manual choice, and keeps the workspac
 test('warns on browser exit only until the current changes reach the draft library', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: '文章', exact: true }).click()
-  await page.getByLabel('标题').fill('首页往返时仍在内存')
-  await page.getByRole('button', { name: '首页', exact: true }).click()
+  const dirtyBeforeHome = await page.evaluate(async (title) => {
+    const input = document.querySelector<HTMLInputElement>('#title')
+    const home = [...document.querySelectorAll<HTMLButtonElement>('button')]
+      .find((button) => button.textContent?.trim() === '首页')
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+    if (!input || !home || !setValue) throw new Error('Unable to prepare the dirty-home transition')
 
+    setValue.call(input, title)
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+
+    let mayLeave = true
+    for (let attempt = 0; attempt < 10 && mayLeave; attempt += 1) {
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0))
+      mayLeave = window.dispatchEvent(new Event('beforeunload', { cancelable: true }))
+    }
+    home.click()
+    return !mayLeave
+  }, '首页往返时仍在内存')
+
+  expect(dirtyBeforeHome).toBe(true)
   await expect(page.getByRole('region', { name: 'IMX Post Studio 介绍' })).toBeVisible()
   expect(await page.evaluate(() => window.dispatchEvent(new Event('beforeunload', { cancelable: true })))).toBe(false)
 
