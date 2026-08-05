@@ -14,6 +14,26 @@ test('attracts and merges the desktop Dock as the document scrolls', async ({ pa
   await expect.poll(() => dock.evaluate((element) => getComputedStyle(element).getPropertyValue('--home-dock-shell-opacity').trim())).toBe('1.000')
 })
 
+test('follows the system theme, persists a manual choice, and keeps the workspace action focused on preview', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await page.goto('/')
+
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  const switchToLight = page.getByRole('button', { name: '切换到浅色主题' })
+  await expect(switchToLight).toBeVisible()
+  await expect(page.locator('.home-hero')).toHaveCSS('background-color', 'rgba(23, 23, 22, 0.82)')
+
+  await switchToLight.click()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+  await page.reload()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+  await page.getByRole('button', { name: '切换到深色主题' }).click()
+
+  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await expect(page.getByRole('button', { name: /切换到.*主题/ })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '预览文章' })).toBeVisible()
+})
+
 test('collapses the settings sidebar, expands the editor, and restores the preference', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: '文章', exact: true }).click()

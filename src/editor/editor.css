@@ -14,8 +14,8 @@
   gap: 5px;
   padding: 9px 11px;
   border-bottom: 1px solid var(--imx-line);
-  background: rgba(242, 239, 232, .72);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7);
+  background: var(--imx-toolbar);
+  box-shadow: inset 0 1px 0 var(--imx-inset-highlight);
   backdrop-filter: blur(16px);
 }
 
@@ -59,9 +59,9 @@
 .markdown-editor .cm-line { padding-inline: 0; }
 
 .markdown-editor .cm-gutters {
-  border-right-color: rgba(75, 64, 52, .08);
-  color: rgba(95, 88, 80, .46);
-  background: rgba(242, 239, 232, .45);
+  border-right-color: var(--imx-line);
+  color: var(--imx-ink-muted);
+  background: var(--imx-gutter);
 }
 
 .markdown-editor .cm-activeLine,
