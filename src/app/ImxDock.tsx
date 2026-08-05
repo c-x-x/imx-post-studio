@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { ImxLogo } from './ImxLogo'
+import { useSharedDock } from './use-shared-dock'
 import './imx-dock.css'
 
 export interface ImxDockProps {
@@ -21,6 +22,7 @@ export function ImxDock({
 }: ImxDockProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const navRef = useRef<HTMLElement>(null)
+  useSharedDock(navRef)
 
   useEffect(() => {
     if (!menuOpen) return
