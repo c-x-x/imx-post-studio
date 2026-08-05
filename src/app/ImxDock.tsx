@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { ImxLogo } from './ImxLogo'
+import { useLiquidIndicator } from './use-liquid-indicator'
 import { useSharedDock } from './use-shared-dock'
 import './imx-dock.css'
 
@@ -24,7 +25,9 @@ export function ImxDock({
 }: ImxDockProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const navRef = useRef<HTMLElement>(null)
+  const menuRef = useRef<HTMLUListElement>(null)
   useSharedDock(navRef)
+  useLiquidIndicator(menuRef, view)
 
   useEffect(() => {
     if (!menuOpen) return
@@ -64,7 +67,7 @@ export function ImxDock({
         <ImxLogo />
         <h1>IMX Post Studio</h1>
       </div>
-      <ul className={`imx-dock__menu has-active${menuOpen ? ' active' : ''}`}>
+      <ul ref={menuRef} className={`imx-dock__menu has-active${menuOpen ? ' active' : ''}`}>
         <li><button className={view === 'home' ? 'active' : undefined} type="button" disabled={disabled} aria-current={view === 'home' ? 'page' : 'false'} onClick={() => choose(onHome)}>首页</button></li>
         <li><button className={view === 'workspace' ? 'active' : undefined} type="button" disabled={disabled} aria-current={view === 'workspace' ? 'page' : 'false'} onClick={() => choose(onArticle)}>文章</button></li>
         <li><button className={view === 'dashboard' ? 'active' : undefined} type="button" disabled={disabled} aria-current={view === 'dashboard' ? 'page' : 'false'} onClick={() => choose(onDashboard)}>草稿库</button></li>

@@ -27,6 +27,13 @@ export function smoothStep(edge0: number, edge1: number, value: number): number 
   return point * point * (3 - 2 * point)
 }
 
+export function dockLayerPresence(attraction: number): { part: number; shell: number } {
+  return {
+    part: 1 - smoothStep(0.5, 0.98, attraction),
+    shell: smoothStep(0.42, 0.92, attraction),
+  }
+}
+
 function lerp(start: number, end: number, amount: number): number {
   return start + (end - start) * amount
 }
@@ -118,10 +125,9 @@ export function useSharedDock(navRef: RefObject<HTMLElement | null>): void {
     const getMetrics = () => metricsDirty || !metrics ? refreshMetrics() : metrics
 
     const writeVisualState = (attraction: number) => {
-      const partPresence = 1 - smoothStep(0.08, 0.96, attraction)
-      const shellPresence = smoothStep(0.03, 0.74, attraction)
+      const { part: partPresence, shell: shellPresence } = dockLayerPresence(attraction)
       const shellOpacity = attraction <= 0.002 ? 0 : shellPresence
-      const shellScaleY = 0.9 + smoothStep(0.03, 0.82, attraction) * 0.1
+      const shellScaleY = 0.9 + smoothStep(0.42, 0.92, attraction) * 0.1
       const key = [
         attraction.toFixed(3), shellOpacity.toFixed(3), shellScaleY.toFixed(4),
         (0.8 * partPresence).toFixed(3), (0.14 * partPresence).toFixed(3),

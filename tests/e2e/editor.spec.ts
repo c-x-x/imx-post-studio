@@ -31,7 +31,7 @@ const ARTICLE_BODY = [
 
 async function beginArticle(page: Page): Promise<void> {
   await page.goto('/')
-  await page.getByRole('button', { name: '新建文章' }).click()
+  await page.getByRole('button', { name: '文章', exact: true }).click()
   await expect(page.getByRole('region', { name: '文章工作区' })).toBeVisible()
 }
 
@@ -171,6 +171,7 @@ test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle
 
   await expect(page.getByRole('status')).toContainText('已保存到本地草稿')
   await page.reload()
+  await page.getByRole('button', { name: '草稿库' }).click()
   await expect(page.getByRole('region', { name: '草稿库' })).toBeVisible()
   await expect(page.getByRole('heading', { name: ARTICLE_TITLE })).toBeVisible()
   await page.getByRole('button', { name: '打开' }).click()
@@ -222,13 +223,17 @@ test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle
   expect(sha256(roundTripZip.entries.get(`${ARTICLE_SLUG}/images/workflow.png`)!)).toBe(sha256(bodyImage!))
 })
 
-test('has no serious or critical axe violations on the dashboard and workspace', async ({ page }) => {
+test('has no serious or critical axe violations on the home, dashboard, and workspace views', async ({ page }) => {
   await page.goto('/')
+  const homeResults = await new AxeBuilder({ page }).analyze()
+  expect(homeResults.violations.filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')).toEqual([])
+
+  await page.getByRole('button', { name: '草稿库' }).click()
   const dashboardResults = await new AxeBuilder({ page }).analyze()
   expect(dashboardResults.violations.filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')).toEqual([])
 
-  await page.getByRole('button', { name: '新建文章' }).focus()
-  await expect(page.getByRole('button', { name: '新建文章' })).toBeFocused()
+  await page.getByRole('button', { name: '文章', exact: true }).focus()
+  await expect(page.getByRole('button', { name: '文章', exact: true })).toBeFocused()
   await page.keyboard.press('Enter')
   await fillMetadata(page)
   await page.getByRole('button', { name: '预览文章' }).click()

@@ -37,7 +37,7 @@ async function seedPreview(page: Page): Promise<void> {
     Object.defineProperty(window, 'Date', { configurable: true, value: FixedDate })
   })
   await page.goto('/')
-  await page.getByRole('button', { name: '新建文章' }).click()
+  await page.getByRole('button', { name: '文章', exact: true }).click()
   await page.getByLabel('标题').fill('IMX 文章预览基线')
   await page.getByLabel('Slug').fill('imx-visual-baseline')
   await page.getByLabel('摘要').fill('稳定的 IMX 视觉回归基线。')
@@ -149,7 +149,8 @@ test.describe('IMX visual regressions', () => {
     await page.goto('/')
     await expect(page.getByRole('heading', { name: 'IMX Post Studio' })).toBeVisible()
     await expect(page.locator('.vite-error-overlay, [data-nextjs-dialog], #webpack-dev-server-client-overlay')).toHaveCount(0)
-    await expect(page.getByRole('button', { name: '新建文章' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '文章', exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Markdown 语法速查' })).toBeVisible()
     await expect(page.getByRole('button', { name: '草稿库' })).toBeVisible()
     const shellStyle = await page.locator('.imx-dock').evaluate((dock) => {
       const dockStyle = getComputedStyle(dock)

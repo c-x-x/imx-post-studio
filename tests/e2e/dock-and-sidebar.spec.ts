@@ -3,16 +3,20 @@ import { expect, test } from '@playwright/test'
 test('attracts and merges the desktop Dock as the document scrolls', async ({ page }) => {
   await page.goto('/')
   await page.evaluate(() => { document.body.style.minHeight = '240vh' })
-  await page.evaluate(() => window.scrollTo(0, window.innerHeight))
+  await page.evaluate(() => window.scrollTo(0, window.innerHeight * 0.45))
 
   const dock = page.locator('.imx-dock')
+  await expect.poll(() => dock.evaluate((element) => Number.parseFloat(getComputedStyle(element).getPropertyValue('--home-dock-shell-opacity')))).toBeLessThan(0.35)
+  await expect.poll(() => dock.evaluate((element) => Number.parseFloat(getComputedStyle(element).getPropertyValue('--home-dock-part-bg-alpha')))).toBeGreaterThan(0.65)
+  await page.evaluate(() => window.scrollTo(0, window.innerHeight))
+
   await expect(dock).toHaveClass(/is-dock-merged/)
   await expect.poll(() => dock.evaluate((element) => getComputedStyle(element).getPropertyValue('--home-dock-shell-opacity').trim())).toBe('1.000')
 })
 
 test('collapses the settings sidebar, expands the editor, and restores the preference', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: '新建文章' }).click()
+  await page.getByRole('button', { name: '文章', exact: true }).click()
   const workspace = page.getByRole('region', { name: '文章工作区' })
   const inspector = page.locator('.workspace-inspector')
   const editor = page.locator('.workspace-editor')
@@ -28,7 +32,7 @@ test('collapses the settings sidebar, expands the editor, and restores the prefe
   await expect.poll(async () => (await inspector.boundingBox())?.width ?? -1).toBe(0)
 
   await page.reload()
-  await page.getByRole('button', { name: '新建文章' }).click()
+  await page.getByRole('button', { name: '文章', exact: true }).click()
   await expect(page.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-inspector-collapsed', 'true')
   await page.getByRole('button', { name: '展开文章设置' }).click()
   await expect(page.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-inspector-collapsed', 'false')
@@ -40,8 +44,8 @@ test('uses the compact IMX menu and existing workspace tabs on mobile without ov
   const toggle = page.getByRole('button', { name: '打开菜单' })
   await toggle.click()
   await expect(page.getByRole('button', { name: '关闭菜单' })).toHaveAttribute('aria-expanded', 'true')
-  await expect(page.getByRole('button', { name: '新建文章' })).toBeVisible()
-  await page.getByRole('button', { name: '新建文章' }).click()
+  await expect(page.getByRole('button', { name: '文章', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '文章', exact: true }).click()
 
   await expect(page.getByRole('button', { name: '打开菜单' })).toHaveAttribute('aria-expanded', 'false')
   await expect(page.getByRole('tab', { name: '设置' })).toBeVisible()
