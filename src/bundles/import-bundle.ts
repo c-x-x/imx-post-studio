@@ -44,6 +44,12 @@ function assertSupportedEntry(entry: Entry): void {
   }
 }
 
+function isMacOsMetadataPath(filename: string): boolean {
+  const segments = filename.split('/')
+  const basename = segments.at(-1) ?? ''
+  return segments[0] === '__MACOSX' || basename === '.DS_Store' || basename.startsWith('._')
+}
+
 function createMedia(name: string, bytes: Uint8Array): MediaAsset {
   validateImageName(name)
   let mime
@@ -95,8 +101,10 @@ function draftFromParsed(parsed: ParsedArticle, slug: string, media: MediaAsset[
 function inspectArchiveEntries(entries: Entry[]): { root: string; index: FileEntry; images: FileEntry[] } {
   validateArchiveEntries(entries)
   const files = entries.filter((entry): entry is FileEntry => !entry.directory)
-  const paths = files.map((entry) => ({ entry, path: validateArchivePath(entry.filename) }))
-  for (const { entry } of paths) assertSupportedEntry(entry)
+  for (const entry of files) assertSupportedEntry(entry)
+  const paths = files
+    .filter((entry) => !isMacOsMetadataPath(entry.filename))
+    .map((entry) => ({ entry, path: validateArchivePath(entry.filename) }))
 
   const roots = new Set(paths.map(({ path }) => path.root))
   if (roots.size !== 1) throw importError('ZIP 必须只包含一个文章目录')

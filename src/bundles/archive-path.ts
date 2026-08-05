@@ -49,12 +49,16 @@ export function validateArchiveEntries(entries: ArchiveEntryMetadata[]): void {
   let total = 0
   const paths = new Set<string>()
   for (const entry of entries) {
-    if (entry.directory || entry.filename.endsWith('/')) {
-      throw archiveError(`不支持目录条目：${entry.filename}`)
-    }
-    validateArchivePath(entry.filename)
+    const isDirectory = entry.directory || entry.filename.endsWith('/')
+    const canonicalPath = isDirectory && entry.filename.endsWith('/')
+      ? entry.filename.slice(0, -1)
+      : entry.filename
+    validateArchivePath(canonicalPath)
     if (!Number.isSafeInteger(entry.uncompressedSize) || entry.uncompressedSize < 0) {
       throw archiveError(`条目大小无效：${entry.filename}`)
+    }
+    if (isDirectory && entry.uncompressedSize !== 0) {
+      throw archiveError(`目录条目不能包含内容：${entry.filename}`)
     }
     if (entry.uncompressedSize > MAX_ARCHIVE_FILE_BYTES) {
       throw archiveError(`单个文件不能超过 ${MAX_SOURCE_BYTES / (1024 * 1024)} MiB：${entry.filename}`)
@@ -63,9 +67,9 @@ export function validateArchiveEntries(entries: ArchiveEntryMetadata[]): void {
     if (!Number.isSafeInteger(total) || total > MAX_ARCHIVE_TOTAL_BYTES) {
       throw archiveError(`ZIP 解压总大小不能超过 ${MAX_ARCHIVE_TOTAL_BYTES / (1024 * 1024)} MiB`)
     }
-    if (paths.has(entry.filename)) {
+    if (paths.has(canonicalPath)) {
       throw archiveError(`ZIP 包含重复条目：${entry.filename}`)
     }
-    paths.add(entry.filename)
+    paths.add(canonicalPath)
   }
 }

@@ -32,6 +32,22 @@ describe('archive path validation', () => {
     })
   })
 
+  it('accepts empty directory entries after validating their canonical paths', () => {
+    expect(() => validateArchiveEntries([
+      { filename: 'post/', uncompressedSize: 0, directory: true },
+      { filename: 'post/images/', uncompressedSize: 0, directory: true },
+      { filename: 'post/index.md', uncompressedSize: 1, directory: false },
+    ])).not.toThrow()
+  })
+
+  it.each([
+    { filename: '../', uncompressedSize: 0, directory: true },
+    { filename: 'post//', uncompressedSize: 0, directory: true },
+    { filename: 'post/', uncompressedSize: 1, directory: true },
+  ])('rejects unsafe or non-empty directory metadata: $filename', (entry) => {
+    expect(() => validateArchiveEntries([entry])).toThrow()
+  })
+
   it('rejects declared archive bounds before any entry body is read', () => {
     expect(() => validateArchiveEntries(
       Array.from({ length: MAX_ARCHIVE_ENTRIES + 1 }, (_, index) => ({

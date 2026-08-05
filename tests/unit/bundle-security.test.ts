@@ -2,10 +2,14 @@ import { BlobReader, BlobWriter, TextReader, ZipWriter } from '@zip.js/zip.js'
 import { describe, expect, it } from 'vitest'
 import { importArticleBundle, importLooseArticle } from '../../src/bundles/import-bundle'
 
-async function archive(entries: Array<{ name: string; contents?: string | Uint8Array }>): Promise<Blob> {
+async function archive(entries: Array<{ name: string; contents?: string | Uint8Array; directory?: boolean }>): Promise<Blob> {
   const writer = new ZipWriter(new BlobWriter('application/zip'))
   try {
     for (const entry of entries) {
+      if (entry.directory) {
+        await writer.add(entry.name, undefined, { directory: true, level: 0 })
+        continue
+      }
       await writer.add(
         entry.name,
         typeof entry.contents === 'string' || entry.contents === undefined
@@ -38,6 +42,22 @@ const validIndex = [
 ].join('\n')
 
 describe('bundle import security', () => {
+  it('imports a macOS-created bundle with directory entries and metadata files', async () => {
+    const imported = await importArticleBundle(await archive([
+      { name: 'post/', directory: true },
+      { name: '__MACOSX/', directory: true },
+      { name: '__MACOSX/._post', contents: 'finder metadata' },
+      { name: 'post/images/', directory: true },
+      { name: '__MACOSX/post/', directory: true },
+      { name: '__MACOSX/post/._index.md', contents: 'resource fork' },
+      { name: 'post/.DS_Store', contents: 'finder metadata' },
+      { name: 'post/index.md', contents: validIndex },
+    ]))
+
+    expect(imported.meta.slug).toBe('post')
+    expect(imported.meta.title).toBe('Safe article')
+  })
+
   it.each([
     '../escape.md',
     '/absolute/index.md',
