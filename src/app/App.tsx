@@ -21,7 +21,7 @@ import { ImxDock } from './ImxDock'
 import { Notifications } from './notifications'
 import { readSettingsCollapsed, writeSettingsCollapsed } from './sidebar-preference'
 import { applyTheme, resolveInitialTheme, writeThemePreference, type AppTheme } from './theme-preference'
-import { TransitionConfirmDialog, type ConfirmedIntent } from './TransitionConfirmDialog'
+import { TransitionConfirmDialog } from './TransitionConfirmDialog'
 import { useUnsavedChangesWarning } from './use-unsaved-changes-warning'
 import './app.css'
 
@@ -74,8 +74,8 @@ export function App() {
   const [importFocusVersion, setImportFocusVersion] = useState(0)
   const [settingsCollapsed, setSettingsCollapsed] = useState(readSettingsCollapsed)
   const [theme, setTheme] = useState<AppTheme>(resolveInitialTheme)
-  const [pendingIntent, setPendingIntent] = useState<ConfirmedIntent>()
-  const [pendingIntentError, setPendingIntentError] = useState<string>()
+  const [newArticlePromptOpen, setNewArticlePromptOpen] = useState(false)
+  const [newArticlePromptError, setNewArticlePromptError] = useState<string>()
   const transitionInFlight = useRef(false)
   const transitionDecisionInFlight = useRef(false)
   const transitionId = useRef(0)
@@ -90,7 +90,7 @@ export function App() {
   const confirmReturnFocus = useRef<HTMLElement | null>(null)
   const urls = useRef(new ObjectUrlRegistry())
   const previousMedia = useRef<MediaAsset[]>([])
-  const saveStatus = useAutosave(view === 'workspace' && draftStarted && hasUnsavedChanges ? draft : null)
+  const saveStatus = useAutosave(view === 'workspace' && draftStarted && hasUnsavedChanges && !newArticlePromptOpen ? draft : null)
 
   useUnsavedChangesWarning(hasUnsavedChanges)
 
@@ -203,12 +203,7 @@ export function App() {
     }
   }
 
-  const executeConfirmedIntent = (intent: ConfirmedIntent) => {
-    if (intent === 'home') {
-      setView('home')
-      setNotice('已返回首页')
-      return
-    }
+  const executeNewArticle = () => {
     dispatchDraft({ type: 'new', draft: createArticleDraft() }, true)
     setDraftStarted(false)
     setHasUnsavedChanges(false)
@@ -217,22 +212,16 @@ export function App() {
     setNotice('已创建新文章')
   }
 
-  const askForConfirmedIntent = (intent: ConfirmedIntent) => {
-    if (intent === 'home' && view !== 'workspace') {
-      executeConfirmedIntent(intent)
-      return
-    }
+  const startNew = () => {
     if (intakeBusyRef.current) {
       setNotice('正在读取媒体，请完成后再切换文章')
       return
     }
-    if (transitionInFlight.current || pendingIntent) return
+    if (transitionInFlight.current || newArticlePromptOpen) return
     confirmReturnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    setPendingIntentError(undefined)
-    setPendingIntent(intent)
+    setNewArticlePromptError(undefined)
+    setNewArticlePromptOpen(true)
   }
-
-  const startNew = () => askForConfirmedIntent('new')
 
   const openDraft = (next: ArticleDraft) => requestTransition(() => {
     dispatchDraft({ type: 'replace', draft: next }, true)
@@ -350,31 +339,41 @@ export function App() {
       setTransitioning(false)
     }
   }
-  const cancelConfirmedIntent = () => {
+  const cancelNewArticle = () => {
     if (transitionInFlight.current) return
-    setPendingIntent(undefined)
-    setPendingIntentError(undefined)
+    setNewArticlePromptOpen(false)
+    setNewArticlePromptError(undefined)
   }
-  const discardConfirmedIntent = () => {
-    if (!pendingIntent || transitionInFlight.current || intakeBusyRef.current) return
-    const intent = pendingIntent
-    setPendingIntent(undefined)
-    setPendingIntentError(undefined)
-    executeConfirmedIntent(intent)
-  }
-  const saveAndContinueConfirmedIntent = async () => {
-    if (!pendingIntent || transitionInFlight.current || intakeBusyRef.current) return
-    const intent = pendingIntent
+  const deleteAndContinueNewArticle = async () => {
+    if (!newArticlePromptOpen || transitionInFlight.current || intakeBusyRef.current) return
     transitionInFlight.current = true
     setTransitioning(true)
-    setPendingIntentError(undefined)
+    setNewArticlePromptError(undefined)
+    try {
+      await draftRepository.delete(draftRef.current.id)
+      setHasUnsavedChanges(false)
+      setNewArticlePromptOpen(false)
+      executeNewArticle()
+    } catch (cause) {
+      const detail = errorMessage(cause)
+      setNewArticlePromptError(detail.startsWith('删除草稿失败：') ? detail : `删除草稿失败：${detail}`)
+    } finally {
+      transitionInFlight.current = false
+      setTransitioning(false)
+    }
+  }
+  const saveAndContinueNewArticle = async () => {
+    if (!newArticlePromptOpen || transitionInFlight.current || intakeBusyRef.current) return
+    transitionInFlight.current = true
+    setTransitioning(true)
+    setNewArticlePromptError(undefined)
     try {
       await persistLatestDraft()
       setDraftStarted(true)
-      setPendingIntent(undefined)
-      executeConfirmedIntent(intent)
+      setNewArticlePromptOpen(false)
+      executeNewArticle()
     } catch (cause) {
-      setPendingIntentError(`保存到草稿库失败：${errorMessage(cause)}`)
+      setNewArticlePromptError(`保存到草稿库失败：${errorMessage(cause)}`)
     } finally {
       transitionInFlight.current = false
       setTransitioning(false)
@@ -411,7 +410,7 @@ export function App() {
         <section id="panel-write" className="workspace-panel workspace-editor" role="tabpanel" aria-labelledby="tab-write"><h2 className="visually-hidden">写作</h2><MarkdownEditor disabled={workspaceLocked} ref={editorRef} value={draft.body} onChange={(body) => dispatchDraft({ type: 'set-body', body })} /></section>
       </div>
     </section>}
-    {pendingIntent ? <TransitionConfirmDialog intent={pendingIntent} busy={transitioning || intakeBusy} error={pendingIntentError} onCancel={cancelConfirmedIntent} onDiscard={discardConfirmedIntent} onSave={() => void saveAndContinueConfirmedIntent()} returnFocus={() => confirmReturnFocus.current} /> : null}
+    {newArticlePromptOpen ? <TransitionConfirmDialog busy={transitioning || intakeBusy} error={newArticlePromptError} onCancel={cancelNewArticle} onDiscard={() => void deleteAndContinueNewArticle()} onSave={() => void saveAndContinueNewArticle()} returnFocus={() => confirmReturnFocus.current} /> : null}
     {previewOpen ? <AccessibleDialog title="IMX 文章预览" className="preview-dialog" onClose={closePreview} returnFocus={() => previewTrigger.current}><DialogClose>{(close) => <PreviewFrame meta={draft.meta} rendered={rendered} css={previewCss} onClose={() => close()} />}</DialogClose></AccessibleDialog> : null}
   </main>
 }

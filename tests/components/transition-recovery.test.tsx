@@ -1,11 +1,11 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { put, list } = vi.hoisted(() => ({ put: vi.fn(), list: vi.fn() }))
+const { put, list, remove } = vi.hoisted(() => ({ put: vi.fn(), list: vi.fn(), remove: vi.fn() }))
 const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 
 vi.mock('../../src/drafts/repository', () => ({
-  draftRepository: { put, list, get: vi.fn(), duplicate: vi.fn(), rename: vi.fn(), delete: vi.fn() },
+  draftRepository: { put, list, get: vi.fn(), duplicate: vi.fn(), rename: vi.fn(), delete: remove },
 }))
 
 import { App } from '../../src/app/App'
@@ -23,8 +23,10 @@ describe('workspace transitions', () => {
     vi.useFakeTimers()
     put.mockReset()
     list.mockReset()
+    remove.mockReset()
     list.mockResolvedValue([])
     put.mockResolvedValue(undefined)
+    remove.mockResolvedValue(undefined)
   })
   afterEach(() => { cleanup(); vi.useRealTimers() })
 
@@ -97,18 +99,43 @@ describe('workspace transitions', () => {
     expect(screen.getByRole('button', { name: '新建文章' })).toHaveFocus()
   })
 
-  it('creates a new article without an extra save when discard is chosen', async () => {
+  it('deletes the stored current draft before creating a new article', async () => {
     render(<App />)
     await startWorkspace()
-    fireEvent.change(screen.getByLabelText('标题'), { target: { value: '不保存这次修改' } })
+    fireEvent.change(screen.getByLabelText('标题'), { target: { value: '删除这份草稿' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存到草稿库' }))
+    await act(async () => { await Promise.resolve() })
+    const outgoing = put.mock.calls.at(-1)?.[0] as { id: string }
     put.mockClear()
 
     fireEvent.click(screen.getByRole('button', { name: '新建文章' }))
-    fireEvent.click(screen.getByRole('button', { name: '不保存并继续' }))
+    act(() => vi.advanceTimersByTime(800))
+    expect(put).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '删除草稿并继续' }))
+    await act(async () => { await Promise.resolve() })
 
+    expect(remove).toHaveBeenCalledWith(outgoing.id)
     expect(put).not.toHaveBeenCalled()
     expect(screen.getByLabelText('标题')).toHaveValue('')
     expect(screen.getByText('已创建新文章')).toBeInTheDocument()
+  })
+
+  it('keeps the current article and decision open when draft deletion fails', async () => {
+    render(<App />)
+    await startWorkspace()
+    fireEvent.change(screen.getByLabelText('标题'), { target: { value: '删除失败也要保留' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存到草稿库' }))
+    await act(async () => { await Promise.resolve() })
+    const outgoing = put.mock.calls.at(-1)?.[0] as { id: string }
+    remove.mockRejectedValueOnce(new Error('Quota exceeded'))
+
+    fireEvent.click(screen.getByRole('button', { name: '新建文章' }))
+    fireEvent.click(screen.getByRole('button', { name: '删除草稿并继续' }))
+    await act(async () => { await Promise.resolve() })
+
+    expect(remove).toHaveBeenCalledWith(outgoing.id)
+    expect(screen.getByRole('dialog', { name: '新建文章前是否保存？' })).toHaveTextContent('删除草稿失败：Quota exceeded')
+    expect(screen.getByLabelText('标题')).toHaveValue('删除失败也要保留')
   })
 
   it('returns home immediately from the clickable Studio brand without losing the article', async () => {
