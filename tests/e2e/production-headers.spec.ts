@@ -169,7 +169,7 @@ test('exports a valid WebP cover under production CSP and forces the WASM fallba
   await expect(page.getByRole('dialog', { name: '裁剪封面' })).toBeVisible()
   await page.getByRole('button', { name: '使用此封面' }).click()
   await expect(page.getByRole('dialog', { name: '裁剪封面' })).toHaveCount(0)
-  await expect(page.getByRole('listitem', { name: 'cover.webp' })).toContainText('封面')
+  await expect(page.getByLabel('当前封面')).toContainText('封面')
   if (browserName === 'webkit') {
     expect(await page.evaluate(() => (window as Window & { __nativeWebpAttempts?: number }).__nativeWebpAttempts)).toBeGreaterThan(0)
   }

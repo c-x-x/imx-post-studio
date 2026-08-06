@@ -103,7 +103,8 @@ async function assertEditorState(page: Page, expected: {
   await expect(page.getByLabel('草稿')).toBeChecked({ checked: expected.draft })
   await expect(page.getByLabel('显示目录')).toBeChecked()
   expect(await page.getByRole('textbox', { name: 'Markdown 编辑器' }).evaluate((editor) => editor.textContent)).toBe(expected.body)
-  expect(await mediaNames(page)).toEqual(['cover.webp', 'workflow.png'])
+  await expect(page.getByLabel('当前封面')).toContainText('封面')
+  expect(await mediaNames(page)).toEqual(['workflow.png'])
 }
 
 async function scanPreviewDomWithAxe(page: Page) {
@@ -144,7 +145,7 @@ test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle
   await expect(page.getByRole('dialog', { name: '裁剪封面' })).toBeVisible()
   await page.getByRole('button', { name: '使用此封面' }).click()
   await expect(page.getByRole('dialog', { name: '裁剪封面' })).toHaveCount(0)
-  await expect(page.getByLabel('已添加图片')).toContainText('封面')
+  await expect(page.getByLabel('当前封面')).toContainText('封面')
 
   const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
   await editor.fill(ARTICLE_BODY)
