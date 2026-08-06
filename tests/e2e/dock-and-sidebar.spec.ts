@@ -137,22 +137,21 @@ test('synchronizes preview theme with the app and persists changes after closing
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
 })
 
-test('attracts and merges the preview Dock as the preview surface scrolls', async ({ page }) => {
+test('attracts and merges the preview Dock as the article preview scrolls', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: '文章', exact: true }).click()
   await page.getByRole('button', { name: '预览文章' }).click()
 
-  const surface = page.locator('.preview-surface')
+  const previewDocument = page.frameLocator('iframe[title="IMX 文章预览"]').locator('html')
   const dock = page.locator('.preview-dock')
-  await surface.evaluate((element) => {
+  await previewDocument.evaluate((element) => {
     const spacer = document.createElement('div')
     spacer.style.height = '200vh'
     spacer.setAttribute('aria-hidden', 'true')
-    element.append(spacer)
-    element.scrollTop = element.clientHeight
-    element.dispatchEvent(new Event('scroll'))
+    document.body.append(spacer)
+    element.scrollTop = window.innerHeight
   })
-  await expect.poll(() => surface.evaluate((element) => element.scrollTop / element.clientHeight)).toBeGreaterThanOrEqual(0.88)
+  await expect.poll(() => previewDocument.evaluate((element) => element.scrollTop / window.innerHeight)).toBeGreaterThanOrEqual(0.88)
 
   await expect(dock).toHaveClass(/is-dock-merged/)
   await expect.poll(() => dock.evaluate((element) => getComputedStyle(element).getPropertyValue('--home-dock-shell-opacity').trim())).toBe('1.000')
@@ -163,23 +162,22 @@ test('keeps preview Dock merging responsive and reduced-motion safe', async ({ p
   await page.goto('/')
   await page.getByRole('button', { name: '文章', exact: true }).click()
   await page.getByRole('button', { name: '预览文章' }).click()
+  const previewDocument = page.frameLocator('iframe[title="IMX 文章预览"]').locator('html')
   const surface = page.locator('.preview-surface')
   const dock = page.locator('.preview-dock')
 
-  await surface.evaluate((element) => {
+  await previewDocument.evaluate((element) => {
     const spacer = document.createElement('div')
     spacer.style.height = '200vh'
     spacer.setAttribute('aria-hidden', 'true')
-    element.append(spacer)
-    element.scrollTop = element.clientHeight
-    element.dispatchEvent(new Event('scroll'))
+    document.body.append(spacer)
+    element.scrollTop = window.innerHeight
   })
-  await expect.poll(() => surface.evaluate((element) => element.scrollTop / element.clientHeight)).toBeGreaterThanOrEqual(0.88)
+  await expect.poll(() => previewDocument.evaluate((element) => element.scrollTop / window.innerHeight)).toBeGreaterThanOrEqual(0.88)
   await expect(dock).toHaveClass(/is-dock-merged/)
   await expect(dock).not.toHaveClass(/is-dock-attracting/)
 
   await page.setViewportSize({ width: 390, height: 844 })
-  await surface.evaluate((element) => element.scrollTo(0, element.scrollHeight))
   await expect(dock).not.toHaveClass(/is-dock-merged/)
   expect(await surface.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
 })
@@ -210,4 +208,63 @@ test('uses the compact IMX menu and existing workspace tabs on mobile without ov
   await expect(page.locator('#panel-actions')).toBeHidden()
   await expect(page.locator('#panel-write')).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
+test('keeps the preview table of contents controllable on desktop and mobile without navigating away', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await page.getByLabel('标题').fill('目录交互回归')
+  await page.getByLabel('Slug').fill('preview-toc-controls')
+  await page.getByRole('textbox', { name: 'Markdown 编辑器' }).fill('## 第一节\n\n正文。\n\n### 第二节\n\n更多正文。')
+  await page.getByRole('button', { name: '预览文章' }).click()
+
+  const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
+  const sidebar = preview.locator('#article-toc')
+  const desktopToggle = preview.getByRole('checkbox', { name: '目录' })
+  await expect(desktopToggle).toBeVisible()
+  await expect(desktopToggle).not.toBeChecked()
+  await expect(sidebar).toBeVisible()
+  expect(await desktopToggle.evaluate((toggle) => {
+    const bounds = toggle.getBoundingClientRect()
+    return {
+      rightGap: window.innerWidth - bounds.right,
+      width: bounds.width,
+      height: bounds.height,
+    }
+  })).toEqual({ rightGap: 32, width: 50, height: 50 })
+
+  await desktopToggle.click()
+  await expect(desktopToggle).toBeChecked()
+  await expect(sidebar).toBeHidden()
+  expect(await preview.locator('.main-content').evaluate((content) => {
+    const bounds = content.getBoundingClientRect()
+    return Math.abs(bounds.left + bounds.width / 2 - window.innerWidth / 2)
+  })).toBeLessThan(2)
+
+  await desktopToggle.click()
+  await expect(desktopToggle).not.toBeChecked()
+  await expect(sidebar).toBeVisible()
+  await preview.getByRole('link', { name: '第一节', exact: true }).click()
+  const afterDirectoryLink = await preview.locator('body').evaluate((body) => ({
+    articleVisible: body.querySelector('.article-page')?.getBoundingClientRect().height ?? 0,
+    targetTop: body.querySelector('#imx-heading-第一节')?.getBoundingClientRect().top ?? -1,
+    viewportHeight: window.innerHeight,
+  }))
+  expect(afterDirectoryLink.articleVisible).toBeGreaterThan(0)
+  expect(afterDirectoryLink.targetTop).toBeGreaterThanOrEqual(0)
+  expect(afterDirectoryLink.targetTop).toBeLessThan(afterDirectoryLink.viewportHeight)
+
+  await page.getByRole('button', { name: '移动预览' }).click()
+  const mobileToggle = preview.getByRole('checkbox', { name: '目录' })
+  await expect(mobileToggle).toBeVisible()
+  await expect(mobileToggle).not.toBeChecked()
+  await expect(sidebar).toBeHidden()
+  expect(await mobileToggle.evaluate((toggle) => {
+    const bounds = toggle.getBoundingClientRect()
+    return { width: bounds.width, height: bounds.height }
+  })).toEqual({ width: 46, height: 46 })
+  await mobileToggle.click()
+  await expect(mobileToggle).toBeChecked()
+  await expect(sidebar).toBeVisible()
+  await expect(preview.locator('.article-content')).toContainText('更多正文。')
 })

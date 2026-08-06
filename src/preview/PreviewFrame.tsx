@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { ArticleMeta } from '../metadata/article'
 import type { AppTheme } from '../app/theme-preference'
 import type { RenderedMarkdown } from './markdown'
 import { buildPreviewDocument } from './build-preview-document'
-import { useSharedDock } from '../app/use-shared-dock'
+import { SHARED_DOCK_SCROLL_EVENT, useSharedDock } from '../app/use-shared-dock'
 import '../app/shared-dock.css'
 import './preview-frame.css'
 
@@ -16,6 +16,29 @@ interface PreviewFrameProps {
   onClose: () => void
 }
 
+function wirePreviewFrameScroll(frame: HTMLIFrameElement, dock: HTMLElement | null): void {
+  const document = frame.contentDocument
+  const window = frame.contentWindow
+  if (!document || !window) return
+  let lastScrollTop = -1
+  const syncDock = () => dock?.dispatchEvent(new CustomEvent(SHARED_DOCK_SCROLL_EVENT, {
+    detail: {
+      scrollTop: document.scrollingElement?.scrollTop ?? 0,
+      viewportHeight: window.innerHeight,
+    },
+  }))
+  const trackScroll = () => {
+    if (!frame.isConnected || frame.contentDocument !== document) return
+    const scrollTop = document.scrollingElement?.scrollTop ?? 0
+    if (scrollTop !== lastScrollTop) {
+      lastScrollTop = scrollTop
+      syncDock()
+    }
+    requestAnimationFrame(trackScroll)
+  }
+  requestAnimationFrame(trackScroll)
+}
+
 export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClose }: PreviewFrameProps) {
   const [viewport, setViewport] = useState<'desktop' | 'mobile'>(() => (
     typeof window !== 'undefined'
@@ -24,33 +47,12 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
       ? 'mobile'
       : 'desktop'
   ))
-  const [frameHeight, setFrameHeight] = useState(720)
   const dockRef = useRef<HTMLElement>(null)
-  const frameObserver = useRef<ResizeObserver | undefined>(undefined)
   useSharedDock(dockRef)
   const documentHtml = useMemo(
     () => buildPreviewDocument({ meta, rendered, css, theme }),
     [css, meta, rendered, theme],
   )
-
-  const resizeFrame = useCallback((frame: HTMLIFrameElement) => {
-    const document = frame.contentDocument
-    if (!document) return
-    const measure = () => {
-      const nextHeight = Math.ceil(Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, 720))
-      setFrameHeight((current) => current === nextHeight ? current : nextHeight)
-    }
-    frameObserver.current?.disconnect()
-    if (typeof ResizeObserver !== 'undefined') {
-      frameObserver.current = new ResizeObserver(measure)
-      frameObserver.current.observe(document.documentElement)
-      frameObserver.current.observe(document.body)
-    }
-    measure()
-    window.requestAnimationFrame(measure)
-  }, [])
-
-  useEffect(() => () => frameObserver.current?.disconnect(), [])
 
   const frameWidth = viewport === 'desktop'
     ? 1180
@@ -77,7 +79,7 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
       </div>
     </header>
     <div className={`preview-viewport preview-viewport-${viewport}`} tabIndex={0} aria-label="预览画布，可水平滚动">
-      <iframe className="preview-frame" title="IMX 文章预览" sandbox="allow-same-origin" referrerPolicy="no-referrer" srcDoc={documentHtml} onLoad={(event) => resizeFrame(event.currentTarget)} style={{ width: `${frameWidth}px`, height: `${frameHeight}px` }} />
+      <iframe className="preview-frame" title="IMX 文章预览" sandbox="allow-same-origin" referrerPolicy="no-referrer" srcDoc={documentHtml} onLoad={(event) => wirePreviewFrameScroll(event.currentTarget, dockRef.current)} style={{ width: `${frameWidth}px` }} />
     </div>
   </section>
 }

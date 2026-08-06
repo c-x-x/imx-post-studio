@@ -21,6 +21,13 @@ interface DockMediaQuery {
   removeEventListener?: (type: 'change', listener: () => void) => void
 }
 
+interface SharedDockScrollDetail {
+  scrollTop: number
+  viewportHeight: number
+}
+
+export const SHARED_DOCK_SCROLL_EVENT = 'imx-shared-dock-scroll'
+
 export interface SharedDockParts {
   container: HTMLElement
   left: HTMLElement
@@ -95,6 +102,7 @@ export function useSharedDock(navRef: RefObject<HTMLElement | null>): void {
     let lastGroupShift = '0px'
     let lastShellWidth = '0px'
     let lastVisualKey = ''
+    let externalScroll: SharedDockScrollDetail | undefined
 
     const refreshMetrics = (): DockMetrics => {
       const menuRect = menu.getBoundingClientRect()
@@ -218,8 +226,8 @@ export function useSharedDock(navRef: RefObject<HTMLElement | null>): void {
         reset()
         return
       }
-      const scrollTop = scrollElement?.scrollTop ?? window.scrollY
-      const viewportHeight = scrollElement?.clientHeight ?? window.innerHeight
+      const scrollTop = externalScroll?.scrollTop ?? scrollElement?.scrollTop ?? window.scrollY
+      const viewportHeight = externalScroll?.viewportHeight ?? scrollElement?.clientHeight ?? window.innerHeight
       const progress = scrollTop / Math.max(viewportHeight, 1)
       const nextMerged = merged ? progress > DOCK_MERGE_EXIT : progress >= DOCK_MERGE_ENTER
       const attraction = reduceMotionQuery.matches
@@ -241,12 +249,19 @@ export function useSharedDock(navRef: RefObject<HTMLElement | null>): void {
       lastAttraction = -1
       requestSync()
     }
+    const receiveExternalScroll = (event: Event) => {
+      const detail = (event as CustomEvent<SharedDockScrollDetail>).detail
+      if (!detail || !Number.isFinite(detail.scrollTop) || !Number.isFinite(detail.viewportHeight)) return
+      externalScroll = detail
+      requestSync()
+    }
     const resizeObserver = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(invalidate)
     resizeObserver?.observe(container)
     resizeObserver?.observe(menu)
     resizeObserver?.observe(brand)
     resizeObserver?.observe(actions)
     scrollTarget.addEventListener('scroll', requestSync, { passive: true })
+    nav.addEventListener(SHARED_DOCK_SCROLL_EVENT, receiveExternalScroll)
     window.addEventListener('resize', invalidate)
     const removeMobileListener = listenToMediaQuery(mobileQuery, invalidate)
     const removeMotionListener = listenToMediaQuery(reduceMotionQuery, requestSync)
@@ -256,6 +271,7 @@ export function useSharedDock(navRef: RefObject<HTMLElement | null>): void {
       if (frame) window.cancelAnimationFrame(frame)
       resizeObserver?.disconnect()
       scrollTarget.removeEventListener('scroll', requestSync)
+      nav.removeEventListener(SHARED_DOCK_SCROLL_EVENT, receiveExternalScroll)
       window.removeEventListener('resize', invalidate)
       removeMobileListener()
       removeMotionListener()

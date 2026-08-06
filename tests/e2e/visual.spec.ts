@@ -115,18 +115,19 @@ async function assertPreviewCaptureReady(capturePage: Page, viewport: 'desktop' 
   }
 
   if (viewport === 'mobile') {
-    expect(await capturePage.locator('.article-tools').evaluate((tools) => {
-      const toolBounds = tools.getBoundingClientRect()
-      return [...document.querySelectorAll('.article-content > *')].every((content) => {
-        const contentBounds = content.getBoundingClientRect()
-        const hasArea = contentBounds.width > 0 && contentBounds.height > 0
-        const intersects = toolBounds.left < contentBounds.right
-          && toolBounds.right > contentBounds.left
-          && toolBounds.top < contentBounds.bottom
-          && toolBounds.bottom > contentBounds.top
-        return !hasArea || !intersects
-      })
-    })).toBe(true)
+    await expect(capturePage.locator('#article-toc')).toBeHidden()
+    const toggleBounds = await capturePage.locator('.sidebar-toggle').evaluate((toggle) => {
+      const bounds = toggle.getBoundingClientRect()
+      return {
+        rightGap: window.innerWidth - bounds.right,
+        width: bounds.width,
+        height: bounds.height,
+      }
+    })
+    expect(toggleBounds.width).toBe(46)
+    expect(toggleBounds.height).toBe(46)
+    expect(toggleBounds.rightGap).toBeGreaterThanOrEqual(16)
+    expect(toggleBounds.rightGap).toBeLessThanOrEqual(17)
   }
 }
 
@@ -142,8 +143,11 @@ async function matchPreviewScreenshot(page: Page, name: string, viewport: 'deskt
 
 async function matchPreviewShellScreenshot(page: Page, name: string, shouldMerge = true): Promise<void> {
   if (process.platform !== 'darwin') return
-  const surface = page.locator('.preview-surface')
-  await surface.evaluate((element) => element.scrollTo(0, element.clientHeight))
+  if (shouldMerge) {
+    await page.frameLocator('iframe[title="IMX 文章预览"]').locator('html').evaluate((html) => {
+      html.scrollTo(0, html.scrollHeight)
+    })
+  }
   if (shouldMerge) await expect(page.locator('.preview-dock')).toHaveClass(/is-dock-merged/)
   else await expect(page.locator('.preview-dock')).not.toHaveClass(/is-dock-merged/)
   await expect(page.locator('.preview-surface')).toHaveScreenshot(name, visualOptions)

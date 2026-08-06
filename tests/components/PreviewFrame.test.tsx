@@ -57,7 +57,7 @@ describe('PreviewFrame', () => {
     expect(iframe).toHaveStyle({ width: '390px' })
   })
 
-  it('uses the vendored TOC nav contract with an always reachable script-free sidebar', () => {
+  it('uses the vendored TOC nav and toggle contract in a script-free document', () => {
     const document = buildPreviewDocument({
       meta,
       rendered: { html: '<h2 id="imx-heading-a">A</h2>', toc: [{ id: 'imx-heading-a', depth: 2, text: 'A', children: [] }], wordCount: 1, readingMinutes: 1 },
@@ -66,8 +66,11 @@ describe('PreviewFrame', () => {
 
     expect(document).toContain('class="preview-symbols" style="display:none"')
     expect(document).toContain(':root[data-theme="light"] .article-page { --article-ink-muted: #746c62; }')
-    expect(document).toContain('<aside class="sidebar active" id="article-toc" aria-label="文章目录">')
+    expect(document).toContain('<aside class="sidebar" id="article-toc" aria-label="文章目录">')
     expect(document).toContain('<div class="toc"><h3 class="toc-title">目录</h3><nav aria-label="文章目录"><ul>')
+    expect(document).toContain('<div class="article-tools-actions"><label class="toc-toggle-control"><input class="toc-toggle-input" type="checkbox"')
+    expect(document).toContain('aria-label="目录" aria-controls="article-toc"')
+    expect(document).toContain('href="about:srcdoc#imx-heading-a"')
   })
 
   it('appends Studio-owned dark reading overrides after the vendored theme', () => {
