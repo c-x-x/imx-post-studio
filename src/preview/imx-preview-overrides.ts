@@ -17,8 +17,19 @@ export const previewOverridesCss = String.raw`:root {
   color-scheme: dark;
 }
 
+:root[data-theme='dark'] .article-page {
+  --article-ink: #e3dcd2;
+  --article-ink-strong: #f5f0e8;
+  --article-ink-secondary: #d8d0c5;
+  --article-ink-muted: #b7aea2;
+  --preview-toc-ink: #c8bfb3;
+  --color-accent: #d8b98a;
+  --color-bg-card: #22211e;
+  --color-bg-soft: #201f1c;
+}
+
 html,
-body,
+body.is-article-page,
 .article-page,
 .article-page .layout-with-sidebar,
 .article-page .main-content {

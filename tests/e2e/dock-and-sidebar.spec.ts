@@ -90,6 +90,46 @@ test('collapses the settings sidebar, expands the editor, and restores the prefe
   await expect(page.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-inspector-collapsed', 'false')
 })
 
+test('collapses the action rail, expands the editor, and restores it independently', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '文章', exact: true }).click()
+  const workspace = page.getByRole('region', { name: '文章工作区' })
+  const actions = page.locator('.workspace-actions')
+  const editor = page.locator('.workspace-editor')
+  const initial = await editor.boundingBox()
+  expect(initial).not.toBeNull()
+
+  await page.getByRole('button', { name: '折叠文章操作' }).click()
+  await expect(workspace).toHaveAttribute('data-actions-collapsed', 'true')
+  await expect(workspace).toHaveAttribute('data-inspector-collapsed', 'false')
+  await expect(page.getByRole('button', { name: '展开文章操作' })).toBeFocused()
+  await expect.poll(async () => (await editor.boundingBox())?.width ?? 0).toBeGreaterThan((initial?.width ?? 0) + 150)
+  await expect.poll(async () => (await actions.boundingBox())?.width ?? -1).toBe(0)
+
+  await page.reload()
+  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await expect(page.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-actions-collapsed', 'true')
+  await expect(page.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-inspector-collapsed', 'false')
+})
+
+test('synchronizes preview theme with the app and persists changes after closing', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await page.goto('/')
+  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await page.getByRole('button', { name: '预览文章' }).click()
+
+  await expect(page.locator('.preview-surface')).toHaveAttribute('data-theme', 'dark')
+  await expect(page.frameLocator('iframe[title="IMX 文章预览"]').locator('html')).toHaveAttribute('data-theme', 'dark')
+  await page.getByRole('button', { name: '浅色预览' }).click()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+  await expect(page.frameLocator('iframe[title="IMX 文章预览"]').locator('html')).toHaveAttribute('data-theme', 'light')
+  await page.getByRole('button', { name: '返回编辑' }).click()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+
+  await page.reload()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+})
+
 test('uses the compact IMX menu and existing workspace tabs on mobile without overflow', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/')
@@ -103,5 +143,8 @@ test('uses the compact IMX menu and existing workspace tabs on mobile without ov
   await expect(page.getByRole('tab', { name: '设置' })).toBeVisible()
   await expect(page.getByRole('tab', { name: '写作' })).toBeVisible()
   await expect(page.getByRole('button', { name: '折叠文章设置' })).toBeHidden()
+  await expect(page.getByRole('button', { name: '折叠文章操作' })).toBeHidden()
+  await expect(page.getByRole('button', { name: '新建文章' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '保存到草稿库' })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })

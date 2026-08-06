@@ -69,6 +69,8 @@ describe('PreviewFrame', () => {
     expect(document).toContain('--article-ink: #e3dcd2')
     expect(document).toContain('--article-ink-muted: #b7aea2')
     expect(document).toContain('--preview-toc-ink: #c8bfb3')
+    expect(document).toContain('body.is-article-page')
+    expect(document).toContain(":root[data-theme='dark'] .article-page {")
     expect(document).toContain('.article-page .toc a')
     expect(document).toContain('opacity: 1')
     expect(document.lastIndexOf('--preview-page-bg')).toBeGreaterThan(document.lastIndexOf('body { color: red; }'))
