@@ -133,6 +133,24 @@ test('synchronizes preview theme with the app and persists changes after closing
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
 })
 
+test('attracts and merges the preview Dock as the preview surface scrolls', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await page.getByRole('button', { name: '预览文章' }).click()
+
+  const surface = page.locator('.preview-surface')
+  const dock = page.locator('.preview-dock')
+  await surface.evaluate((element) => {
+    const viewport = element.querySelector<HTMLElement>('.preview-viewport')
+    if (!viewport) throw new Error('Preview viewport is missing')
+    viewport.style.minHeight = '240vh'
+    element.scrollTo(0, element.clientHeight)
+  })
+
+  await expect(dock).toHaveClass(/is-dock-merged/)
+  await expect.poll(() => dock.evaluate((element) => getComputedStyle(element).getPropertyValue('--home-dock-shell-opacity').trim())).toBe('1.000')
+})
+
 test('uses the compact IMX menu and existing workspace tabs on mobile without overflow', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/')

@@ -21,6 +21,26 @@ interface DockMediaQuery {
   removeEventListener?: (type: 'change', listener: () => void) => void
 }
 
+export interface SharedDockParts {
+  container: HTMLElement
+  left: HTMLElement
+  center: HTMLElement
+  right: HTMLElement
+  actionControl: HTMLElement
+  shell: HTMLElement
+}
+
+export function resolveSharedDockParts(root: HTMLElement): SharedDockParts | undefined {
+  const container = root.querySelector<HTMLElement>('[data-shared-dock="container"]')
+  const left = root.querySelector<HTMLElement>('[data-shared-dock="left"]')
+  const center = root.querySelector<HTMLElement>('[data-shared-dock="center"]')
+  const right = root.querySelector<HTMLElement>('[data-shared-dock="right"]')
+  const actionControl = root.querySelector<HTMLElement>('[data-shared-dock="action-control"]')
+  const shell = root.querySelector<HTMLElement>('[data-shared-dock="shell"]')
+  if (!container || !left || !center || !right || !actionControl || !shell) return undefined
+  return { container, left, center, right, actionControl, shell }
+}
+
 export function smoothStep(edge0: number, edge1: number, value: number): number {
   if (edge0 === edge1) return value < edge0 ? 0 : 1
   const point = Math.min(Math.max((value - edge0) / (edge1 - edge0), 0), 1)
@@ -50,13 +70,18 @@ function listenToMediaQuery(query: DockMediaQuery, listener: () => void): () => 
 export function useSharedDock(navRef: RefObject<HTMLElement | null>): void {
   useEffect(() => {
     const nav = navRef.current
-    const container = nav?.querySelector<HTMLElement>('.imx-dock__container')
-    const menu = nav?.querySelector<HTMLElement>('.imx-dock__menu')
-    const brand = nav?.querySelector<HTMLElement>('.imx-dock__brand')
-    const actions = nav?.querySelector<HTMLElement>('.imx-dock__actions')
-    const actionControl = actions?.querySelector<HTMLElement>('.imx-dock__preview, .imx-dock__theme, .imx-dock__menu-toggle')
-    const shell = nav?.querySelector<HTMLElement>('.imx-dock__shell')
-    if (!nav || !container || !menu || !brand || !actions || !actionControl || !shell) return
+    if (!nav) return
+    const parts = resolveSharedDockParts(nav)
+    if (!parts) return
+    const {
+      container,
+      center: menu,
+      left: brand,
+      right: actions,
+      actionControl,
+    } = parts
+    const scrollElement = nav.closest<HTMLElement>('[data-shared-dock-scroll]')
+    const scrollTarget: Window | HTMLElement = scrollElement ?? window
 
     const mobileQuery = mediaQuery('(max-width: 768px)')
     const reduceMotionQuery = mediaQuery('(prefers-reduced-motion: reduce)')
@@ -193,7 +218,9 @@ export function useSharedDock(navRef: RefObject<HTMLElement | null>): void {
         reset()
         return
       }
-      const progress = window.scrollY / Math.max(window.innerHeight, 1)
+      const scrollTop = scrollElement?.scrollTop ?? window.scrollY
+      const viewportHeight = scrollElement?.clientHeight ?? window.innerHeight
+      const progress = scrollTop / Math.max(viewportHeight, 1)
       const nextMerged = merged ? progress > DOCK_MERGE_EXIT : progress >= DOCK_MERGE_ENTER
       const attraction = reduceMotionQuery.matches
         ? (nextMerged ? 1 : 0)
@@ -219,7 +246,7 @@ export function useSharedDock(navRef: RefObject<HTMLElement | null>): void {
     resizeObserver?.observe(menu)
     resizeObserver?.observe(brand)
     resizeObserver?.observe(actions)
-    window.addEventListener('scroll', requestSync, { passive: true })
+    scrollTarget.addEventListener('scroll', requestSync, { passive: true })
     window.addEventListener('resize', invalidate)
     const removeMobileListener = listenToMediaQuery(mobileQuery, invalidate)
     const removeMotionListener = listenToMediaQuery(reduceMotionQuery, requestSync)
@@ -228,7 +255,7 @@ export function useSharedDock(navRef: RefObject<HTMLElement | null>): void {
     return () => {
       if (frame) window.cancelAnimationFrame(frame)
       resizeObserver?.disconnect()
-      window.removeEventListener('scroll', requestSync)
+      scrollTarget.removeEventListener('scroll', requestSync)
       window.removeEventListener('resize', invalidate)
       removeMobileListener()
       removeMotionListener()

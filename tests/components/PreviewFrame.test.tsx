@@ -10,6 +10,19 @@ const meta: ArticleMeta = {
 }
 
 describe('PreviewFrame', () => {
+  it('exposes the shared Dock structure and an element scroll source', () => {
+    const { container, unmount } = render(<PreviewFrame meta={meta} rendered={{ html: '', toc: [], wordCount: 0, readingMinutes: 0 }} css="" theme="light" onThemeChange={vi.fn()} onClose={vi.fn()} />)
+    const surface = container.querySelector('.preview-surface')
+    const dock = container.querySelector('.preview-dock')
+
+    expect(surface).toHaveAttribute('data-shared-dock-scroll')
+    expect(dock).toHaveClass('has-shared-dock')
+    for (const role of ['container', 'shell', 'left', 'center', 'right', 'action-control']) {
+      expect(dock?.querySelector(`[data-shared-dock="${role}"]`)).toBeInTheDocument()
+    }
+    unmount()
+  })
+
   it('keeps accessible controls outside a fully sandboxed, script-free IMX iframe and changes preview geometry', () => {
     const onClose = vi.fn()
     const onThemeChange = vi.fn()

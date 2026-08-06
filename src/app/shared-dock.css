@@ -1,0 +1,46 @@
+.has-shared-dock {
+  --home-dock-attraction: 0;
+  --home-dock-actions-shift: 0px;
+  --home-dock-brand-shift: 0px;
+  --home-dock-group-shift: 0px;
+  --home-dock-part-bg-alpha: .8;
+  --home-dock-part-border-alpha: .14;
+  --home-dock-part-overlay-alpha: 1;
+  --home-dock-part-scale: 1;
+  --home-dock-part-shadow-alpha: .11;
+  --home-dock-shell-opacity: 0;
+  --home-dock-shell-scale-x: 1;
+  --home-dock-shell-scale-y: .9;
+  --home-dock-shell-width: 0px;
+  --home-dock-shell-x: 0px;
+}
+
+.has-shared-dock [data-shared-dock='container'] {
+  position: relative;
+  isolation: isolate;
+}
+
+.has-shared-dock [data-shared-dock='shell'] {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  z-index: 0;
+  display: block;
+  width: var(--home-dock-shell-width);
+  opacity: var(--home-dock-shell-opacity);
+  transform: translate3d(var(--home-dock-shell-x), 0, 0) scale3d(var(--home-dock-shell-scale-x), var(--home-dock-shell-scale-y), 1);
+  transform-origin: center;
+  pointer-events: none;
+  will-change: transform, opacity;
+  contain: layout paint style;
+}
+
+.has-shared-dock [data-shared-dock='left'] {
+  transform: translate3d(var(--home-dock-brand-shift), 0, 0) scale(var(--home-dock-part-scale));
+  will-change: transform;
+}
+
+.has-shared-dock [data-shared-dock='right'] {
+  transform: translate3d(var(--home-dock-actions-shift), 0, 0) scale(var(--home-dock-part-scale));
+  will-change: transform;
+}
