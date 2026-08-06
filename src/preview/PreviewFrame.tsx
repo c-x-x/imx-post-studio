@@ -102,11 +102,26 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
       if (!document?.querySelector('.article-page')) return false
       wiredDocument.current = document
       const scroller = document.scrollingElement as HTMLElement | null
-      if (scroller) {
-        scroller.style.scrollBehavior = 'auto'
-        scroller.scrollTop = frameScrollTop.current
+      const savedScrollTop = frameScrollTop.current
+      let restoringScroll = savedScrollTop > 0
+      if (scroller) scroller.style.scrollBehavior = 'auto'
+      wirePreviewFrameScroll(frame, dockRef.current, (scrollTop) => {
+        if (!restoringScroll) frameScrollTop.current = scrollTop
+      })
+      if (scroller && restoringScroll) {
+        let attempts = 0
+        const restoreScroll = () => {
+          scroller.scrollTop = savedScrollTop
+          attempts += 1
+          if (Math.abs(scroller.scrollTop - savedScrollTop) > 1 && attempts < 12) {
+            requestAnimationFrame(restoreScroll)
+            return
+          }
+          restoringScroll = false
+          frameScrollTop.current = scroller.scrollTop
+        }
+        requestAnimationFrame(restoreScroll)
       }
-      wirePreviewFrameScroll(frame, dockRef.current, (scrollTop) => { frameScrollTop.current = scrollTop })
       return true
     }
     const connectWhenReady = () => {
