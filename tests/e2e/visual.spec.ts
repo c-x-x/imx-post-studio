@@ -173,6 +173,7 @@ test.describe('IMX visual regressions', () => {
 
   test('matches the light desktop article preview', async ({ page }) => {
     await seedPreview(page)
+    await expect(page.locator('.preview-surface')).toHaveScreenshot('imx-preview-shell-light-desktop.png', visualOptions)
     await matchPreviewScreenshot(page, 'imx-preview-light-desktop.png', 'desktop')
   })
 
@@ -181,6 +182,14 @@ test.describe('IMX visual regressions', () => {
     await page.getByRole('button', { name: '深色预览' }).click()
     const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
     await expect(preview.locator('html')).toHaveAttribute('data-theme', 'dark')
+    expect(await preview.locator('body').evaluate((body) => getComputedStyle(body).backgroundColor)).toBe('rgb(21, 21, 19)')
+    expect(await preview.locator('.article-content').evaluate((content) => getComputedStyle(content).color)).toBe('rgb(227, 220, 210)')
+    expect(await preview.locator('.article-meta').evaluate((meta) => getComputedStyle(meta).color)).toBe('rgb(183, 174, 162)')
+    expect(await preview.locator('.toc a').first().evaluate((link) => ({
+      color: getComputedStyle(link).color,
+      opacity: getComputedStyle(link).opacity,
+    }))).toEqual({ color: 'rgb(200, 191, 179)', opacity: '1' })
+    await expect(page.locator('.preview-surface')).toHaveScreenshot('imx-preview-shell-dark-desktop.png', visualOptions)
     await matchPreviewScreenshot(page, 'imx-preview-dark-desktop.png', 'desktop')
   })
 
@@ -188,6 +197,7 @@ test.describe('IMX visual regressions', () => {
     await seedPreview(page)
     await page.setViewportSize({ width: 390, height: 844 })
     await page.getByRole('button', { name: '移动预览' }).click()
+    await expect(page.locator('.preview-surface')).toHaveScreenshot('imx-preview-shell-light-mobile.png', visualOptions)
     await matchPreviewScreenshot(page, 'imx-preview-light-mobile.png', 'mobile')
   })
 
@@ -198,6 +208,7 @@ test.describe('IMX visual regressions', () => {
     await page.getByRole('button', { name: '深色预览' }).click()
     const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
     await expect(preview.locator('html')).toHaveAttribute('data-theme', 'dark')
+    await expect(page.locator('.preview-surface')).toHaveScreenshot('imx-preview-shell-dark-mobile.png', visualOptions)
     await matchPreviewScreenshot(page, 'imx-preview-dark-mobile.png', 'mobile')
   })
 })

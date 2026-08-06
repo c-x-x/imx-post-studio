@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 import { App } from '../../src/app/App'
@@ -7,6 +7,45 @@ describe('article workspace', () => {
   afterEach(() => {
     cleanup()
     localStorage.removeItem('imx-post-studio:settings-collapsed')
+    localStorage.removeItem('imx-post-studio:actions-collapsed')
+    localStorage.removeItem('imx-post-studio-theme')
+  })
+
+  it('shares one persisted theme between the app and article preview', async () => {
+    localStorage.setItem('imx-post-studio-theme', 'dark')
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: '文章' }))
+    await user.click(screen.getByRole('button', { name: '预览文章' }))
+    const iframe = screen.getByTitle('IMX 文章预览')
+    expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
+    expect(iframe.getAttribute('srcdoc')).toContain('data-theme="dark"')
+
+    await user.click(screen.getByRole('button', { name: '浅色预览' }))
+    await waitFor(() => expect(document.documentElement).toHaveAttribute('data-theme', 'light'))
+    expect(iframe.getAttribute('srcdoc')).toContain('data-theme="light"')
+    expect(localStorage.getItem('imx-post-studio-theme')).toBe('light')
+  })
+
+  it('collapses and restores the desktop action rail independently', async () => {
+    const user = userEvent.setup()
+    const first = render(<App />)
+
+    await user.click(screen.getByRole('button', { name: '文章' }))
+    const workspace = screen.getByRole('region', { name: '文章工作区' })
+    expect(workspace).toHaveAttribute('data-actions-collapsed', 'false')
+
+    await user.click(screen.getByRole('button', { name: '折叠文章操作' }))
+    expect(workspace).toHaveAttribute('data-actions-collapsed', 'true')
+    expect(workspace).toHaveAttribute('data-inspector-collapsed', 'false')
+    expect(screen.getByRole('button', { name: '展开文章操作' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: '展开文章操作' })).toHaveFocus()
+
+    first.unmount()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: '文章' }))
+    expect(screen.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-actions-collapsed', 'true')
   })
 
   it('collapses, persists, and restores the desktop settings sidebar', async () => {
