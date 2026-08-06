@@ -95,9 +95,11 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
   useEffect(() => {
     const frame = frameRef.current
     if (!frame) return
+    let readinessFrame = 0
     const connectFrame = () => {
       const document = frame.contentDocument
-      if (!document || document === wiredDocument.current) return
+      if (document === wiredDocument.current) return true
+      if (!document?.querySelector('.article-page')) return false
       wiredDocument.current = document
       const scroller = document.scrollingElement as HTMLElement | null
       if (scroller) {
@@ -105,10 +107,18 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
         scroller.scrollTop = frameScrollTop.current
       }
       wirePreviewFrameScroll(frame, dockRef.current, (scrollTop) => { frameScrollTop.current = scrollTop })
+      return true
     }
-    connectFrame()
-    frame.addEventListener('load', connectFrame)
-    return () => frame.removeEventListener('load', connectFrame)
+    const connectWhenReady = () => {
+      cancelAnimationFrame(readinessFrame)
+      if (!connectFrame()) readinessFrame = requestAnimationFrame(connectWhenReady)
+    }
+    connectWhenReady()
+    frame.addEventListener('load', connectWhenReady)
+    return () => {
+      cancelAnimationFrame(readinessFrame)
+      frame.removeEventListener('load', connectWhenReady)
+    }
   }, [documentHtml])
 
   const frameWidth = viewport === 'desktop'
