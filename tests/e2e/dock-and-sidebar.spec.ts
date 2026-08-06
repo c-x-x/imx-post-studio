@@ -292,10 +292,11 @@ test('preserves the preview reading position, follows the active directory entry
 
   const activeLink = preview.getByRole('link', { name: '第 28 节', exact: true })
   await expect(activeLink).toHaveClass(/active/)
-  expect(await preview.locator('.toc').evaluate((toc) => toc.scrollTop)).toBeGreaterThan(0)
+  await expect.poll(() => preview.locator('.toc').evaluate((toc) => toc.scrollTop)).toBeGreaterThan(0)
 
   await page.getByRole('button', { name: '深色预览' }).click()
   await expect(preview.locator('html')).toHaveAttribute('data-theme', 'dark')
+  await page.waitForTimeout(500)
   await expect.poll(() => preview.locator('html').evaluate((html) => html.scrollTop)).toBe(scrollBeforeThemeChange)
 
   expect(await preview.locator('html').evaluate((html) => ({

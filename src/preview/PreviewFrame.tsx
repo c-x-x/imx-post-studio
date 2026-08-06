@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ArticleMeta } from '../metadata/article'
 import type { AppTheme } from '../app/theme-preference'
 import type { RenderedMarkdown } from './markdown'
@@ -83,12 +83,33 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
       : 'desktop'
   ))
   const dockRef = useRef<HTMLElement>(null)
+  const frameRef = useRef<HTMLIFrameElement>(null)
   const frameScrollTop = useRef(0)
+  const wiredDocument = useRef<Document | null>(null)
   useSharedDock(dockRef)
   const documentHtml = useMemo(
     () => buildPreviewDocument({ meta, rendered, css, theme }),
     [css, meta, rendered, theme],
   )
+
+  useEffect(() => {
+    const frame = frameRef.current
+    if (!frame) return
+    const connectFrame = () => {
+      const document = frame.contentDocument
+      if (!document || document === wiredDocument.current) return
+      wiredDocument.current = document
+      const scroller = document.scrollingElement as HTMLElement | null
+      if (scroller) {
+        scroller.style.scrollBehavior = 'auto'
+        scroller.scrollTop = frameScrollTop.current
+      }
+      wirePreviewFrameScroll(frame, dockRef.current, (scrollTop) => { frameScrollTop.current = scrollTop })
+    }
+    connectFrame()
+    frame.addEventListener('load', connectFrame)
+    return () => frame.removeEventListener('load', connectFrame)
+  }, [documentHtml])
 
   const frameWidth = viewport === 'desktop'
     ? 1180
@@ -115,16 +136,7 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
       </div>
     </header>
     <div className={`preview-viewport preview-viewport-${viewport}`} tabIndex={0} aria-label="预览画布，可水平滚动">
-      <iframe className="preview-frame" title="IMX 文章预览" sandbox="allow-same-origin" referrerPolicy="no-referrer" srcDoc={documentHtml} onLoad={(event) => {
-        const frame = event.currentTarget
-        const scroller = frame.contentDocument?.scrollingElement
-        if (scroller) {
-          const scrollElement = scroller as HTMLElement
-          scrollElement.style.scrollBehavior = 'auto'
-          scrollElement.scrollTop = frameScrollTop.current
-        }
-        wirePreviewFrameScroll(frame, dockRef.current, (scrollTop) => { frameScrollTop.current = scrollTop })
-      }} style={{ width: `${frameWidth}px` }} />
+      <iframe ref={frameRef} className="preview-frame" title="IMX 文章预览" sandbox="allow-same-origin" referrerPolicy="no-referrer" srcDoc={documentHtml} style={{ width: `${frameWidth}px` }} />
     </div>
   </section>
 }
