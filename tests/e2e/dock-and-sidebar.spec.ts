@@ -141,14 +141,43 @@ test('attracts and merges the preview Dock as the preview surface scrolls', asyn
   const surface = page.locator('.preview-surface')
   const dock = page.locator('.preview-dock')
   await surface.evaluate((element) => {
-    const viewport = element.querySelector<HTMLElement>('.preview-viewport')
-    if (!viewport) throw new Error('Preview viewport is missing')
-    viewport.style.minHeight = '240vh'
-    element.scrollTo(0, element.clientHeight)
+    const spacer = document.createElement('div')
+    spacer.style.height = '200vh'
+    spacer.setAttribute('aria-hidden', 'true')
+    element.append(spacer)
+    element.scrollTop = element.clientHeight
+    element.dispatchEvent(new Event('scroll'))
   })
+  await expect.poll(() => surface.evaluate((element) => element.scrollTop / element.clientHeight)).toBeGreaterThanOrEqual(0.88)
 
   await expect(dock).toHaveClass(/is-dock-merged/)
   await expect.poll(() => dock.evaluate((element) => getComputedStyle(element).getPropertyValue('--home-dock-shell-opacity').trim())).toBe('1.000')
+})
+
+test('keeps preview Dock merging responsive and reduced-motion safe', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto('/')
+  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await page.getByRole('button', { name: '预览文章' }).click()
+  const surface = page.locator('.preview-surface')
+  const dock = page.locator('.preview-dock')
+
+  await surface.evaluate((element) => {
+    const spacer = document.createElement('div')
+    spacer.style.height = '200vh'
+    spacer.setAttribute('aria-hidden', 'true')
+    element.append(spacer)
+    element.scrollTop = element.clientHeight
+    element.dispatchEvent(new Event('scroll'))
+  })
+  await expect.poll(() => surface.evaluate((element) => element.scrollTop / element.clientHeight)).toBeGreaterThanOrEqual(0.88)
+  await expect(dock).toHaveClass(/is-dock-merged/)
+  await expect(dock).not.toHaveClass(/is-dock-attracting/)
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await surface.evaluate((element) => element.scrollTo(0, element.scrollHeight))
+  await expect(dock).not.toHaveClass(/is-dock-merged/)
+  expect(await surface.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
 })
 
 test('uses the compact IMX menu and existing workspace tabs on mobile without overflow', async ({ page }) => {

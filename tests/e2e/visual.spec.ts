@@ -140,8 +140,12 @@ async function matchPreviewScreenshot(page: Page, name: string, viewport: 'deskt
   }
 }
 
-async function matchPreviewShellScreenshot(page: Page, name: string): Promise<void> {
+async function matchPreviewShellScreenshot(page: Page, name: string, shouldMerge = true): Promise<void> {
   if (process.platform !== 'darwin') return
+  const surface = page.locator('.preview-surface')
+  await surface.evaluate((element) => element.scrollTo(0, element.clientHeight))
+  if (shouldMerge) await expect(page.locator('.preview-dock')).toHaveClass(/is-dock-merged/)
+  else await expect(page.locator('.preview-dock')).not.toHaveClass(/is-dock-merged/)
   await expect(page.locator('.preview-surface')).toHaveScreenshot(name, visualOptions)
 }
 
@@ -202,7 +206,7 @@ test.describe('IMX visual regressions', () => {
     await seedPreview(page)
     await page.setViewportSize({ width: 390, height: 844 })
     await page.getByRole('button', { name: '移动预览' }).click()
-    await matchPreviewShellScreenshot(page, 'imx-preview-shell-light-mobile.png')
+    await matchPreviewShellScreenshot(page, 'imx-preview-shell-light-mobile.png', false)
     await matchPreviewScreenshot(page, 'imx-preview-light-mobile.png', 'mobile')
   })
 
@@ -213,7 +217,7 @@ test.describe('IMX visual regressions', () => {
     await page.getByRole('button', { name: '深色预览' }).click()
     const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
     await expect(preview.locator('html')).toHaveAttribute('data-theme', 'dark')
-    await matchPreviewShellScreenshot(page, 'imx-preview-shell-dark-mobile.png')
+    await matchPreviewShellScreenshot(page, 'imx-preview-shell-dark-mobile.png', false)
     await matchPreviewScreenshot(page, 'imx-preview-dark-mobile.png', 'mobile')
   })
 })
