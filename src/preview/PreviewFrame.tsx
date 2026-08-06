@@ -86,11 +86,21 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
   const frameRef = useRef<HTMLIFrameElement>(null)
   const frameScrollTop = useRef(0)
   const wiredDocument = useRef<Document | null>(null)
+  const [documentTheme] = useState(theme)
   useSharedDock(dockRef)
   const documentHtml = useMemo(
-    () => buildPreviewDocument({ meta, rendered, css, theme }),
-    [css, meta, rendered, theme],
+    () => buildPreviewDocument({ meta, rendered, css, theme: documentTheme }),
+    [css, documentTheme, meta, rendered],
   )
+
+  useEffect(() => {
+    const frame = frameRef.current
+    if (!frame) return
+    const applyPreviewTheme = () => frame.contentDocument?.documentElement.setAttribute('data-theme', theme)
+    applyPreviewTheme()
+    frame.addEventListener('load', applyPreviewTheme)
+    return () => frame.removeEventListener('load', applyPreviewTheme)
+  }, [theme])
 
   useEffect(() => {
     const frame = frameRef.current
