@@ -16,6 +16,7 @@ import { draftRepository } from '../drafts/repository'
 import { useAutosave } from '../drafts/use-autosave'
 import { appReducer, createImportedDraft } from './app-state'
 import { AccessibleDialog, DialogClose } from './AccessibleDialog'
+import { readActionsCollapsed, writeActionsCollapsed } from './action-rail-preference'
 import { ArticleActions } from './ArticleActions'
 import { ImxDock } from './ImxDock'
 import { Notifications } from './notifications'
@@ -73,6 +74,7 @@ export function App() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [importFocusVersion, setImportFocusVersion] = useState(0)
   const [settingsCollapsed, setSettingsCollapsed] = useState(readSettingsCollapsed)
+  const [actionsCollapsed, setActionsCollapsed] = useState(readActionsCollapsed)
   const [theme, setTheme] = useState<AppTheme>(resolveInitialTheme)
   const [newArticlePromptOpen, setNewArticlePromptOpen] = useState(false)
   const [newArticlePromptError, setNewArticlePromptError] = useState<string>()
@@ -392,12 +394,19 @@ export function App() {
       return next
     })
   }
+  const toggleActions = (event: MouseEvent<HTMLButtonElement>) => {
+    event.currentTarget.focus()
+    setActionsCollapsed((current) => {
+      const next = !current
+      writeActionsCollapsed(next)
+      return next
+    })
+  }
 
   return <main className="app-shell">
     <ImxDock view={view} disabled={workspaceLocked} previewTrigger={previewTrigger} theme={theme} onToggleTheme={toggleTheme} onPreview={openPreview} onHome={() => void showHome()} onArticle={showWorkspace} onDashboard={() => void showDashboard()} />
     <Notifications status={status} alert={alerts.length > 0 ? <>{alerts}</> : undefined} />
-    {view === 'home' ? <HomePage disabled={workspaceLocked} onArticle={showWorkspace} onDashboard={() => void showDashboard()} /> : view === 'dashboard' ? <DraftDashboard onOpen={openDraft} disabled={workspaceLocked} /> : <section className="workspace" aria-label="文章工作区" aria-busy={workspaceLocked} data-inspector-collapsed={settingsCollapsed}>
-      <ArticleActions disabled={workspaceLocked} onNew={() => void startNew()} onSave={() => void saveCurrentDraft()} />
+    {view === 'home' ? <HomePage disabled={workspaceLocked} onArticle={showWorkspace} onDashboard={() => void showDashboard()} /> : view === 'dashboard' ? <DraftDashboard onOpen={openDraft} disabled={workspaceLocked} /> : <section className="workspace" aria-label="文章工作区" aria-busy={workspaceLocked} data-inspector-collapsed={settingsCollapsed} data-actions-collapsed={actionsCollapsed}>
       <nav className="workspace-tabs" role="tablist" aria-label="工作区视图">
         {([['settings', '设置'], ['write', '写作']] as const).map(([id, label]) => <button key={id} id={`tab-${id}`} type="button" disabled={workspaceLocked} role="tab" aria-selected={tab === id} aria-controls={`panel-${id}`} onClick={() => setTab(id)}>{label}</button>)}
       </nav>
@@ -405,6 +414,8 @@ export function App() {
         <aside id="panel-settings" className="workspace-panel workspace-inspector" role="tabpanel" aria-labelledby="tab-settings"><MetadataPanel disabled={workspaceLocked} meta={draft.meta} onChange={(field, value) => dispatchDraft({ type: 'set-meta', field, value })} /><MediaPanel draftId={draft.id} disabled={transitioning} media={draft.media} body={draft.body} onAddBatch={(assets) => dispatchDraft({ type: 'add-media-batch', assets })} onReplaceCover={(asset) => dispatchDraft({ type: 'replace-cover', asset })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onInsertImage={(asset) => editorRef.current?.insertImage(asset.name, assetAlt(asset))} onIntakeBusyChange={(busy) => { intakeBusyRef.current = busy; setIntakeBusy(busy) }} /><BundleActions disabled={workspaceLocked} draft={draft} onReplace={replaceImportedDraft} onNew={openImportedAsNew} onStatus={setNotice} onImportFocusRequest={(target) => { importFocusTarget.current = target; setImportFocusVersion((current) => current + 1) }} /></aside>
         <button className="inspector-toggle" type="button" aria-controls="panel-settings" aria-expanded={!settingsCollapsed} aria-label={settingsCollapsed ? '展开文章设置' : '折叠文章设置'} title={settingsCollapsed ? '展开文章设置' : '折叠文章设置'} onClick={toggleSettings}><span aria-hidden="true">{settingsCollapsed ? '›' : '‹'}</span></button>
         <section id="panel-write" className="workspace-panel workspace-editor" role="tabpanel" aria-labelledby="tab-write"><h2 className="visually-hidden">写作</h2><MarkdownEditor disabled={workspaceLocked} ref={editorRef} value={draft.body} onChange={(body) => dispatchDraft({ type: 'set-body', body })} /></section>
+        <button className="actions-toggle" type="button" aria-controls="panel-actions" aria-expanded={!actionsCollapsed} aria-label={actionsCollapsed ? '展开文章操作' : '折叠文章操作'} title={actionsCollapsed ? '展开文章操作' : '折叠文章操作'} onClick={toggleActions}><span aria-hidden="true">{actionsCollapsed ? '‹' : '›'}</span></button>
+        <ArticleActions disabled={workspaceLocked} onNew={() => void startNew()} onSave={() => void saveCurrentDraft()} />
       </div>
     </section>}
     {newArticlePromptOpen ? <TransitionConfirmDialog busy={transitioning || intakeBusy} error={newArticlePromptError} onCancel={cancelNewArticle} onDiscard={() => void deleteAndContinueNewArticle()} onSave={() => void saveAndContinueNewArticle()} returnFocus={() => confirmReturnFocus.current} /> : null}

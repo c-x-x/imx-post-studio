@@ -7,6 +7,27 @@ describe('article workspace', () => {
   afterEach(() => {
     cleanup()
     localStorage.removeItem('imx-post-studio:settings-collapsed')
+    localStorage.removeItem('imx-post-studio:actions-collapsed')
+  })
+
+  it('collapses and restores the desktop action rail independently', async () => {
+    const user = userEvent.setup()
+    const first = render(<App />)
+
+    await user.click(screen.getByRole('button', { name: '文章' }))
+    const workspace = screen.getByRole('region', { name: '文章工作区' })
+    expect(workspace).toHaveAttribute('data-actions-collapsed', 'false')
+
+    await user.click(screen.getByRole('button', { name: '折叠文章操作' }))
+    expect(workspace).toHaveAttribute('data-actions-collapsed', 'true')
+    expect(workspace).toHaveAttribute('data-inspector-collapsed', 'false')
+    expect(screen.getByRole('button', { name: '展开文章操作' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: '展开文章操作' })).toHaveFocus()
+
+    first.unmount()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: '文章' }))
+    expect(screen.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-actions-collapsed', 'true')
   })
 
   it('collapses, persists, and restores the desktop settings sidebar', async () => {
