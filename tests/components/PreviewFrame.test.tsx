@@ -73,7 +73,7 @@ describe('PreviewFrame', () => {
     expect(document).toContain('href="about:srcdoc#imx-heading-a"')
   })
 
-  it('appends Studio-owned dark reading overrides after the vendored theme', () => {
+  it('keeps Studio preview behavior overrides without replacing the vendored dark palette', () => {
     const document = buildPreviewDocument({
       meta,
       rendered: { html: '<p>正文</p>', toc: [{ id: 'a', depth: 2, text: 'A', children: [] }], wordCount: 2, readingMinutes: 1 },
@@ -81,14 +81,13 @@ describe('PreviewFrame', () => {
       theme: 'dark',
     })
 
-    expect(document).toContain('--preview-page-bg: #151513')
-    expect(document).toContain('--article-ink: #e3dcd2')
-    expect(document).toContain('--article-ink-muted: #b7aea2')
-    expect(document).toContain('--preview-toc-ink: #c8bfb3')
+    expect(document).toContain('--preview-page-bg: #171716')
+    expect(document).not.toContain('--article-ink: #e3dcd2')
+    expect(document).not.toContain('--article-ink-muted: #b7aea2')
+    expect(document).not.toContain('--preview-toc-ink: #c8bfb3')
     expect(document).toContain('body.is-article-page')
-    expect(document).toContain(":root[data-theme='dark'] .article-page {")
-    expect(document).toContain('.article-page .toc a')
-    expect(document).toContain('opacity: 1')
+    expect(document).toContain("html::-webkit-scrollbar")
+    expect(document).toContain('.toc-toggle-input')
     expect(document.lastIndexOf('--preview-page-bg')).toBeGreaterThan(document.lastIndexOf('body { color: red; }'))
   })
 })
