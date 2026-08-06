@@ -56,4 +56,21 @@ describe('PreviewFrame', () => {
     expect(document).toContain('<aside class="sidebar active" id="article-toc" aria-label="文章目录">')
     expect(document).toContain('<div class="toc"><h3 class="toc-title">目录</h3><nav aria-label="文章目录"><ul>')
   })
+
+  it('appends Studio-owned dark reading overrides after the vendored theme', () => {
+    const document = buildPreviewDocument({
+      meta,
+      rendered: { html: '<p>正文</p>', toc: [{ id: 'a', depth: 2, text: 'A', children: [] }], wordCount: 2, readingMinutes: 1 },
+      css: 'body { color: red; }',
+      theme: 'dark',
+    })
+
+    expect(document).toContain('--preview-page-bg: #151513')
+    expect(document).toContain('--article-ink: #e3dcd2')
+    expect(document).toContain('--article-ink-muted: #b7aea2')
+    expect(document).toContain('--preview-toc-ink: #c8bfb3')
+    expect(document).toContain('.article-page .toc a')
+    expect(document).toContain('opacity: 1')
+    expect(document.lastIndexOf('--preview-page-bg')).toBeGreaterThan(document.lastIndexOf('body { color: red; }'))
+  })
 })

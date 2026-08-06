@@ -1,6 +1,7 @@
 import type { ArticleMeta } from '../metadata/article'
 import type { RenderedMarkdown } from './markdown'
 import type { TocItem } from './toc'
+import { previewOverridesCss } from './imx-preview-overrides'
 
 export interface PreviewDocumentInput {
   meta: ArticleMeta
@@ -38,5 +39,5 @@ export function buildPreviewDocument({ meta, rendered, css, theme }: PreviewDocu
     ? `<div class="article-tools"><aside class="sidebar active" id="article-toc" aria-label="文章目录"><div class="toc"><h3 class="toc-title">目录</h3><nav aria-label="文章目录">${tocList(rendered.toc)}</nav></div></aside></div>`
     : ''
 
-  return `<!doctype html><html lang="zh-CN" data-theme="${theme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${safeCss(css)}</style><style>${previewAccessibilityCss}</style><style>${previewMobileTocCss}</style></head><body class="is-article-page">${symbols}<article class="article-page${toc ? '' : ' article-page-no-toc'}"><header class="article-header"><h1 class="article-title">${escapeHtml(meta.title)}</h1><div class="article-meta"><span><svg width="18" height="18"><use href="#icon-calendar"></use></svg> 发布于 ${escapeHtml(formatDate(meta.date))}</span>${categories ? `<span><svg width="18" height="18"><use href="#icon-folder"></use></svg>${categories}</span>` : ''}<span><svg width="18" height="18"><use href="#icon-clock"></use></svg> 阅读时长 ${rendered.readingMinutes} 分钟</span><span>${rendered.wordCount} 字</span></div>${tags ? `<div class="post-card-tags article-tags">${tags}</div>` : ''}</header><div class="layout-with-sidebar"><div class="main-content"><div class="article-content">${rendered.html}</div></div>${toc}</div></article></body></html>`
+  return `<!doctype html><html lang="zh-CN" data-theme="${theme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${safeCss(css)}</style><style>${previewAccessibilityCss}</style><style>${previewMobileTocCss}</style><style>${safeCss(previewOverridesCss)}</style></head><body class="is-article-page">${symbols}<article class="article-page${toc ? '' : ' article-page-no-toc'}"><header class="article-header"><h1 class="article-title">${escapeHtml(meta.title)}</h1><div class="article-meta"><span><svg width="18" height="18"><use href="#icon-calendar"></use></svg> 发布于 ${escapeHtml(formatDate(meta.date))}</span>${categories ? `<span><svg width="18" height="18"><use href="#icon-folder"></use></svg>${categories}</span>` : ''}<span><svg width="18" height="18"><use href="#icon-clock"></use></svg> 阅读时长 ${rendered.readingMinutes} 分钟</span><span>${rendered.wordCount} 字</span></div>${tags ? `<div class="post-card-tags article-tags">${tags}</div>` : ''}</header><div class="layout-with-sidebar"><div class="main-content"><div class="article-content">${rendered.html}</div></div>${toc}</div></article></body></html>`
 }
