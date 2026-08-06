@@ -64,13 +64,20 @@ const visualOptions = {
 }
 
 async function openPreviewCapturePage(page: Page, viewport: 'desktop' | 'mobile'): Promise<Page> {
-  const srcDoc = await page.getByTitle('IMX 文章预览').getAttribute('srcdoc')
+  const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
+  const [srcDoc, theme] = await Promise.all([
+    page.getByTitle('IMX 文章预览').getAttribute('srcdoc'),
+    preview.locator('html').getAttribute('data-theme'),
+  ])
   if (!srcDoc) throw new Error('IMX preview did not expose srcDoc for visual capture')
 
   const capturePage = await page.context().newPage()
   await capturePage.setViewportSize({ width: viewport === 'desktop' ? 1180 : 390, height: 900 })
   await capturePage.goto('/')
   await capturePage.setContent(srcDoc, { waitUntil: 'load' })
+  await capturePage.locator('html').evaluate((html, nextTheme) => {
+    html.setAttribute('data-theme', nextTheme)
+  }, theme ?? 'light')
   await expect.poll(() => capturePage.evaluate(() => location.origin)).toBe('http://127.0.0.1:4173')
   return capturePage
 }
@@ -214,13 +221,12 @@ test.describe('IMX visual regressions', () => {
     await page.getByRole('button', { name: '深色预览' }).click()
     const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
     await expect(preview.locator('html')).toHaveAttribute('data-theme', 'dark')
-    expect(await preview.locator('body').evaluate((body) => getComputedStyle(body).backgroundColor)).toBe('rgb(21, 21, 19)')
-    expect(await preview.locator('.article-content').evaluate((content) => getComputedStyle(content).color)).toBe('rgb(227, 220, 210)')
-    expect(await preview.locator('.article-meta').evaluate((meta) => getComputedStyle(meta).color)).toBe('rgb(183, 174, 162)')
-    expect(await preview.locator('.toc a').first().evaluate((link) => ({
-      color: getComputedStyle(link).color,
-      opacity: getComputedStyle(link).opacity,
-    }))).toEqual({ color: 'rgb(200, 191, 179)', opacity: '1' })
+    await expect(preview.locator('body')).toHaveCSS('background-color', 'rgb(23, 23, 22)')
+    await expect(preview.locator('.article-content')).toHaveCSS('color', 'rgb(238, 234, 227)')
+    await expect(preview.locator('.article-meta')).toHaveCSS('color', 'rgb(143, 137, 130)')
+    const inactiveTocLink = preview.locator('.toc a:not(.active)').first()
+    await expect(inactiveTocLink).toHaveCSS('color', 'rgb(143, 137, 130)')
+    await expect(inactiveTocLink).toHaveCSS('opacity', '0.58')
     await matchPreviewShellScreenshot(page, 'imx-preview-shell-dark-desktop.png')
     await matchPreviewScreenshot(page, 'imx-preview-dark-desktop.png', 'desktop')
   })

@@ -244,6 +244,7 @@ test('has no serious or critical axe violations on the home, dashboard, and work
   await expect(page.getByRole('button', { name: '文章', exact: true })).toBeFocused()
   await page.keyboard.press('Enter')
   await fillMetadata(page)
+  await expect(page.locator('.cover-help')).toHaveCSS('color', 'rgb(95, 88, 80)')
   await page.getByRole('button', { name: '预览文章' }).click()
   const workspaceResults = await scanPreviewDomWithAxe(page)
   expect(workspaceResults.violations.filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')).toEqual([])
