@@ -1,5 +1,5 @@
 .preview-surface {
-  --preview-shell-bg: #fbfaf7;
+  --preview-shell-bg: var(--imx-paper);
   --preview-dock-surface-rgb: 251, 250, 247;
   --preview-dock-border-rgb: 75, 64, 52;
   --preview-dock-shadow-rgb: 75, 64, 52;
@@ -15,7 +15,7 @@
 }
 
 .preview-surface[data-theme='dark'] {
-  --preview-shell-bg: #151513;
+  --preview-shell-bg: var(--imx-paper);
   --preview-dock-surface-rgb: 32, 31, 28;
   --preview-dock-border-rgb: 238, 234, 227;
   --preview-dock-shadow-rgb: 0, 0, 0;

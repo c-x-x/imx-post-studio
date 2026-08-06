@@ -1,0 +1,161 @@
+/*
+ * Studio-only surface mapping for hugo-theme-imx/assets/css/tokens.css.
+ * The interactive Dock owns its own liquid-glass rules in imx-dock.css.
+ */
+:root {
+  --imx-font-ui: 'IMX Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  --imx-font-reading: 'IMX Noto Serif SC App', 'IMX Noto Serif SC', 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', STSong, SimSun, Georgia, serif;
+  --imx-font-mono: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', Consolas, Monaco, 'Courier New', monospace;
+  --imx-accent: #7a5a32;
+  --imx-accent-hover: #6a4b28;
+  --imx-accent-soft: rgba(122, 90, 50, .08);
+  --imx-paper: #fbfaf7;
+  --imx-paper-alt: #f2efe8;
+  --imx-paper-deep: #f5f5f7;
+  --imx-ink: #24211d;
+  --imx-ink-secondary: #5f5850;
+  --imx-ink-muted: #8d8479;
+  --imx-line: rgba(75, 64, 52, .14);
+  --imx-line-strong: rgba(75, 64, 52, .25);
+  --imx-glass: rgba(251, 250, 247, .8);
+  --imx-card: rgba(251, 250, 247, .72);
+  --imx-control: rgba(251, 250, 247, .72);
+  --imx-control-strong: rgba(251, 250, 247, .8);
+  --imx-control-soft: rgba(251, 250, 247, .72);
+  --imx-input: rgba(251, 250, 247, .72);
+  --imx-input-focus: rgba(251, 250, 247, .8);
+  --imx-editor: #fbfaf7;
+  --imx-toolbar: rgba(242, 239, 232, .8);
+  --imx-gutter: rgba(242, 239, 232, .72);
+  --imx-inset-highlight: rgba(255, 255, 255, .58);
+  --imx-primary-bg: linear-gradient(135deg, #8b6740 0%, #563d21 100%);
+  --imx-primary-ink: #fbfaf7;
+  --imx-success: #52653e;
+  --imx-danger: #9f3f32;
+  --imx-danger-strong: #783529;
+  --imx-danger-bg: #f9eeea;
+  --imx-backdrop: rgba(36, 33, 29, .55);
+  --imx-shadow-sm: 0 2px 8px rgba(75, 64, 52, .11);
+  --imx-shadow-md: 0 4px 16px rgba(75, 64, 52, .11);
+  --imx-shadow-lg: 0 8px 32px rgba(75, 64, 52, .11);
+  --imx-radius-sm: 12px;
+  --imx-radius: 20px;
+  --imx-radius-lg: 26px;
+}
+
+:root[data-theme='dark'] {
+  --imx-accent: #d4c6b2;
+  --imx-accent-hover: #eeeae3;
+  --imx-accent-soft: rgba(212, 198, 178, .11);
+  --imx-paper: #171716;
+  --imx-paper-alt: #1f1f1d;
+  --imx-paper-deep: #18181b;
+  --imx-ink: #eeeae3;
+  --imx-ink-secondary: #c7c0b7;
+  --imx-ink-muted: #8f8982;
+  --imx-line: rgba(238, 234, 227, .13);
+  --imx-line-strong: rgba(238, 234, 227, .22);
+  --imx-glass: rgba(23, 23, 22, .84);
+  --imx-card: rgba(23, 23, 22, .76);
+  --imx-control: rgba(23, 23, 22, .76);
+  --imx-control-strong: rgba(23, 23, 22, .84);
+  --imx-control-soft: rgba(23, 23, 22, .76);
+  --imx-input: rgba(23, 23, 22, .76);
+  --imx-input-focus: rgba(23, 23, 22, .84);
+  --imx-editor: #171716;
+  --imx-toolbar: rgba(31, 31, 29, .84);
+  --imx-gutter: rgba(31, 31, 29, .76);
+  --imx-inset-highlight: rgba(255, 255, 255, .09);
+  --imx-success: #a8bf91;
+  --imx-danger: #efa89b;
+  --imx-danger-strong: #f0b4aa;
+  --imx-danger-bg: rgba(162, 71, 55, .18);
+  --imx-backdrop: rgba(0, 0, 0, .7);
+  --imx-shadow-sm: 0 2px 8px rgba(0, 0, 0, .46);
+  --imx-shadow-md: 0 4px 16px rgba(0, 0, 0, .46);
+  --imx-shadow-lg: 0 8px 32px rgba(0, 0, 0, .46);
+}
+
+body,
+button,
+input,
+textarea {
+  font-family: var(--imx-font-ui);
+}
+
+html,
+body {
+  background: var(--imx-paper);
+}
+
+:root[data-theme='dark'] body {
+  background: var(--imx-paper);
+}
+
+.home-hero,
+.home-section,
+.workspace-panel,
+.draft-dashboard,
+.confirm-dialog,
+.crop-dialog {
+  border-radius: var(--imx-radius-lg);
+}
+
+.home-hero,
+.home-section,
+.workspace-panel,
+.draft-dashboard {
+  box-shadow: var(--imx-shadow-sm);
+}
+
+.home-workflow li,
+.draft-list > li {
+  border-radius: var(--imx-radius-sm);
+}
+
+/* Theme-muted copy is deliberately reserved for non-essential metadata; Studio
+ * instructions are actionable and retain the theme's secondary ink contrast. */
+.home-principles span,
+.home-workflow p,
+.dashboard-heading p,
+.media-actions p {
+  color: var(--imx-ink-secondary);
+}
+
+.home-hero h2,
+.home-section-heading h2,
+.dashboard-heading h2,
+.metadata-panel h2,
+.cover-panel h2,
+.media-panel h2,
+.draft-list h3,
+.confirm-dialog h2,
+.crop-dialog h2,
+.home-workflow h3,
+.markdown-grid h3 {
+  font-family: var(--imx-font-ui);
+}
+
+.markdown-grid pre,
+.markdown-editor .cm-scroller {
+  font-family: var(--imx-font-mono);
+}
+
+.home-primary,
+.article-actions .article-save,
+.dialog-actions button:last-child {
+  background: var(--imx-primary-bg);
+}
+
+@media (max-width: 720px) {
+  .app-shell {
+    padding-inline: 10px;
+  }
+
+  .home-hero,
+  .home-section,
+  .workspace-panel,
+  .draft-dashboard {
+    border-radius: 20px;
+  }
+}

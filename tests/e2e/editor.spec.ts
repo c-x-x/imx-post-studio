@@ -231,6 +231,8 @@ test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle
 
 test('has no serious or critical axe violations on the home, dashboard, and workspace views', async ({ page }) => {
   await page.goto('/')
+  await expect(page.locator('.home-principles span').first()).toHaveCSS('color', 'rgb(95, 88, 80)')
+  await expect(page.locator('.home-workflow p').first()).toHaveCSS('color', 'rgb(95, 88, 80)')
   const homeResults = await new AxeBuilder({ page }).analyze()
   expect(homeResults.violations.filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')).toEqual([])
 

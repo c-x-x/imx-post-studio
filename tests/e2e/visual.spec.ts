@@ -173,11 +173,30 @@ test.describe('IMX visual regressions', () => {
       }
     })
     expect(shellStyle).toMatchObject({
-      bodyBackground: 'rgb(242, 239, 232)',
+      bodyBackground: 'rgb(251, 250, 247)',
       columns: 3,
       position: 'fixed',
     })
     expect(shellStyle.fontFamily).toContain('IMX Inter')
+  })
+
+  test('uses the IMX theme card and primary-action primitives outside the Dock', async ({ page }) => {
+    await page.goto('/')
+    const surfaces = await page.locator('.home-hero').evaluate((hero) => {
+      const heroStyle = getComputedStyle(hero)
+      const actionStyle = getComputedStyle(document.querySelector('.home-primary')!)
+      return {
+        cardRadius: heroStyle.borderRadius,
+        cardShadow: heroStyle.boxShadow,
+        primaryBackground: actionStyle.backgroundImage,
+      }
+    })
+
+    expect(surfaces).toEqual({
+      cardRadius: '26px',
+      cardShadow: 'rgba(75, 64, 52, 0.11) 0px 2px 8px 0px',
+      primaryBackground: 'linear-gradient(135deg, rgb(139, 103, 64) 0%, rgb(86, 61, 33) 100%)',
+    })
   })
 
   test('matches the light desktop article preview', async ({ page }) => {

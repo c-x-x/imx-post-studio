@@ -21,7 +21,7 @@ test('follows the system theme, persists a manual choice, and keeps the workspac
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
   const switchToLight = page.getByRole('button', { name: '切换到浅色主题' })
   await expect(switchToLight).toBeVisible()
-  await expect(page.locator('.home-hero')).toHaveCSS('background-color', 'rgba(23, 23, 22, 0.82)')
+  await expect(page.locator('.home-hero')).toHaveCSS('background-color', 'rgba(23, 23, 22, 0.76)')
 
   await switchToLight.click()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
