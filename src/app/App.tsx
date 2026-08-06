@@ -262,13 +262,11 @@ export function App() {
     setNotice('文章编辑器已打开')
   }
 
-  const toggleTheme = () => {
-    setTheme((current) => {
-      const next = current === 'light' ? 'dark' : 'light'
-      writeThemePreference(next)
-      return next
-    })
+  const changeTheme = (next: AppTheme) => {
+    setTheme(next)
+    writeThemePreference(next)
   }
+  const toggleTheme = () => changeTheme(theme === 'light' ? 'dark' : 'light')
 
   const saveCurrentDraft = async () => {
     if (transitionInFlight.current || intakeBusyRef.current) return
@@ -419,6 +417,6 @@ export function App() {
       </div>
     </section>}
     {newArticlePromptOpen ? <TransitionConfirmDialog busy={transitioning || intakeBusy} error={newArticlePromptError} onCancel={cancelNewArticle} onDiscard={() => void deleteAndContinueNewArticle()} onSave={() => void saveAndContinueNewArticle()} returnFocus={() => confirmReturnFocus.current} /> : null}
-    {previewOpen ? <AccessibleDialog title="IMX 文章预览" className="preview-dialog" onClose={closePreview} returnFocus={() => previewTrigger.current}><DialogClose>{(close) => <PreviewFrame meta={draft.meta} rendered={rendered} css={previewCss} onClose={() => close()} />}</DialogClose></AccessibleDialog> : null}
+    {previewOpen ? <AccessibleDialog title="IMX 文章预览" className="preview-dialog" onClose={closePreview} returnFocus={() => previewTrigger.current}><DialogClose>{(close) => <PreviewFrame meta={draft.meta} rendered={rendered} css={previewCss} theme={theme} onThemeChange={changeTheme} onClose={() => close()} />}</DialogClose></AccessibleDialog> : null}
   </main>
 }
