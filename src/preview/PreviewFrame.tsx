@@ -16,23 +16,58 @@ interface PreviewFrameProps {
   onClose: () => void
 }
 
-function wirePreviewFrameScroll(frame: HTMLIFrameElement, dock: HTMLElement | null): void {
+function wirePreviewFrameScroll(frame: HTMLIFrameElement, dock: HTMLElement | null, onScroll: (scrollTop: number) => void): void {
   const document = frame.contentDocument
   const window = frame.contentWindow
   if (!document || !window) return
+  const toc = document.querySelector<HTMLElement>('.article-page .toc')
+  const headings = [...document.querySelectorAll<HTMLElement>('.article-content h2, .article-content h3, .article-content h4, .article-content h5, .article-content h6')]
+  const tocLinkById = new Map<string, HTMLAnchorElement>()
+  document.querySelectorAll<HTMLAnchorElement>('.toc a').forEach((link) => {
+    try {
+      const hash = new URL(link.href).hash.slice(1)
+      tocLinkById.set(decodeURIComponent(hash), link)
+    } catch { /* Ignore malformed directory links. */ }
+  })
   let lastScrollTop = -1
+  let activeTocLink: HTMLAnchorElement | undefined
+  const readScrollTop = () => Math.max(window.scrollY, document.documentElement.scrollTop, document.body.scrollTop)
   const syncDock = () => dock?.dispatchEvent(new CustomEvent(SHARED_DOCK_SCROLL_EVENT, {
     detail: {
-      scrollTop: document.scrollingElement?.scrollTop ?? 0,
+      scrollTop: readScrollTop(),
       viewportHeight: window.innerHeight,
     },
   }))
+  const syncToc = (scrollTop: number) => {
+    if (!toc || headings.length === 0) return
+    const probeTop = scrollTop + Math.min(Math.max(window.innerHeight * 0.22, 112), 168)
+    let nextActiveLink: HTMLAnchorElement | undefined
+    for (const heading of headings) {
+      if (scrollTop + heading.getBoundingClientRect().top > probeTop) break
+      nextActiveLink = tocLinkById.get(heading.id) ?? nextActiveLink
+    }
+    nextActiveLink ??= tocLinkById.get(headings[0].id)
+    if (!nextActiveLink) return
+    if (nextActiveLink !== activeTocLink) {
+      activeTocLink?.classList.remove('active')
+      nextActiveLink.classList.add('active')
+      activeTocLink = nextActiveLink
+    }
+    if (toc.scrollHeight <= toc.clientHeight + 2) return
+    const tocBounds = toc.getBoundingClientRect()
+    const linkBounds = nextActiveLink.getBoundingClientRect()
+    const linkCenter = linkBounds.top - tocBounds.top + toc.scrollTop + linkBounds.height / 2
+    const targetTop = linkCenter - toc.clientHeight * 0.42
+    toc.scrollTop = Math.min(Math.max(targetTop, 0), toc.scrollHeight - toc.clientHeight)
+  }
   const trackScroll = () => {
     if (!frame.isConnected || frame.contentDocument !== document) return
-    const scrollTop = document.scrollingElement?.scrollTop ?? 0
+    const scrollTop = readScrollTop()
     if (scrollTop !== lastScrollTop) {
       lastScrollTop = scrollTop
+      onScroll(scrollTop)
       syncDock()
+      syncToc(scrollTop)
     }
     requestAnimationFrame(trackScroll)
   }
@@ -48,6 +83,7 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
       : 'desktop'
   ))
   const dockRef = useRef<HTMLElement>(null)
+  const frameScrollTop = useRef(0)
   useSharedDock(dockRef)
   const documentHtml = useMemo(
     () => buildPreviewDocument({ meta, rendered, css, theme }),
@@ -79,7 +115,16 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
       </div>
     </header>
     <div className={`preview-viewport preview-viewport-${viewport}`} tabIndex={0} aria-label="预览画布，可水平滚动">
-      <iframe className="preview-frame" title="IMX 文章预览" sandbox="allow-same-origin" referrerPolicy="no-referrer" srcDoc={documentHtml} onLoad={(event) => wirePreviewFrameScroll(event.currentTarget, dockRef.current)} style={{ width: `${frameWidth}px` }} />
+      <iframe className="preview-frame" title="IMX 文章预览" sandbox="allow-same-origin" referrerPolicy="no-referrer" srcDoc={documentHtml} onLoad={(event) => {
+        const frame = event.currentTarget
+        const scroller = frame.contentDocument?.scrollingElement
+        if (scroller) {
+          const scrollElement = scroller as HTMLElement
+          scrollElement.style.scrollBehavior = 'auto'
+          scrollElement.scrollTop = frameScrollTop.current
+        }
+        wirePreviewFrameScroll(frame, dockRef.current, (scrollTop) => { frameScrollTop.current = scrollTop })
+      }} style={{ width: `${frameWidth}px` }} />
     </div>
   </section>
 }

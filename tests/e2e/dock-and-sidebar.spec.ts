@@ -268,3 +268,38 @@ test('keeps the preview table of contents controllable on desktop and mobile wit
   await expect(sidebar).toBeVisible()
   await expect(preview.locator('.article-content')).toContainText('更多正文。')
 })
+
+test('preserves the preview reading position, follows the active directory entry, and hides scrollbars', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await page.getByLabel('标题').fill('目录滚动回归')
+  await page.getByLabel('Slug').fill('preview-scroll-follow')
+  const sections = Array.from({ length: 32 }, (_, index) => (
+    `## 第 ${index + 1} 节\n\n${'用于撑开文章高度的正文。'.repeat(8)}`
+  )).join('\n\n')
+  await page.getByRole('textbox', { name: 'Markdown 编辑器' }).fill(sections)
+  await page.getByRole('button', { name: '预览文章' }).click()
+
+  const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
+  const targetHeading = preview.getByRole('heading', { name: '第 28 节', exact: true })
+  await targetHeading.evaluate((heading) => {
+    const top = (heading as HTMLElement).offsetTop
+    document.documentElement.style.scrollBehavior = 'auto'
+    document.documentElement.scrollTop = top
+  })
+  await expect.poll(() => preview.locator('html').evaluate((html) => html.scrollTop)).toBeGreaterThan(0)
+  const scrollBeforeThemeChange = await preview.locator('html').evaluate((html) => html.scrollTop)
+
+  const activeLink = preview.getByRole('link', { name: '第 28 节', exact: true })
+  await expect(activeLink).toHaveClass(/active/)
+  expect(await preview.locator('.toc').evaluate((toc) => toc.scrollTop)).toBeGreaterThan(0)
+
+  await page.getByRole('button', { name: '深色预览' }).click()
+  await expect(preview.locator('html')).toHaveAttribute('data-theme', 'dark')
+  await expect.poll(() => preview.locator('html').evaluate((html) => html.scrollTop)).toBe(scrollBeforeThemeChange)
+
+  expect(await preview.locator('html').evaluate((html) => ({
+    firefox: getComputedStyle(html).scrollbarWidth,
+    webkit: getComputedStyle(html, '::-webkit-scrollbar').display,
+  }))).toEqual({ firefox: 'none', webkit: 'none' })
+})
