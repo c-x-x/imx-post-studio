@@ -48,6 +48,21 @@ describe('article workspace', () => {
     expect(screen.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-actions-collapsed', 'true')
   })
 
+  it('keeps metadata on the left and all article tools on the right', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: '文章' }))
+    const settings = document.querySelector<HTMLElement>('#panel-settings')!
+    const tools = document.querySelector<HTMLElement>('#panel-actions')!
+
+    expect(within(settings).getByRole('heading', { name: '文章设置' })).toBeInTheDocument()
+    expect(within(settings).queryByRole('heading', { name: '媒体' })).not.toBeInTheDocument()
+    expect(within(tools).getByRole('group', { name: '文章操作' })).toBeInTheDocument()
+    expect(within(tools).getByRole('heading', { name: '媒体' })).toBeInTheDocument()
+    expect(within(tools).getByRole('group', { name: '文章包操作' })).toBeInTheDocument()
+  })
+
   it('collapses, persists, and restores the desktop settings sidebar', async () => {
     const user = userEvent.setup()
     const first = render(<App />)
