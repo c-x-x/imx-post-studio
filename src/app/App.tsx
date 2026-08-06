@@ -4,6 +4,7 @@ import { createArticleDraft } from '../metadata/article'
 import { MarkdownEditor, type MarkdownEditorHandle } from '../editor/MarkdownEditor'
 import { MetadataPanel } from '../metadata/MetadataPanel'
 import { MediaPanel } from '../media/MediaPanel'
+import { CoverPanel } from '../media/CoverPanel'
 import { ObjectUrlRegistry } from '../media/object-urls'
 import { PreviewFrame } from '../preview/PreviewFrame'
 import { renderMarkdown, type RenderedMarkdown } from '../preview/markdown'
@@ -85,6 +86,7 @@ export function App() {
   const draftRef = useRef(draft)
   const draftStartedRef = useRef(false)
   const intakeBusyRef = useRef(false)
+  const intakeSources = useRef({ cover: false, body: false })
   const failedTransitionRef = useRef<FailedTransition | undefined>(undefined)
   const importFocusTarget = useRef<(() => HTMLElement | null) | undefined>(undefined)
   const editorRef = useRef<MarkdownEditorHandle>(null)
@@ -400,6 +402,12 @@ export function App() {
       return next
     })
   }
+  const setIntakeSourceBusy = (source: 'cover' | 'body', busy: boolean) => {
+    intakeSources.current[source] = busy
+    const next = intakeSources.current.cover || intakeSources.current.body
+    intakeBusyRef.current = next
+    setIntakeBusy(next)
+  }
 
   return <main className="app-shell">
     <ImxDock view={view} disabled={workspaceLocked} previewTrigger={previewTrigger} theme={theme} onToggleTheme={toggleTheme} onPreview={openPreview} onHome={() => void showHome()} onArticle={showWorkspace} onDashboard={() => void showDashboard()} />
@@ -409,13 +417,16 @@ export function App() {
         {([['settings', '设置'], ['write', '写作']] as const).map(([id, label]) => <button key={id} id={`tab-${id}`} type="button" disabled={workspaceLocked} role="tab" aria-selected={tab === id} aria-controls={`panel-${id}`} onClick={() => setTab(id)}>{label}</button>)}
       </nav>
       <div className="workspace-grid" data-tab={tab}>
-        <aside id="panel-settings" className="workspace-panel workspace-inspector" role="tabpanel" aria-labelledby="tab-settings"><MetadataPanel disabled={workspaceLocked} meta={draft.meta} onChange={(field, value) => dispatchDraft({ type: 'set-meta', field, value })} /></aside>
+        <aside id="panel-settings" className="workspace-panel workspace-inspector" role="tabpanel" aria-labelledby="tab-settings">
+          <MetadataPanel disabled={workspaceLocked} meta={draft.meta} onChange={(field, value) => dispatchDraft({ type: 'set-meta', field, value })} />
+          <CoverPanel draftId={draft.id} cover={draft.media.find((asset) => asset.kind === 'cover')} disabled={transitioning} onReplace={(asset) => dispatchDraft({ type: 'replace-cover', asset })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onIntakeBusyChange={(busy) => setIntakeSourceBusy('cover', busy)} />
+        </aside>
         <button className="inspector-toggle" type="button" aria-controls="panel-settings" aria-expanded={!settingsCollapsed} aria-label={settingsCollapsed ? '展开文章设置' : '折叠文章设置'} title={settingsCollapsed ? '展开文章设置' : '折叠文章设置'} onClick={toggleSettings}><span aria-hidden="true">{settingsCollapsed ? '›' : '‹'}</span></button>
         <section id="panel-write" className="workspace-panel workspace-editor" role="tabpanel" aria-labelledby="tab-write"><h2 className="visually-hidden">写作</h2><MarkdownEditor disabled={workspaceLocked} ref={editorRef} value={draft.body} onChange={(body) => dispatchDraft({ type: 'set-body', body })} /></section>
         <button className="actions-toggle" type="button" aria-controls="panel-actions" aria-expanded={!actionsCollapsed} aria-label={actionsCollapsed ? '展开文章操作' : '折叠文章操作'} title={actionsCollapsed ? '展开文章操作' : '折叠文章操作'} onClick={toggleActions}><span aria-hidden="true">{actionsCollapsed ? '‹' : '›'}</span></button>
         <aside id="panel-actions" className="workspace-actions" aria-label="文章工具">
           <ArticleActions disabled={workspaceLocked} onNew={() => void startNew()} onSave={() => void saveCurrentDraft()} />
-          <MediaPanel draftId={draft.id} disabled={transitioning} media={draft.media} body={draft.body} onAddBatch={(assets) => dispatchDraft({ type: 'add-media-batch', assets })} onReplaceCover={(asset) => dispatchDraft({ type: 'replace-cover', asset })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onInsertImage={(asset) => editorRef.current?.insertImage(asset.name, assetAlt(asset))} onIntakeBusyChange={(busy) => { intakeBusyRef.current = busy; setIntakeBusy(busy) }} />
+          <MediaPanel draftId={draft.id} disabled={transitioning} media={draft.media} body={draft.body} onAddBatch={(assets) => dispatchDraft({ type: 'add-media-batch', assets })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onInsertImage={(asset) => editorRef.current?.insertImage(asset.name, assetAlt(asset))} onIntakeBusyChange={(busy) => setIntakeSourceBusy('body', busy)} />
           <BundleActions disabled={workspaceLocked} draft={draft} onReplace={replaceImportedDraft} onNew={openImportedAsNew} onStatus={setNotice} onImportFocusRequest={(target) => { importFocusTarget.current = target; setImportFocusVersion((current) => current + 1) }} />
         </aside>
       </div>

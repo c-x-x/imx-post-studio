@@ -9,7 +9,7 @@ const webp = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0x04, 0x00, 0x00, 0x00, 0x5
 
 function Harness() {
   const [media, setMedia] = useState<MediaAsset[]>([])
-  return <MediaPanel media={media} body="" onAddBatch={(assets) => setMedia((current) => [...current, ...assets])} onReplaceCover={vi.fn()} onRemove={(id) => setMedia((current) => current.filter((asset) => asset.id !== id))} onInsertImage={vi.fn()} />
+  return <MediaPanel media={media} body="" onAddBatch={(assets) => setMedia((current) => [...current, ...assets])} onRemove={(id) => setMedia((current) => current.filter((asset) => asset.id !== id))} onInsertImage={vi.fn()} />
 }
 
 describe('MediaPanel intake', () => {
@@ -43,7 +43,7 @@ describe('MediaPanel intake', () => {
     })
     const onAddBatch = vi.fn()
     const props = {
-      media: [], body: '', onAddBatch, onReplaceCover: vi.fn(), onRemove: vi.fn(), onInsertImage: vi.fn(),
+      media: [], body: '', onAddBatch, onRemove: vi.fn(), onInsertImage: vi.fn(),
     }
     const { rerender } = render(<MediaPanel draftId="old" {...props} />)
     fireEvent.change(screen.getByLabelText('添加正文图片'), { target: { files: [delayed] } })
@@ -63,7 +63,7 @@ describe('MediaPanel intake', () => {
       value: () => new Promise<ArrayBuffer>((resolve) => { resolveRead = resolve }),
     })
     const onAddBatch = vi.fn()
-    const { unmount } = render(<MediaPanel draftId="old" media={[]} body="" onAddBatch={onAddBatch} onReplaceCover={vi.fn()} onRemove={vi.fn()} onInsertImage={vi.fn()} />)
+    const { unmount } = render(<MediaPanel draftId="old" media={[]} body="" onAddBatch={onAddBatch} onRemove={vi.fn()} onInsertImage={vi.fn()} />)
     fireEvent.change(screen.getByLabelText('添加正文图片'), { target: { files: [delayed] } })
     await act(async () => { await Promise.resolve() })
     unmount()
@@ -71,37 +71,13 @@ describe('MediaPanel intake', () => {
     expect(onAddBatch).not.toHaveBeenCalled()
   })
 
-  it('treats delayed cover validation as draft-scoped intake work', async () => {
-    let resolveRead: ((value: ArrayBuffer) => void) | undefined
-    const delayed = new File([png], 'cover.png', { type: 'image/png' })
-    Object.defineProperty(delayed, 'arrayBuffer', {
-      value: () => new Promise<ArrayBuffer>((resolve) => { resolveRead = resolve }),
-    })
-    const onIntakeBusyChange = vi.fn()
-    const props = {
-      media: [], body: '', onAddBatch: vi.fn(), onReplaceCover: vi.fn(), onRemove: vi.fn(), onInsertImage: vi.fn(), onIntakeBusyChange,
-    }
-    const { rerender } = render(<MediaPanel draftId="old" {...props} />)
-    fireEvent.change(screen.getByLabelText('选择封面'), { target: { files: [delayed] } })
-    expect(onIntakeBusyChange).toHaveBeenLastCalledWith(true)
+  it('exposes only body-image controls and body assets', () => {
+    const cover: MediaAsset = { id: 'cover', name: 'cover.webp', kind: 'cover', mime: 'image/webp', blob: new Blob() }
+    const body: MediaAsset = { id: 'body', name: 'body.webp', kind: 'body', mime: 'image/webp', blob: new Blob() }
+    render(<MediaPanel media={[cover, body]} body="" onAddBatch={vi.fn()} onRemove={vi.fn()} onInsertImage={vi.fn()} />)
 
-    rerender(<MediaPanel draftId="new" {...props} />)
-    await act(async () => { resolveRead?.(png.buffer) })
-    await waitFor(() => expect(onIntakeBusyChange).toHaveBeenLastCalledWith(false))
-    expect(screen.queryByRole('dialog', { name: '裁剪封面' })).not.toBeInTheDocument()
-  })
-
-  it('clears delayed cover intake when the panel unmounts', async () => {
-    let resolveRead: ((value: ArrayBuffer) => void) | undefined
-    const delayed = new File([png], 'cover.png', { type: 'image/png' })
-    Object.defineProperty(delayed, 'arrayBuffer', {
-      value: () => new Promise<ArrayBuffer>((resolve) => { resolveRead = resolve }),
-    })
-    const onIntakeBusyChange = vi.fn()
-    const { unmount } = render(<MediaPanel draftId="old" media={[]} body="" onAddBatch={vi.fn()} onReplaceCover={vi.fn()} onRemove={vi.fn()} onInsertImage={vi.fn()} onIntakeBusyChange={onIntakeBusyChange} />)
-    fireEvent.change(screen.getByLabelText('选择封面'), { target: { files: [delayed] } })
-    unmount()
-    await act(async () => { resolveRead?.(png.buffer) })
-    expect(onIntakeBusyChange).toHaveBeenLastCalledWith(false)
+    expect(screen.queryByLabelText('选择封面')).not.toBeInTheDocument()
+    expect(screen.getByRole('listitem', { name: 'body.webp' })).toBeInTheDocument()
+    expect(screen.queryByRole('listitem', { name: 'cover.webp' })).not.toBeInTheDocument()
   })
 })

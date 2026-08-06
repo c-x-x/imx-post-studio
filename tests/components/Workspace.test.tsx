@@ -48,7 +48,7 @@ describe('article workspace', () => {
     expect(screen.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-actions-collapsed', 'true')
   })
 
-  it('keeps metadata on the left and all article tools on the right', async () => {
+  it('keeps metadata and cover settings on the left and body media tools on the right', async () => {
     const user = userEvent.setup()
     render(<App />)
 
@@ -57,9 +57,12 @@ describe('article workspace', () => {
     const tools = document.querySelector<HTMLElement>('#panel-actions')!
 
     expect(within(settings).getByRole('heading', { name: '文章设置' })).toBeInTheDocument()
-    expect(within(settings).queryByRole('heading', { name: '媒体' })).not.toBeInTheDocument()
+    expect(within(settings).getByRole('heading', { name: '文章封面' })).toBeInTheDocument()
+    expect(within(settings).getByLabelText('选择封面')).toBeInTheDocument()
     expect(within(tools).getByRole('group', { name: '文章操作' })).toBeInTheDocument()
     expect(within(tools).getByRole('heading', { name: '媒体' })).toBeInTheDocument()
+    expect(within(tools).queryByLabelText('选择封面')).not.toBeInTheDocument()
+    expect(within(tools).getByLabelText('添加正文图片')).toBeInTheDocument()
     expect(within(tools).getByRole('group', { name: '文章包操作' })).toBeInTheDocument()
   })
 
