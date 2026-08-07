@@ -5,6 +5,16 @@ import { AccessibleDialog, DialogClose } from '../../src/app/AccessibleDialog'
 describe('AccessibleDialog', () => {
   afterEach(cleanup)
 
+  it('escapes transformed workspace ancestors by portaling the backdrop to the document body', () => {
+    const { container } = render(<div style={{ transform: 'translateX(18px)' }}><AccessibleDialog title="导入已验证" onClose={() => undefined}><button type="button">取消</button></AccessibleDialog></div>)
+
+    const dialog = screen.getByRole('dialog', { name: '导入已验证' })
+    const backdrop = dialog.parentElement
+    expect(container).not.toContainElement(dialog)
+    expect(backdrop).toHaveClass('modal-backdrop')
+    expect(backdrop?.parentElement).toBe(document.body)
+  })
+
   it('moves focus inside, traps Tab, closes on Escape, and restores its initiator', () => {
     const initiator = document.createElement('button')
     document.body.append(initiator)

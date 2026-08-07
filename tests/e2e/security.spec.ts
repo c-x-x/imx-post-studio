@@ -153,6 +153,37 @@ test('rejects SVG and oversized media, blocks missing media export, and keeps cu
   expect(await currentDraftFingerprint(page)).toEqual(beforeMissingImage)
 })
 
+test('keeps a verified ZIP dialog viewport-bound while its workspace rail is transformed', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 560 })
+  await page.goto('/')
+  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await page.locator('.workspace-actions').evaluate((rail) => {
+    ;(rail as HTMLElement).style.transform = 'translateX(18px)'
+  })
+  const archive = await zipBuffer([{
+    name: 'responsive-import/index.md',
+    contents: '+++\ntitle = "Responsive import"\ndate = "2026-08-07T09:00:00+08:00"\ndraft = true\n+++\n\n正文。',
+  }])
+
+  await page.getByLabel('导入 ZIP').setInputFiles({
+    name: 'responsive-import.zip',
+    mimeType: 'application/zip',
+    buffer: archive,
+  })
+
+  const dialog = page.getByRole('dialog', { name: '导入已验证' })
+  const backdrop = page.locator('body > .modal-backdrop')
+  await expect(dialog).toBeVisible()
+  await expect(backdrop).toHaveCount(1)
+  expect(await backdrop.boundingBox()).toEqual({ x: 0, y: 0, width: 1024, height: 560 })
+  const bounds = await dialog.boundingBox()
+  expect(bounds).not.toBeNull()
+  expect(bounds!.x).toBeGreaterThanOrEqual(0)
+  expect(bounds!.y).toBeGreaterThanOrEqual(0)
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(1024)
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(560)
+})
+
 test('retries a transient IndexedDB open failure and clears the page alert after a same-session autosave', async ({ page }) => {
   await page.addInitScript(() => {
     const native = window.indexedDB

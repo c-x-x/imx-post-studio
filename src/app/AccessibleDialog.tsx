@@ -1,4 +1,5 @@
 import { createContext, useContext, useId, useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 
 interface AccessibleDialogProps {
   title: string
@@ -72,5 +73,5 @@ export function AccessibleDialog({ title, children, onClose, returnFocus, classN
     }
   }
 
-  return <div className="modal-backdrop" role="presentation"><section ref={dialogRef} className={className} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} onKeyDown={onKeyDown}><h2 id={titleId}>{title}</h2><DialogCloseContext.Provider value={close}>{children}</DialogCloseContext.Provider></section></div>
+  return createPortal(<div className="modal-backdrop" role="presentation"><section ref={dialogRef} className={className} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} onKeyDown={onKeyDown}><h2 id={titleId}>{title}</h2><DialogCloseContext.Provider value={close}>{children}</DialogCloseContext.Provider></section></div>, document.body)
 }

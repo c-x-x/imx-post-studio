@@ -146,11 +146,7 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
     }
   }, [documentHtml])
 
-  const frameWidth = viewport === 'desktop'
-    ? 1180
-    : typeof window === 'undefined'
-      ? 390
-      : Math.min(390, Math.max(320, window.innerWidth - 20))
+  const frameWidth = viewport === 'desktop' ? 'min(1180px, 100%)' : 'min(390px, 100%)'
   return <section className="preview-surface" data-theme={theme} data-viewport={viewport} data-shared-dock-scroll aria-label="IMX 文章预览内容">
     <header ref={dockRef} className="preview-dock has-shared-dock">
       <div className="preview-dock__container" data-shared-dock="container">
@@ -170,8 +166,8 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
         </div>
       </div>
     </header>
-    <div className={`preview-viewport preview-viewport-${viewport}`} tabIndex={0} aria-label="预览画布，可水平滚动">
-      <iframe ref={frameRef} className="preview-frame" title="IMX 文章预览" sandbox="allow-same-origin" referrerPolicy="no-referrer" srcDoc={documentHtml} style={{ width: `${frameWidth}px` }} />
+    <div className={`preview-viewport preview-viewport-${viewport}`} tabIndex={0} aria-label="文章预览画布">
+      <iframe ref={frameRef} className="preview-frame" title="IMX 文章预览" sandbox="allow-same-origin" referrerPolicy="no-referrer" srcDoc={documentHtml} style={{ width: frameWidth }} />
     </div>
   </section>
 }

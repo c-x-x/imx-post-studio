@@ -41,9 +41,9 @@ describe('PreviewFrame', () => {
     expect(iframe.getAttribute('srcdoc')).toContain('&lt;title&gt;')
     expect(iframe.getAttribute('srcdoc')).toContain('data-theme="dark"')
     expect(iframe.getAttribute('srcdoc')).not.toMatch(/<script/i)
-    expect(screen.getByLabelText('预览画布，可水平滚动')).toHaveAttribute('tabindex', '0')
+    expect(screen.getByLabelText('文章预览画布')).toHaveAttribute('tabindex', '0')
     expect(desktop).toHaveAttribute('aria-pressed', 'true')
-    expect(iframe).toHaveStyle({ width: '1180px' })
+    expect(iframe).toHaveStyle({ width: 'min(1180px, 100%)' })
 
     fireEvent.click(close)
     expect(onClose).toHaveBeenCalledOnce()
@@ -54,7 +54,7 @@ describe('PreviewFrame', () => {
     fireEvent.click(mobile)
     expect(mobile).toHaveAttribute('aria-pressed', 'true')
     expect(desktop).toHaveAttribute('aria-pressed', 'false')
-    expect(iframe).toHaveStyle({ width: '390px' })
+    expect(iframe).toHaveStyle({ width: 'min(390px, 100%)' })
   })
 
   it('uses the vendored TOC nav and toggle contract in a script-free document', () => {

@@ -723,13 +723,16 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
   display: grid;
   place-items: center;
   padding: 16px;
+  overflow: auto;
   background: var(--imx-backdrop);
   backdrop-filter: blur(10px);
+  overscroll-behavior: contain;
 }
 
 .confirm-dialog,
 .crop-dialog {
   width: min(100%, 560px);
+  min-width: 0;
   max-height: calc(100dvh - 32px);
   overflow: auto;
   border: 1px solid var(--imx-line);
@@ -753,6 +756,11 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
 }
 
 .dialog-actions { justify-content: flex-end; margin-top: 18px; }
+
+.dialog-actions > * {
+  max-width: 100%;
+  white-space: normal;
+}
 
 .modal-backdrop:has(.preview-dialog) {
   display: block;
@@ -869,4 +877,18 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
   .draft-list > li { grid-template-columns: 76px minmax(0, 1fr); }
   .draft-actions { grid-column: 1 / -1; }
   .draft-thumbnail { width: 76px; height: 56px; }
+}
+
+@media (max-width: 480px), (max-height: 520px) {
+  .modal-backdrop { place-items: start center; padding: 10px; }
+  .confirm-dialog,
+  .crop-dialog {
+    max-height: calc(100dvh - 20px);
+    padding: 17px;
+    border-radius: 20px;
+  }
+  .confirm-dialog h2,
+  .crop-dialog h2 { margin-bottom: 12px; font-size: 1.35rem; }
+  .dialog-actions { gap: 6px; margin-top: 14px; }
+  .dialog-actions > * { flex: 1 1 150px; }
 }

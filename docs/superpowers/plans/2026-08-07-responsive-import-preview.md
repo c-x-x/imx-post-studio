@@ -48,7 +48,7 @@
 
 - [ ] Change component expectations and add intermediate viewport browser assertions; run them to observe failure.
 - [ ] Replace window-derived fixed widths with container-relative CSS widths and hide preview-canvas horizontal overflow.
-- [ ] Add the compact Dock breakpoint and verify all focused tests pass.
+- [ ] Verify the Dock remains inside the viewport at every tested width and all focused tests pass.
 
 ### Task 3: Integrate and publish
 

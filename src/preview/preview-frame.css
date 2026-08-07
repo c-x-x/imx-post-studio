@@ -195,7 +195,7 @@
   min-height: 0;
   margin-inline: auto;
   padding: 96px 24px 56px;
-  overflow: auto;
+  overflow: hidden;
   background: var(--preview-shell-bg);
 }
 
@@ -203,14 +203,18 @@
 
 .preview-frame {
   display: block;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   height: 100%;
   min-height: 0;
-  max-width: none;
+  max-width: 100%;
   border: 0;
   border-radius: 0;
   background: var(--preview-shell-bg);
   box-shadow: none;
+}
+
+@media (max-width: 1200px) {
+  .preview-viewport { padding-inline: 16px; }
 }
 
 @media (max-width: 720px) {

@@ -182,6 +182,31 @@ test('keeps preview Dock merging responsive and reduced-motion safe', async ({ p
   expect(await surface.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
 })
 
+test('fits the complete preview canvas and Dock without horizontal scrolling at intermediate widths', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await page.getByLabel('标题').fill('中间尺寸预览')
+  await page.getByLabel('Slug').fill('intermediate-preview-widths')
+  await page.getByRole('textbox', { name: 'Markdown 编辑器' }).fill('## 第一节\n\n正文。\n\n## 第二节\n\n更多正文。')
+  await page.getByRole('button', { name: '预览文章' }).click()
+
+  for (const width of [760, 900, 1024, 1180]) {
+    await page.setViewportSize({ width, height: 700 })
+    const canvas = page.locator('.preview-viewport')
+    const frame = page.getByTitle('IMX 文章预览')
+    const dock = page.locator('.preview-dock__container')
+    await expect.poll(() => canvas.evaluate((element) => element.scrollWidth - element.clientWidth)).toBe(0)
+    expect(await frame.evaluate((element) => {
+      const bounds = element.getBoundingClientRect()
+      return bounds.left >= 0 && bounds.right <= window.innerWidth
+    })).toBe(true)
+    expect(await dock.evaluate((element) => {
+      const bounds = element.getBoundingClientRect()
+      return bounds.left >= 0 && bounds.right <= window.innerWidth
+    })).toBe(true)
+  }
+})
+
 test('uses the compact IMX menu and existing workspace tabs on mobile without overflow', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/')
