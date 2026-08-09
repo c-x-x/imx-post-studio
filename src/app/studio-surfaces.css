@@ -1,7 +1,4 @@
-/*
- * Studio-only surface mapping for hugo-theme-imx/assets/css/tokens.css.
- * The interactive Dock owns its own liquid-glass rules in imx-dock.css.
- */
+/* Studio-owned application surfaces. The Dock keeps its liquid-glass rules in imx-dock.css. */
 :root {
   --imx-font-ui: 'IMX Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
   --imx-font-reading: 'IMX Noto Serif SC App', 'IMX Noto Serif SC', 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', STSong, SimSun, Georgia, serif;
@@ -114,7 +111,7 @@ body {
 }
 
 /* Theme-muted copy is deliberately reserved for non-essential metadata; Studio
- * instructions are actionable and retain the theme's secondary ink contrast. */
+ * instructions are actionable and retain the Studio palette's secondary ink contrast. */
 .home-principles span,
 .home-workflow p,
 .dashboard-heading p,

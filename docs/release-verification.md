@@ -38,17 +38,15 @@ local release-verifier phase before external publication.
   heading, table, quote, list, JavaScript fence, cover reference, and body
   image reference.
 - The source bundle was inspected at
-  `/tmp/imx-post-studio-task10-tz-final.gcOpMb`.
-  The original `hugo-theme-imx` and `c-x-x.github.io` worktrees were clean
-  before and after the copied-site build.
+  `/tmp/imx-post-studio-task10-tz-final.gcOpMb`; the copied-site build did not
+  mutate the Studio source checkout.
 
-## IMX Dock and immersive-sidebar proof (2026-08-05)
+## Studio Dock and immersive-sidebar proof (2026-08-05)
 
-- The Studio Dock structure, liquid-glass styling, responsive treatment, and
-  attraction/merge behavior are adapted from the read-only
-  `hugo-theme-imx` source at commit `6f08e8e`.
+- The Studio owns its Dock structure, liquid-glass styling, responsive
+  treatment, attraction/merge behavior, and article preview styles.
 - `npm test`: 31 files and 195 tests passed.
-- `npm run lint`, `npm run typecheck`, and `npm run check:theme`: passed.
+- `npm run lint`, `npm run typecheck`, and `npm run check:standalone`: passed.
 - `npm run build`: passed. Vite still reports the existing non-blocking warning
   that the main JavaScript chunk is larger than 500 kB after minification.
 - `npm run test:e2e`: 45 tests passed across Chromium, Firefox, and WebKit;
@@ -70,12 +68,12 @@ that portion of the release check.
 | Field | Value |
 | --- | --- |
 | Public GitHub repository URL | `https://github.com/c-x-x/imx-post-studio` (public) |
-| GitHub default branch and CI run URL/status | Default branch: `main`. The application commit `e47cfbdc9f6a7eaaa8d79ffddcfee608dbe0adee` passed [run 30931426055](https://github.com/c-x-x/imx-post-studio/actions/runs/30931426055). The first Git-triggered production deployment commit `a72488792961ca39c34e63dd20ce2ef020905bcf` passed [run 30969483926](https://github.com/c-x-x/imx-post-studio/actions/runs/30969483926): lint, typecheck, 180 unit tests, build, theme manifest, and the complete Playwright E2E suite. |
+| GitHub default branch and CI run URL/status | Default branch: `main`. The application commit `e47cfbdc9f6a7eaaa8d79ffddcfee608dbe0adee` passed [run 30931426055](https://github.com/c-x-x/imx-post-studio/actions/runs/30931426055). The first Git-triggered production deployment commit `a72488792961ca39c34e63dd20ce2ef020905bcf` passed [run 30969483926](https://github.com/c-x-x/imx-post-studio/actions/runs/30969483926): lint, typecheck, unit tests, build, standalone verification, and the complete Playwright E2E suite. |
 | Production Vercel URL | `https://imx-post-studio.vercel.app` |
 | Vercel project/deployment ID, commit, READY status, duration | Project `prj_dp5tWkWeYlG6XZroxi4Ax5aPsoCD`; bootstrap deployment `dpl_AeVoWbPszR8rBT4hi1CkG1LfVHV1` built the fixed public GitHub commit `e47cfbd…` and reached `READY` in about 17 seconds. The project is subsequently connected to the GitHub repository for normal Git-triggered deployments. |
 | Production HTTP security headers | `200` for `/`; CSP restricts every source to the static app contract (`connect-src 'self'`, `frame-ancestors 'none'`, no object sources); `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and the camera/microphone/geolocation/payment/USB Permissions Policy are present. |
 | Production browser, autosave, preview, ZIP re-import, and network evidence | The complete equivalent workflow passed locally and in GitHub CI. Production HTTP verification confirms the SPA, CSS, WebP WebAssembly modules, and all seven self-hosted IMX font assets return `200` with correct MIME types. Interactive browser verification could not be completed in this run because the local browser policy service refused all Vercel URLs; do not treat it as passed until rerun from a healthy browser session. |
-| Remaining production preview-fidelity boundary | The preview is pinned to IMX `v1.4.9` / `6f08e8e` and has approved desktop/mobile, light/dark visual baselines. It is intentionally not a per-keystroke Hugo build: Hugo shortcodes, syntax-highlighting details, and generated responsive image variants remain authoritative only after the exported bundle is built by Hugo. |
+| Remaining production preview-fidelity boundary | The Studio-owned preview has approved desktop/mobile and light/dark visual baselines. It is intentionally not a per-keystroke Hugo build: Hugo shortcodes, site-specific syntax-highlighting details, and generated responsive image variants remain authoritative only after the exported bundle is built by Hugo. |
 
 ## Publication checklist
 

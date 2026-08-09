@@ -1,8 +1,8 @@
 # IMX Post Studio
 
-IMX Post Studio 是一个浏览器内运行的 Hugo 文章编辑器。它把文章、元数据
-和图片整理为 Hugo leaf bundle ZIP，同时以固定版本的 IMX 主题提供桌面与移动
-预览。生产产物是静态 Vite 应用，不包含 API 路由或服务端数据库。
+IMX Post Studio 是一个浏览器内运行、本地优先的 Hugo 文章编辑器。它把文章、元数据
+和图片整理为 Hugo leaf bundle ZIP，并以 Studio 自有的 IMX 风格提供桌面与移动
+预览。生产产物是独立的静态 Vite 应用，不包含 API 路由或服务端数据库。
 
 ## 隐私与浏览器支持
 
@@ -71,7 +71,7 @@ content/posts/<slug>/images/<image-name>
   preview` 或未设置等效策略的静态主机上可能被请求。Vercel 生产配置的
   `img-src 'self' blob: data:` 会阻止这类外部图片；`'self'`、`blob:` 和 `data:`
   仍可加载。
-- 预览不运行主题 JavaScript、远程脚本、远程 iframe 或评论组件；这些边界与可由
+- 预览不运行远程脚本、远程 iframe 或评论组件；这些边界与可由
   浏览器请求的外部图片 URL 是不同的安全问题。
 
 ## 导入、备份与恢复
@@ -86,17 +86,11 @@ content/posts/<slug>/images/<image-name>
 所有导入都会先完整验证，再让用户选择“替换当前文章”或“作为新草稿打开”；验证
 失败不会覆盖编辑器中的内容。恢复文件与普通文章包都应保存在浏览器之外的可靠位置。
 
-## 主题同步
+## 独立预览资源
 
-预览资产固定为 `hugo-theme-imx` 的 `v1.4.9` / `6f08e8e` 快照。不要手工编辑
-`src/theme/imx/` 或 `public/imx/fonts/`；如需更新，使用本地、已验证的主题工作树：
-
-```bash
-npm run sync:imx -- /absolute/path/to/hugo-theme-imx
-npm run check:theme
-```
-
-主题清单检查会验证来源、许可和每个受管文件的哈希。
+文章排版、目录、响应式行为和字体均由 Studio 自身维护，构建与测试不读取其他仓库。
+预览使用 `src/preview/` 下的 Studio 样式和 `public/studio/fonts/` 下的本地字体；视觉
+升级作为本项目的普通代码变更进行，并由单元、浏览器和视觉回归测试保护。
 
 ## 测试
 
@@ -105,7 +99,7 @@ npm run lint
 npm run typecheck
 npm test
 npm run build
-npm run check:theme
+npm run check:standalone
 npm run test:e2e
 ```
 
@@ -127,6 +121,7 @@ GitHub Actions 会在 `main` 推送和 pull request 上执行同一组检查，�
 
 ## 许可证与归属
 
-本项目根目录的 [MIT License](LICENSE) 适用于 IMX Post Studio 自有代码。随项目分发
-的 IMX 主题快照保持其单独的 [MIT 许可证](src/theme/imx/LICENSE.imx)；自托管 Inter
-与 Noto Serif SC 字体继续适用各自保留在 `src/theme/imx/` 的 SIL Open Font License。
+本项目根目录的 [MIT License](LICENSE) 适用于 IMX Post Studio 自有代码。预览视觉
+历史资产的 MIT 许可文本保留在 [docs/licenses](docs/licenses/IMX-PREVIEW-ORIGIN-MIT.txt)；
+自托管 Inter 与 Noto Serif SC 字体继续适用 `public/studio/fonts/` 中保留的 SIL Open
+Font License。

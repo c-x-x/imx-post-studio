@@ -57,7 +57,7 @@ describe('PreviewFrame', () => {
     expect(iframe).toHaveStyle({ width: 'min(390px, 100%)' })
   })
 
-  it('uses the vendored TOC nav and toggle contract in a script-free document', () => {
+  it('uses the Studio-owned TOC nav and toggle contract in a script-free document', () => {
     const document = buildPreviewDocument({
       meta,
       rendered: { html: '<h2 id="imx-heading-a">A</h2>', toc: [{ id: 'imx-heading-a', depth: 2, text: 'A', children: [] }], wordCount: 1, readingMinutes: 1 },
@@ -73,7 +73,7 @@ describe('PreviewFrame', () => {
     expect(document).toContain('href="about:srcdoc#imx-heading-a"')
   })
 
-  it('keeps Studio preview behavior overrides without replacing the vendored dark palette', () => {
+  it('keeps Studio preview behavior overrides without replacing the base dark palette', () => {
     const document = buildPreviewDocument({
       meta,
       rendered: { html: '<p>正文</p>', toc: [{ id: 'a', depth: 2, text: 'A', children: [] }], wordCount: 2, readingMinutes: 1 },

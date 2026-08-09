@@ -1,6 +1,6 @@
 import { useEffect, type RefObject } from 'react'
 
-// Adapted from hugo-theme-imx 6f08e8e assets/js/dock.js.
+// Shared Studio Dock attraction and merge behavior.
 const DOCK_MERGE_ENTER = 0.88
 const DOCK_MERGE_EXIT = 0.8
 

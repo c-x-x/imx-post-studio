@@ -191,7 +191,7 @@ test.describe('IMX visual regressions', () => {
     expect(shellStyle.fontFamily).toContain('IMX Inter')
   })
 
-  test('uses the IMX theme card and primary-action primitives outside the Dock', async ({ page }) => {
+  test('uses the IMX-style card and primary-action primitives outside the Dock', async ({ page }) => {
     await page.goto('/')
     const surfaces = await page.locator('.home-hero').evaluate((hero) => {
       const heroStyle = getComputedStyle(hero)

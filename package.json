@@ -15,8 +15,7 @@
     "typecheck": "tsc -b --pretty false",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "sync:imx": "node scripts/sync-imx-theme.mjs",
-    "check:theme": "node scripts/verify-theme-manifest.mjs",
+    "check:standalone": "node scripts/verify-standalone.mjs",
     "verify:bundle": "tsx scripts/export-verification-bundle.ts",
     "verify:bundle:timezones": "node scripts/verify-verification-bundle-timezones.mjs"
   },
