@@ -61,6 +61,88 @@
   font-family: var(--imx-font-mono);
 }
 
+.markdown-editor[data-mode='rich'] .cm-gutters {
+  display: none;
+}
+
+.markdown-editor .cm-md-hidden {
+  display: none;
+}
+
+.markdown-editor .cm-md-heading {
+  color: var(--imx-ink);
+  font-family: var(--imx-font-reading);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.markdown-editor .cm-md-heading-1 { font-size: 1.85em; }
+.markdown-editor .cm-md-heading-2 { font-size: 1.55em; }
+.markdown-editor .cm-md-heading-3 { font-size: 1.3em; }
+.markdown-editor .cm-md-heading-4,
+.markdown-editor .cm-md-heading-5,
+.markdown-editor .cm-md-heading-6 { font-size: 1.08em; }
+
+.markdown-editor .cm-md-strong { font-weight: 700; }
+.markdown-editor .cm-md-emphasis { font-style: italic; }
+.markdown-editor .cm-md-strikethrough { text-decoration: line-through; }
+
+.markdown-editor .cm-md-link {
+  color: var(--imx-accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--imx-accent) 42%, transparent);
+  text-underline-offset: .2em;
+}
+
+.markdown-editor .cm-md-inline-code {
+  padding: .08em .28em;
+  border: 1px solid var(--imx-line);
+  border-radius: .35em;
+  color: var(--imx-ink);
+  background: var(--imx-gutter);
+  font-family: var(--imx-font-mono);
+  font-size: .9em;
+  font-style: normal;
+}
+
+.markdown-editor .cm-md-quote {
+  border-left: 3px solid var(--imx-accent);
+  color: var(--imx-ink-secondary);
+  background: var(--imx-accent-soft);
+}
+
+.markdown-editor .cm-md-list { padding-left: .4em; }
+
+.markdown-editor .cm-md-fenced-code {
+  color: var(--imx-ink);
+  background: var(--imx-gutter);
+  font-family: var(--imx-font-mono);
+  font-size: .92em;
+}
+
+.markdown-editor .cm-md-image {
+  display: block;
+  max-width: min(100%, 760px);
+  margin: 1.2rem auto;
+}
+
+.markdown-editor .cm-md-image img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: 68dvh;
+  margin: 0 auto;
+  border-radius: 12px;
+  object-fit: contain;
+}
+
+.markdown-editor .cm-md-horizontal-rule {
+  display: block;
+  height: 1px;
+  margin-block: 1.2em;
+  background: var(--imx-line);
+}
+
 .markdown-editor .cm-content {
   max-width: 920px;
   margin: 0 auto;

@@ -1,7 +1,9 @@
-import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import CodeMirror, { EditorView, type ReactCodeMirrorRef } from '@uiw/react-codemirror'
 import { markdown } from '@codemirror/lang-markdown'
+import { GFM } from '@lezer/markdown'
 import type { EditorMode } from './editor-mode'
+import { liveMarkdown } from './live-markdown'
 import { runMarkdownCommand, type MarkdownCommand } from './markdown-commands'
 import './editor.css'
 
@@ -27,6 +29,7 @@ const toolbar: Array<{ label: string; command: Exclude<MarkdownCommand, { type: 
 export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(function MarkdownEditor({ value, onChange, disabled = false }, ref) {
   const editorRef = useRef<ReactCodeMirrorRef>(null)
   const [mode, setMode] = useState<EditorMode>('rich')
+  const liveImages = useMemo(() => new Map(), [])
 
   const applyCommand = (command: MarkdownCommand) => {
     if (disabled) return
@@ -63,6 +66,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         {mode === 'rich' ? '源代码' : '即时排版'}
       </button>
     </div>
-    <CodeMirror ref={editorRef} value={value} height="calc(100dvh - 190px)" extensions={[markdown(), EditorView.lineWrapping, EditorView.contentAttributes.of({ 'aria-label': 'Markdown 编辑器' })]} editable={!disabled} onChange={onChange} placeholder="从这里开始写 Markdown…" />
+    <CodeMirror ref={editorRef} value={value} height="calc(100dvh - 190px)" extensions={[markdown({ extensions: GFM }), liveMarkdown({ mode, images: liveImages }), EditorView.lineWrapping, EditorView.contentAttributes.of({ 'aria-label': 'Markdown 编辑器' })]} editable={!disabled} onChange={onChange} placeholder="从这里开始写 Markdown…" />
   </section>
 })
