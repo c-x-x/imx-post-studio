@@ -9,6 +9,20 @@ describe('runMarkdownCommand', () => {
     })
   })
 
+  it('wraps the selected text in italic markers and retains the selected content', () => {
+    expect(runMarkdownCommand('文字', { from: 0, to: 2 }, { type: 'italic' })).toEqual({
+      value: '*文字*',
+      selection: { from: 1, to: 3 },
+    })
+  })
+
+  it('creates an unchecked task and retains the selected content', () => {
+    expect(runMarkdownCommand('任务', { from: 0, to: 2 }, { type: 'task' })).toEqual({
+      value: '- [ ] 任务',
+      selection: { from: 6, to: 8 },
+    })
+  })
+
   it.each([
     ['heading', { type: 'heading' } as const, '## Article'],
     ['list', { type: 'list' } as const, '- Article'],

@@ -37,8 +37,10 @@ const markdownAccessibility = EditorView.contentAttributes.of({ 'aria-label': 'M
 
 const toolbar: Array<{ label: string; command: Exclude<MarkdownCommand, { type: 'image' }> }> = [
   { label: '加粗', command: { type: 'bold' } },
+  { label: '斜体', command: { type: 'italic' } },
   { label: '标题', command: { type: 'heading' } },
   { label: '列表', command: { type: 'list' } },
+  { label: '任务', command: { type: 'task' } },
   { label: '引用', command: { type: 'quote' } },
   { label: '代码', command: { type: 'code' } },
   { label: '链接', command: { type: 'link' } },

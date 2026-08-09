@@ -30,6 +30,18 @@ function dispatchPaste(target: HTMLElement, items: Array<ReturnType<typeof clipb
 }
 
 describe('MarkdownEditor', () => {
+  test('offers italic and task controls and disables them with the editor', () => {
+    const { rerender } = render(<MarkdownEditor value="" onChange={vi.fn()} media={[]} />)
+
+    expect(screen.getByRole('button', { name: '斜体' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: '任务' })).toBeEnabled()
+
+    rerender(<MarkdownEditor value="" onChange={vi.fn()} media={[]} disabled />)
+
+    expect(screen.getByRole('button', { name: '斜体' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '任务' })).toBeDisabled()
+  })
+
   test('defaults to live formatting and visually wraps without changing Markdown', () => {
     const onChange = vi.fn()
     render(<MarkdownEditor value="一段很长的 Markdown" onChange={onChange} media={[]} />)

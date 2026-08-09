@@ -15,8 +15,10 @@ export interface MarkdownImageInput {
 
 export type MarkdownCommand =
   | { type: 'bold' }
+  | { type: 'italic' }
   | { type: 'heading' }
   | { type: 'list' }
+  | { type: 'task' }
   | { type: 'quote' }
   | { type: 'code' }
   | { type: 'link' }
@@ -62,10 +64,14 @@ export function runMarkdownCommand(value: string, initialSelection: MarkdownSele
   switch (command.type) {
     case 'bold':
       return replaceSelection(value, selection, `**${selected}**`, 2, 2 + selected.length)
+    case 'italic':
+      return replaceSelection(value, selection, `*${selected}*`, 1, 1 + selected.length)
     case 'heading':
       return replaceSelection(value, selection, `## ${selected}`, 3, 3 + selected.length)
     case 'list':
       return replaceSelection(value, selection, `- ${selected}`, 2, 2 + selected.length)
+    case 'task':
+      return replaceSelection(value, selection, `- [ ] ${selected}`, 6, 6 + selected.length)
     case 'quote':
       return replaceSelection(value, selection, `> ${selected}`, 2, 2 + selected.length)
     case 'code':
