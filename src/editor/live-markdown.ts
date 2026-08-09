@@ -147,7 +147,7 @@ class TaskCheckboxWidget extends WidgetType {
   }
 
   ignoreEvent() {
-    return false
+    return true
   }
 }
 

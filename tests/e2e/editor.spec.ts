@@ -284,9 +284,10 @@ test('keeps both responsive workspace tabs mounted and opens preview without hor
   await beginArticle(page)
   await fillMetadata(page)
   await page.setViewportSize({ width: 390, height: 844 })
-  await expect(page.getByRole('tablist', { name: '工作区视图' })).toBeVisible()
-  await expect(page.getByRole('tab')).toHaveCount(2)
-  await expect(page.locator('[role="tabpanel"]')).toHaveCount(2)
+  const workspaceTabs = page.getByRole('tablist', { name: '工作区视图' })
+  await expect(workspaceTabs).toBeVisible()
+  await expect(workspaceTabs.getByRole('tab')).toHaveCount(2)
+  await expect(page.locator('#panel-settings, #panel-write')).toHaveCount(2)
   const expectNoHorizontalOverflow = () => expect(page.locator('html').evaluate((element) => element.scrollWidth <= window.innerWidth)).resolves.toBe(true)
   await expectNoHorizontalOverflow()
   await page.getByRole('tab', { name: '写作' }).click()
@@ -324,6 +325,9 @@ test('live writing formats Markdown, preserves source, and visually wraps at nar
     '',
     '- 列表',
     '',
+    '- [ ] 未完成',
+    '- [x] 已完成',
+    '',
     '```ts',
     'const answer = 42',
     '```',
@@ -343,15 +347,34 @@ test('live writing formats Markdown, preserves source, and visually wraps at nar
   expect(await page.locator('.cm-md-hidden').count()).toBeGreaterThan(0)
   expect([...new Set(await page.locator('.cm-md-heading span').evaluateAll((elements) => elements.map((element) => getComputedStyle(element).textDecorationLine)))])
     .toEqual(['none'])
+  const tasks = page.locator('.cm-md-task-checkbox')
+  await expect(tasks).toHaveCount(2)
+  await expect(tasks.nth(0)).not.toBeChecked()
+  await expect(tasks.nth(1)).toBeChecked()
+  await tasks.nth(0).click()
+
+  await page.getByRole('button', { name: '源代码' }).click()
+  await expect(editor).toContainText('- [x] 未完成')
+  await page.getByRole('button', { name: '即时排版' }).click()
+  await tasks.nth(0).click()
+  await expect(page.getByRole('status')).toContainText('已保存到本地草稿')
 
   await page.getByRole('button', { name: '源代码' }).click()
   const beforeResize = (await editor.locator('.cm-line').allTextContents()).join('\n')
   expect(beforeResize).toBe(markdownSource)
   await page.getByRole('button', { name: '即时排版' }).click()
+  await page.getByRole('tab', { name: '大纲' }).click()
+  await page.getByRole('button', { name: '三级标签' }).click()
+  await expect(editor.locator('.cm-activeLine')).toContainText('三级标签')
   const longParagraph = page.locator('.cm-line').filter({ hasText: longLine.slice(0, 20) })
   const wideHeight = await longParagraph.evaluate((line) => line.getBoundingClientRect().height)
 
   await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole('tab', { name: '设置' }).click()
+  await page.getByRole('tab', { name: '大纲' }).click()
+  await page.getByRole('button', { name: '三级标签' }).click()
+  await expect(page.getByRole('tab', { name: '写作' })).toHaveAttribute('aria-selected', 'true')
+  await expect(editor.locator('.cm-activeLine')).toContainText('三级标签')
   await page.getByRole('tab', { name: '写作' }).click()
   const narrowHeight = await longParagraph.evaluate((line) => line.getBoundingClientRect().height)
   expect(narrowHeight).toBeGreaterThan(wideHeight)
