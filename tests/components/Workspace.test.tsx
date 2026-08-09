@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { EditorView } from '@uiw/react-codemirror'
 import { afterEach, describe, expect, it } from 'vitest'
 import { App } from '../../src/app/App'
 
@@ -78,6 +79,30 @@ describe('article workspace', () => {
     expect(within(tools).getByRole('group', { name: '文章包操作' })).toBeInTheDocument()
   })
 
+  it('switches the left sidebar to a live outline and focuses the selected heading', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: '文章' }))
+    expect(screen.getByRole('tab', { name: '文章设置' })).toHaveAttribute('aria-selected', 'true')
+
+    await user.click(screen.getByRole('tab', { name: '大纲' }))
+    expect(screen.getByText('正文中暂无标题')).toBeInTheDocument()
+
+    const textbox = screen.getByRole('textbox', { name: 'Markdown 编辑器' })
+    const editor = EditorView.findFromDOM(textbox)
+    if (!editor) throw new Error('CodeMirror view not found')
+    const markdown = '# 一级标题\n\n正文\n\n### 三级标题'
+    editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: markdown } })
+
+    const thirdLevel = await screen.findByRole('button', { name: '三级标题' })
+    await user.click(thirdLevel)
+
+    expect(editor.state.selection.main.anchor).toBe(markdown.indexOf('###'))
+    expect(screen.getByRole('tab', { name: '写作' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: '大纲' })).toHaveAttribute('aria-selected', 'true')
+  })
+
   it('collapses, persists, and restores the desktop settings sidebar', async () => {
     const user = userEvent.setup()
     const first = render(<App />)
@@ -127,7 +152,7 @@ describe('article workspace', () => {
 
     await user.click(screen.getByRole('button', { name: '文章' }))
     const trigger = screen.getByRole('button', { name: '预览文章' })
-    expect(screen.getAllByRole('tab')).toHaveLength(2)
+    expect(within(screen.getByRole('tablist', { name: '工作区视图' })).getAllByRole('tab')).toHaveLength(2)
     expect(screen.queryByTitle('IMX 文章预览')).not.toBeInTheDocument()
     expect(document.body).not.toHaveClass('preview-open')
 

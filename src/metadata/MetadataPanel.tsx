@@ -6,6 +6,7 @@ interface MetadataPanelProps {
   meta: ArticleMeta
   onChange: (field: keyof ArticleMeta, value: ArticleMeta[keyof ArticleMeta]) => void
   disabled?: boolean
+  compactHeading?: boolean
 }
 
 interface ChipsInputProps {
@@ -35,13 +36,13 @@ function ChipsInput({ id, label, values, onChange, disabled }: ChipsInputProps) 
   </div>
 }
 
-export function MetadataPanel({ meta, onChange, disabled = false }: MetadataPanelProps) {
+export function MetadataPanel({ meta, onChange, disabled = false, compactHeading = false }: MetadataPanelProps) {
   const slugValidation = validateSlug(meta.slug)
   const titleError = meta.title.trim() ? undefined : '标题不能为空'
   const dateError = validateCanonicalBeijingDate(meta.date)
 
   return <section className="metadata-panel" aria-label="文章设置">
-    <h2>文章设置</h2>
+    <h2 className={compactHeading ? 'visually-hidden' : undefined}>文章设置</h2>
     <div className="metadata-field">
       <label htmlFor="title">标题</label>
       <input id="title" disabled={disabled} value={meta.title} aria-invalid={Boolean(titleError)} aria-describedby={titleError ? 'title-error' : undefined} onChange={(event) => onChange('title', event.target.value)} />

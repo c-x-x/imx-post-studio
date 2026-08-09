@@ -359,6 +359,86 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
   transition: opacity .16s ease, padding-inline .3s cubic-bezier(.16, 1, .3, 1), transform .3s cubic-bezier(.16, 1, .3, 1), visibility 0s linear .3s;
 }
 
+.inspector-view-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  padding: 4px;
+  border: 1px solid var(--imx-line);
+  border-radius: 999px;
+  background: var(--imx-gutter);
+}
+
+.inspector-view-tabs button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 999px;
+  padding: .45rem .6rem;
+  color: var(--imx-ink-muted);
+  background: transparent;
+  box-shadow: none;
+  font-size: .8rem;
+  font-weight: 680;
+}
+
+.inspector-view-tabs button[aria-selected='true'] {
+  color: var(--imx-accent-hover);
+  background: var(--imx-control);
+  box-shadow: var(--imx-shadow-sm), inset 0 1px 0 var(--imx-inset-highlight);
+}
+
+.inspector-settings-panel {
+  display: grid;
+  gap: 22px;
+}
+
+.outline-panel { min-width: 0; }
+
+.outline-empty {
+  margin: 6px 2px;
+  color: var(--imx-ink-muted);
+  font-size: .82rem;
+  line-height: 1.65;
+}
+
+.outline-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.outline-list button {
+  display: grid;
+  grid-template-columns: 2.1em minmax(0, 1fr);
+  align-items: baseline;
+  gap: .35rem;
+  width: 100%;
+  min-height: 38px;
+  border: 0;
+  border-radius: 10px;
+  padding-block: .48rem;
+  padding-inline-end: .65rem;
+  color: var(--imx-ink-secondary);
+  background: transparent;
+  box-shadow: none;
+  text-align: left;
+}
+
+.outline-list button:hover,
+.outline-list button:focus-visible {
+  color: var(--imx-accent-hover);
+  background: var(--imx-accent-soft);
+  transform: none;
+}
+
+.outline-depth {
+  color: var(--imx-ink-muted);
+  font-family: var(--imx-font-mono);
+  font-size: .68rem;
+}
+
 .inspector-toggle,
 .actions-toggle {
   position: sticky;

@@ -12,6 +12,7 @@ import { insertMarkdownImages, runMarkdownCommand, type MarkdownCommand, type Ma
 import './editor.css'
 
 export interface MarkdownEditorHandle {
+  focusPosition(position: number): void
   insertImage(name: string, alt: string): void
 }
 
@@ -156,6 +157,16 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   }
 
   useImperativeHandle(ref, () => ({
+    focusPosition(position: number) {
+      const view = editorRef.current?.view
+      if (!view) return
+      const anchor = Math.max(0, Math.min(view.state.doc.length, position))
+      view.dispatch({
+        selection: { anchor },
+        effects: EditorView.scrollIntoView(anchor, { y: 'center' }),
+      })
+      view.focus()
+    },
     insertImage(name: string, alt: string) {
       applyCommand({ type: 'image', name, alt })
     },

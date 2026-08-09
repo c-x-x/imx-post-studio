@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, 
 import type { ArticleDraft, MediaAsset } from '../metadata/article'
 import { createArticleDraft } from '../metadata/article'
 import { MarkdownEditor, type MarkdownEditorHandle, type PastedImageRequest } from '../editor/MarkdownEditor'
+import { OutlinePanel } from '../editor/OutlinePanel'
 import { MetadataPanel } from '../metadata/MetadataPanel'
 import { MediaPanel } from '../media/MediaPanel'
 import { CoverPanel } from '../media/CoverPanel'
@@ -31,6 +32,7 @@ import './app.css'
 
 type View = 'home' | 'dashboard' | 'workspace'
 type WorkspaceTab = 'settings' | 'write'
+type InspectorView = 'settings' | 'outline'
 
 interface FailedTransition {
   id: number
@@ -61,6 +63,8 @@ export function App() {
   const [draft, dispatch] = useReducer(appReducer, undefined, () => createArticleDraft())
   const [view, setView] = useState<View>('home')
   const [tab, setTab] = useState<WorkspaceTab>('settings')
+  const [inspectorView, setInspectorView] = useState<InspectorView>('settings')
+  const [outlineFocusVersion, setOutlineFocusVersion] = useState(0)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [rendered, setRendered] = useState<RenderedMarkdown>(emptyRendered)
   const [notice, setNotice] = useState('')
@@ -89,6 +93,7 @@ export function App() {
   const failedTransitionRef = useRef<FailedTransition | undefined>(undefined)
   const importFocusTarget = useRef<(() => HTMLElement | null) | undefined>(undefined)
   const editorRef = useRef<MarkdownEditorHandle>(null)
+  const outlineFocusPosition = useRef<number | undefined>(undefined)
   const previewTrigger = useRef<HTMLButtonElement>(null)
   const confirmReturnFocus = useRef<HTMLElement | null>(null)
   const urls = useRef(new ObjectUrlRegistry())
@@ -103,6 +108,12 @@ export function App() {
 
   useLayoutEffect(() => { draftRef.current = draft }, [draft])
   useLayoutEffect(() => { applyTheme(theme) }, [theme])
+  useLayoutEffect(() => {
+    if (tab !== 'write' || outlineFocusPosition.current === undefined) return
+    const position = outlineFocusPosition.current
+    outlineFocusPosition.current = undefined
+    editorRef.current?.focusPosition(position)
+  }, [outlineFocusVersion, tab])
   useLayoutEffect(() => {
     if (!importFocusTarget.current || transitioning || intakeBusy) return
     const target = importFocusTarget.current()
@@ -209,6 +220,7 @@ export function App() {
     setDraftStarted(false)
     setHasUnsavedChanges(false)
     setTab('settings')
+    setInspectorView('settings')
     setView('workspace')
     setNotice('已创建新文章')
   }
@@ -229,6 +241,7 @@ export function App() {
     setDraftStarted(true)
     setHasUnsavedChanges(false)
     setTab('settings')
+    setInspectorView('settings')
     setView('workspace')
     setNotice('草稿已打开')
   }, '打开草稿')
@@ -237,6 +250,7 @@ export function App() {
     dispatchDraft({ type: 'replace-import-content', draft: next }, true)
     setDraftStarted(true)
     setTab('settings')
+    setInspectorView('settings')
     setView('workspace')
     setNotice('已替换当前草稿内容')
   }, '替换当前文章')
@@ -245,6 +259,7 @@ export function App() {
     dispatchDraft({ type: 'new', draft: createImportedDraft(next) }, true)
     setDraftStarted(true)
     setTab('settings')
+    setInspectorView('settings')
     setView('workspace')
     setNotice('已作为新草稿打开')
   }, '作为新草稿打开')
@@ -410,6 +425,12 @@ export function App() {
     setIntakeBusy(next)
   }
 
+  const focusOutlineHeading = (position: number) => {
+    outlineFocusPosition.current = position
+    setTab('write')
+    setOutlineFocusVersion((current) => current + 1)
+  }
+
   const preparePastedImages = async (request: PastedImageRequest): Promise<MediaAsset[]> => {
     const draftId = draftRef.current.id
     setEditorMediaError(undefined)
@@ -437,8 +458,16 @@ export function App() {
       </nav>
       <div className="workspace-grid" data-tab={tab}>
         <aside id="panel-settings" className="workspace-panel workspace-inspector" role="tabpanel" aria-labelledby="tab-settings">
-          <MetadataPanel disabled={workspaceLocked} meta={draft.meta} onChange={(field, value) => dispatchDraft({ type: 'set-meta', field, value })} />
-          <CoverPanel draftId={draft.id} cover={draft.media.find((asset) => asset.kind === 'cover')} disabled={transitioning} onReplace={(asset) => dispatchDraft({ type: 'replace-cover', asset })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onIntakeBusyChange={(busy) => setIntakeSourceBusy('cover', busy)} />
+          <nav className="inspector-view-tabs" role="tablist" aria-label="左侧栏视图">
+            <button id="inspector-tab-settings" type="button" role="tab" aria-selected={inspectorView === 'settings'} aria-controls="inspector-settings" onClick={() => setInspectorView('settings')}>文章设置</button>
+            <button id="inspector-tab-outline" type="button" role="tab" aria-selected={inspectorView === 'outline'} aria-controls="inspector-outline" onClick={() => setInspectorView('outline')}>大纲</button>
+          </nav>
+          {inspectorView === 'settings'
+            ? <div id="inspector-settings" className="inspector-settings-panel" role="tabpanel" aria-labelledby="inspector-tab-settings">
+                <MetadataPanel compactHeading disabled={workspaceLocked} meta={draft.meta} onChange={(field, value) => dispatchDraft({ type: 'set-meta', field, value })} />
+                <CoverPanel draftId={draft.id} cover={draft.media.find((asset) => asset.kind === 'cover')} disabled={transitioning} onReplace={(asset) => dispatchDraft({ type: 'replace-cover', asset })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onIntakeBusyChange={(busy) => setIntakeSourceBusy('cover', busy)} />
+              </div>
+            : <OutlinePanel markdown={draft.body} onSelect={focusOutlineHeading} />}
         </aside>
         <button className="inspector-toggle" type="button" aria-controls="panel-settings" aria-expanded={!settingsCollapsed} aria-label={settingsCollapsed ? '展开文章设置' : '折叠文章设置'} title={settingsCollapsed ? '展开文章设置' : '折叠文章设置'} onClick={toggleSettings}><span aria-hidden="true">{settingsCollapsed ? '›' : '‹'}</span></button>
         <section id="panel-write" className="workspace-panel workspace-editor" role="tabpanel" aria-labelledby="tab-write"><h2 className="visually-hidden">写作</h2><MarkdownEditor disabled={workspaceLocked} ref={editorRef} value={draft.body} media={draft.media} preparePastedImages={preparePastedImages} onCommitPastedImages={(assets, body) => dispatchDraft({ type: 'paste-body-media', assets, body })} resolveMediaUrl={resolveEditorMediaUrl} onChange={(body) => dispatchDraft({ type: 'set-body', body })} /></section>
