@@ -30,4 +30,20 @@ describe('import transitions', () => {
     expect(next.updatedAt).toBe(next.createdAt)
     expect(next.body).toBe('imported')
   })
+
+  it('commits pasted body and media together without mutating the previous draft', () => {
+    const current = draft('current-id', 'current')
+    const existing = { id: 'old', name: 'old.png', kind: 'body' as const, mime: 'image/png' as const, blob: new Blob(['old']) }
+    const pasted = { id: 'new', name: 'new.png', kind: 'body' as const, mime: 'image/png' as const, blob: new Blob(['new']) }
+    current.media = [existing]
+
+    const next = appReducer(current, { type: 'paste-body-media', assets: [pasted], body: 'current\n\n![new](images/new.png)' })
+
+    expect(next.body).toBe('current\n\n![new](images/new.png)')
+    expect(next.media.map(({ name }) => name)).toEqual(['old.png', 'new.png'])
+    expect(current.body).toBe('current')
+    expect(current.media).toEqual([existing])
+    expect(next.media[0]).not.toBe(existing)
+    expect(next.media[1]).not.toBe(pasted)
+  })
 })

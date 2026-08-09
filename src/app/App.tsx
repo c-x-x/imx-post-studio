@@ -1,11 +1,13 @@
 import { useEffect, useLayoutEffect, useReducer, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import type { ArticleDraft, MediaAsset } from '../metadata/article'
 import { createArticleDraft } from '../metadata/article'
-import { MarkdownEditor, type MarkdownEditorHandle } from '../editor/MarkdownEditor'
+import { MarkdownEditor, type MarkdownEditorHandle, type PastedImageRequest } from '../editor/MarkdownEditor'
 import { MetadataPanel } from '../metadata/MetadataPanel'
 import { MediaPanel } from '../media/MediaPanel'
 import { CoverPanel } from '../media/CoverPanel'
 import { ObjectUrlRegistry } from '../media/object-urls'
+import { prepareBodyMediaBatch } from '../media/intake'
+import { mediaAlt } from '../media/names'
 import { PreviewFrame } from '../preview/PreviewFrame'
 import { renderMarkdown, type RenderedMarkdown } from '../preview/markdown'
 import previewCss from '../preview/studio-preview.css?raw'
@@ -39,10 +41,6 @@ interface FailedTransition {
 
 const emptyRendered: RenderedMarkdown = { html: '', toc: [], wordCount: 0, readingMinutes: 0 }
 
-function assetAlt(asset: MediaAsset): string {
-  return asset.name.replace(/\.[a-z0-9]+$/i, '').replace(/-/g, ' ')
-}
-
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : '本地存储不可用'
 }
@@ -67,6 +65,7 @@ export function App() {
   const [rendered, setRendered] = useState<RenderedMarkdown>(emptyRendered)
   const [notice, setNotice] = useState('')
   const [previewError, setPreviewError] = useState<string>()
+  const [editorMediaError, setEditorMediaError] = useState<string>()
   const [recoveryError, setRecoveryError] = useState<string>()
   const [failedTransition, setFailedTransition] = useState<FailedTransition>()
   const [transitioning, setTransitioning] = useState(false)
@@ -86,7 +85,7 @@ export function App() {
   const draftRef = useRef(draft)
   const draftStartedRef = useRef(false)
   const intakeBusyRef = useRef(false)
-  const intakeSources = useRef({ cover: false, body: false })
+  const intakeSources = useRef({ cover: false, body: false, editor: false })
   const failedTransitionRef = useRef<FailedTransition | undefined>(undefined)
   const importFocusTarget = useRef<(() => HTMLElement | null) | undefined>(undefined)
   const editorRef = useRef<MarkdownEditorHandle>(null)
@@ -385,6 +384,7 @@ export function App() {
   }
   if (recoveryNeeded) alerts.push(<button key="recovery-export" type="button" disabled={transitioning || intakeBusy} onClick={() => void exportRecovery()}>紧急导出恢复备份</button>)
   if (previewError) alerts.push(<p key="preview">{previewError}</p>)
+  if (editorMediaError) alerts.push(<p key="editor-media">{editorMediaError}</p>)
   if (recoveryError) alerts.push(<p key="recovery-error">{recoveryError}</p>)
   const toggleSettings = (event: MouseEvent<HTMLButtonElement>) => {
     event.currentTarget.focus()
@@ -402,11 +402,29 @@ export function App() {
       return next
     })
   }
-  const setIntakeSourceBusy = (source: 'cover' | 'body', busy: boolean) => {
+  const setIntakeSourceBusy = (source: 'cover' | 'body' | 'editor', busy: boolean) => {
     intakeSources.current[source] = busy
-    const next = intakeSources.current.cover || intakeSources.current.body
+    const next = intakeSources.current.cover || intakeSources.current.body || intakeSources.current.editor
     intakeBusyRef.current = next
     setIntakeBusy(next)
+  }
+
+  const preparePastedImages = async (request: PastedImageRequest): Promise<MediaAsset[]> => {
+    const draftId = draftRef.current.id
+    setEditorMediaError(undefined)
+    setIntakeSourceBusy('editor', true)
+    try {
+      const assets = await prepareBodyMediaBatch(
+        request.files,
+        new Set(['cover.webp', ...draftRef.current.media.map(({ name }) => name)]),
+      )
+      return draftRef.current.id === draftId ? assets : []
+    } catch (cause) {
+      if (draftRef.current.id === draftId) setEditorMediaError(errorMessage(cause))
+      return []
+    } finally {
+      setIntakeSourceBusy('editor', false)
+    }
   }
 
   return <main className="app-shell">
@@ -422,11 +440,11 @@ export function App() {
           <CoverPanel draftId={draft.id} cover={draft.media.find((asset) => asset.kind === 'cover')} disabled={transitioning} onReplace={(asset) => dispatchDraft({ type: 'replace-cover', asset })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onIntakeBusyChange={(busy) => setIntakeSourceBusy('cover', busy)} />
         </aside>
         <button className="inspector-toggle" type="button" aria-controls="panel-settings" aria-expanded={!settingsCollapsed} aria-label={settingsCollapsed ? '展开文章设置' : '折叠文章设置'} title={settingsCollapsed ? '展开文章设置' : '折叠文章设置'} onClick={toggleSettings}><span aria-hidden="true">{settingsCollapsed ? '›' : '‹'}</span></button>
-        <section id="panel-write" className="workspace-panel workspace-editor" role="tabpanel" aria-labelledby="tab-write"><h2 className="visually-hidden">写作</h2><MarkdownEditor disabled={workspaceLocked} ref={editorRef} value={draft.body} onChange={(body) => dispatchDraft({ type: 'set-body', body })} /></section>
+        <section id="panel-write" className="workspace-panel workspace-editor" role="tabpanel" aria-labelledby="tab-write"><h2 className="visually-hidden">写作</h2><MarkdownEditor disabled={workspaceLocked} ref={editorRef} value={draft.body} media={draft.media} preparePastedImages={preparePastedImages} onCommitPastedImages={(assets, body) => dispatchDraft({ type: 'paste-body-media', assets, body })} resolveMediaUrl={(asset) => urls.current.get(asset)} onChange={(body) => dispatchDraft({ type: 'set-body', body })} /></section>
         <button className="actions-toggle" type="button" aria-controls="panel-actions" aria-expanded={!actionsCollapsed} aria-label={actionsCollapsed ? '展开文章操作' : '折叠文章操作'} title={actionsCollapsed ? '展开文章操作' : '折叠文章操作'} onClick={toggleActions}><span aria-hidden="true">{actionsCollapsed ? '‹' : '›'}</span></button>
         <aside id="panel-actions" className="workspace-actions" aria-label="文章工具">
           <ArticleActions disabled={workspaceLocked} onNew={() => void startNew()} onSave={() => void saveCurrentDraft()} />
-          <MediaPanel draftId={draft.id} disabled={transitioning} media={draft.media} body={draft.body} onAddBatch={(assets) => dispatchDraft({ type: 'add-media-batch', assets })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onInsertImage={(asset) => editorRef.current?.insertImage(asset.name, assetAlt(asset))} onIntakeBusyChange={(busy) => setIntakeSourceBusy('body', busy)} />
+          <MediaPanel draftId={draft.id} disabled={transitioning} media={draft.media} body={draft.body} onAddBatch={(assets) => dispatchDraft({ type: 'add-media-batch', assets })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onInsertImage={(asset) => editorRef.current?.insertImage(asset.name, mediaAlt(asset.name))} onIntakeBusyChange={(busy) => setIntakeSourceBusy('body', busy)} />
           <BundleActions disabled={workspaceLocked} draft={draft} onReplace={replaceImportedDraft} onNew={openImportedAsNew} onStatus={setNotice} onImportFocusRequest={(target) => { importFocusTarget.current = target; setImportFocusVersion((current) => current + 1) }} />
         </aside>
       </div>

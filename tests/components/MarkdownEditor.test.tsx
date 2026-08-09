@@ -1,16 +1,38 @@
 import { useState } from 'react'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { undo } from '@codemirror/commands'
 import { EditorView } from '@uiw/react-codemirror'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { MarkdownEditor } from '../../src/editor/MarkdownEditor'
+import type { MediaAsset } from '../../src/metadata/article'
 
 afterEach(cleanup)
+
+function imageAsset(id: string, name: string): MediaAsset {
+  return { id, name, kind: 'body', mime: 'image/png', blob: new Blob(['png'], { type: 'image/png' }) }
+}
+
+function clipboardItem(file?: File, type = file?.type ?? 'text/plain') {
+  return { kind: file ? 'file' : 'string', type, getAsFile: () => file ?? null }
+}
+
+function dispatchPaste(target: HTMLElement, items: Array<ReturnType<typeof clipboardItem>>, text = '') {
+  const event = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent
+  Object.defineProperty(event, 'clipboardData', {
+    value: {
+      items,
+      files: items.flatMap((item) => item.getAsFile() ?? []),
+      getData: (type: string) => type === 'text/plain' ? text : '',
+    },
+  })
+  fireEvent(target, event)
+  return event
+}
 
 describe('MarkdownEditor', () => {
   test('defaults to live formatting and visually wraps without changing Markdown', () => {
     const onChange = vi.fn()
-    render(<MarkdownEditor value="一段很长的 Markdown" onChange={onChange} />)
+    render(<MarkdownEditor value="一段很长的 Markdown" onChange={onChange} media={[]} />)
 
     const source = screen.getByRole('button', { name: '源代码' })
     expect(source).toHaveAttribute('aria-pressed', 'false')
@@ -26,7 +48,7 @@ describe('MarkdownEditor', () => {
   test('keeps the same editor history while switching modes', () => {
     function ControlledEditor() {
       const [value, setValue] = useState('原文')
-      return <MarkdownEditor value={value} onChange={setValue} />
+      return <MarkdownEditor value={value} onChange={setValue} media={[]} />
     }
 
     render(<ControlledEditor />)
@@ -40,5 +62,75 @@ describe('MarkdownEditor', () => {
 
     expect(undo(view)).toBe(true)
     expect(view.state.doc.toString()).toBe('原文')
+  })
+
+  test('leaves ordinary text paste to CodeMirror', () => {
+    const preparePastedImages = vi.fn()
+    const onCommitPastedImages = vi.fn()
+    render(<MarkdownEditor value="正文" onChange={vi.fn()} media={[]} preparePastedImages={preparePastedImages} onCommitPastedImages={onCommitPastedImages} />)
+
+    const textbox = screen.getByRole('textbox', { name: 'Markdown 编辑器' })
+    const view = EditorView.findFromDOM(textbox)
+    if (!view) throw new Error('CodeMirror view not found')
+    view.dispatch({ selection: { anchor: view.state.doc.length } })
+
+    dispatchPaste(textbox, [clipboardItem()], '粘贴')
+
+    expect(view.state.doc.toString()).toBe('正文粘贴')
+    expect(preparePastedImages).not.toHaveBeenCalled()
+    expect(onCommitPastedImages).not.toHaveBeenCalled()
+  })
+
+  test('prepares and commits one clipboard image with the complete next Markdown', async () => {
+    const file = new File(['png'], 'image.png', { type: 'image/png' })
+    const asset = imageAsset('one', 'image.png')
+    const preparePastedImages = vi.fn().mockResolvedValue([asset])
+    const onCommitPastedImages = vi.fn()
+    render(<MarkdownEditor value="正文" onChange={vi.fn()} media={[]} preparePastedImages={preparePastedImages} onCommitPastedImages={onCommitPastedImages} />)
+    const textbox = screen.getByRole('textbox', { name: 'Markdown 编辑器' })
+    const view = EditorView.findFromDOM(textbox)
+    if (!view) throw new Error('CodeMirror view not found')
+    view.dispatch({ selection: { anchor: view.state.doc.length } })
+
+    const event = dispatchPaste(textbox, [clipboardItem(file)])
+
+    expect(event.defaultPrevented).toBe(true)
+    await waitFor(() => expect(preparePastedImages).toHaveBeenCalledWith({ files: [file], selection: { from: 2, to: 2 }, value: '正文' }))
+    await waitFor(() => expect(onCommitPastedImages).toHaveBeenCalledWith([asset], '正文\n\n![image](images/image.png)'))
+    expect(onCommitPastedImages).toHaveBeenCalledTimes(1)
+  })
+
+  test('preserves clipboard image order and commits the batch once', async () => {
+    const firstFile = new File(['one'], 'first.png', { type: 'image/png' })
+    const secondFile = new File(['two'], 'second.png', { type: 'image/png' })
+    const assets = [imageAsset('one', 'first.png'), imageAsset('two', 'second.png')]
+    const preparePastedImages = vi.fn().mockResolvedValue(assets)
+    const onCommitPastedImages = vi.fn()
+    render(<MarkdownEditor value="" onChange={vi.fn()} media={[]} preparePastedImages={preparePastedImages} onCommitPastedImages={onCommitPastedImages} />)
+
+    dispatchPaste(screen.getByRole('textbox', { name: 'Markdown 编辑器' }), [clipboardItem(firstFile), clipboardItem(secondFile)])
+
+    await waitFor(() => expect(preparePastedImages).toHaveBeenCalledWith(expect.objectContaining({ files: [firstFile, secondFile] })))
+    await waitFor(() => expect(onCommitPastedImages).toHaveBeenCalledWith(assets, '![first](images/first.png)\n\n![second](images/second.png)'))
+    expect(onCommitPastedImages).toHaveBeenCalledTimes(1)
+  })
+
+  test('keeps body and selection unchanged when clipboard image preparation fails', async () => {
+    const file = new File(['bad'], 'bad.png', { type: 'image/png' })
+    const preparePastedImages = vi.fn().mockRejectedValue(new Error('invalid image'))
+    const onCommitPastedImages = vi.fn()
+    render(<MarkdownEditor value="正文" onChange={vi.fn()} media={[]} preparePastedImages={preparePastedImages} onCommitPastedImages={onCommitPastedImages} />)
+    const textbox = screen.getByRole('textbox', { name: 'Markdown 编辑器' })
+    const view = EditorView.findFromDOM(textbox)
+    if (!view) throw new Error('CodeMirror view not found')
+    view.dispatch({ selection: { anchor: 1 } })
+
+    dispatchPaste(textbox, [clipboardItem(file)])
+
+    await waitFor(() => expect(preparePastedImages).toHaveBeenCalled())
+    await waitFor(() => expect(document.activeElement).toBe(textbox))
+    expect(onCommitPastedImages).not.toHaveBeenCalled()
+    expect(view.state.doc.toString()).toBe('正文')
+    expect(view.state.selection.main.anchor).toBe(1)
   })
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { runMarkdownCommand } from '../../src/editor/markdown-commands'
+import { insertMarkdownImages, runMarkdownCommand } from '../../src/editor/markdown-commands'
 
 describe('runMarkdownCommand', () => {
   it('wraps the selected text in bold markers and retains the selected content', () => {
@@ -29,6 +29,27 @@ describe('runMarkdownCommand', () => {
     })).toEqual({
       value: 'before ![图片说明](images/image-name.png)after',
       selection: { from: 9, to: 13 },
+    })
+  })
+})
+
+describe('insertMarkdownImages', () => {
+  it('inserts multiple images as a standalone block in clipboard order', () => {
+    expect(insertMarkdownImages('正文前正文后', { from: 3, to: 3 }, [
+      { alt: '第一张', name: 'first.png' },
+      { alt: '第二张', name: 'second.webp' },
+    ])).toEqual({
+      value: '正文前\n\n![第一张](images/first.png)\n\n![第二张](images/second.webp)\n\n正文后',
+      selection: { from: 57, to: 57 },
+    })
+  })
+
+  it('replaces the selection without adding empty boundary paragraphs', () => {
+    expect(insertMarkdownImages('删除这段', { from: 0, to: 4 }, [
+      { alt: '图片', name: 'image.png' },
+    ])).toEqual({
+      value: '![图片](images/image.png)',
+      selection: { from: 23, to: 23 },
     })
   })
 })

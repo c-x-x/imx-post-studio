@@ -1,7 +1,19 @@
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 import { App } from '../../src/app/App'
+
+function pasteImage(target: HTMLElement, file: File) {
+  const event = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent
+  Object.defineProperty(event, 'clipboardData', {
+    value: {
+      items: [{ kind: 'file', type: file.type, getAsFile: () => file }],
+      files: [file],
+      getData: () => '',
+    },
+  })
+  fireEvent(target, event)
+}
 
 describe('article workspace', () => {
   afterEach(() => {
@@ -145,5 +157,33 @@ describe('article workspace', () => {
     const exportArea = screen.getByRole('group', { name: '文章包操作' })
     expect(within(exportArea).getByRole('button', { name: '导出文章' })).toBeDisabled()
     expect(within(exportArea).getByText('Slug 只能包含小写英文、数字和单个连字符')).toBeInTheDocument()
+  })
+
+  it('pastes a valid clipboard image into body and media in one app update', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: '文章' }))
+    const editor = screen.getByRole('textbox', { name: 'Markdown 编辑器' })
+    const png = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], 'Image.PNG', { type: 'image/png' })
+
+    pasteImage(editor, png)
+
+    expect(await screen.findByRole('listitem', { name: 'image.png' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '源代码' }))
+    expect(editor).toHaveTextContent('![image](images/image.png)')
+  })
+
+  it('rejects an invalid clipboard image without changing body or media', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: '文章' }))
+    const editor = screen.getByRole('textbox', { name: 'Markdown 编辑器' })
+    const invalid = new File([new Uint8Array([0x00, 0x01, 0x02])], 'broken.png', { type: 'image/png' })
+
+    pasteImage(editor, invalid)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('图片')
+    await waitFor(() => expect(screen.queryByRole('listitem', { name: 'broken.png' })).not.toBeInTheDocument())
+    expect(editor).not.toHaveTextContent('images/broken.png')
   })
 })

@@ -8,6 +8,11 @@ export interface MarkdownEdit {
   selection: MarkdownSelection
 }
 
+export interface MarkdownImageInput {
+  alt: string
+  name: string
+}
+
 export type MarkdownCommand =
   | { type: 'bold' }
   | { type: 'heading' }
@@ -27,6 +32,26 @@ function replaceSelection(value: string, selection: MarkdownSelection, replaceme
   return {
     value: `${value.slice(0, selection.from)}${replacement}${value.slice(selection.to)}`,
     selection: { from: selection.from + selectedFrom, to: selection.from + selectedTo },
+  }
+}
+
+export function insertMarkdownImages(
+  value: string,
+  initialSelection: MarkdownSelection,
+  images: MarkdownImageInput[],
+): MarkdownEdit {
+  const selection = clampSelection(value, initialSelection)
+  if (images.length === 0) return { value, selection }
+
+  const before = value.slice(0, selection.from).replace(/\n+$/g, '')
+  const after = value.slice(selection.to).replace(/^\n+/g, '')
+  const imageBlock = images.map(({ alt, name }) => `![${alt}](images/${name})`).join('\n\n')
+  const prefix = before ? `${before}\n\n` : ''
+  const suffix = after ? `\n\n${after}` : ''
+  const cursor = prefix.length + imageBlock.length
+  return {
+    value: `${prefix}${imageBlock}${suffix}`,
+    selection: { from: cursor, to: cursor },
   }
 }
 

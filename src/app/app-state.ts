@@ -8,6 +8,7 @@ export type AppAction =
   | { type: 'set-body'; body: string }
   | { type: 'add-media'; asset: MediaAsset }
   | { type: 'add-media-batch'; assets: MediaAsset[] }
+  | { type: 'paste-body-media'; assets: MediaAsset[]; body: string }
   | { type: 'replace-cover'; asset: MediaAsset }
   | { type: 'remove-media'; id: string }
 
@@ -59,6 +60,14 @@ export function appReducer(state: ArticleDraft, action: AppAction): ArticleDraft
       return { ...touched(state), media: [...state.media, { ...action.asset }] }
     case 'add-media-batch':
       return { ...touched(state), media: [...state.media, ...action.assets.map((asset) => ({ ...asset }))] }
+    case 'paste-body-media': {
+      const next = touched(state)
+      return {
+        ...next,
+        body: action.body,
+        media: [...next.media, ...action.assets.map((asset) => ({ ...asset }))],
+      }
+    }
     case 'replace-cover':
       return {
         ...touched(state),

@@ -44,3 +44,13 @@ export function uniqueMediaName(name: string, existing: Set<string>): string {
 
   return candidate
 }
+
+export function mediaAlt(name: string): string {
+  const dotIndex = name.lastIndexOf('.')
+  const base = dotIndex > 0 ? name.slice(0, dotIndex) : name
+  return base
+    .replace(/[-_]+/g, ' ')
+    .replace(/[^a-z0-9 ]+/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim() || 'image'
+}
