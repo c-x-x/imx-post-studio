@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { renderMarkdown } from '../../src/preview/markdown'
 
 describe('renderMarkdown', () => {
+  it('preserves semantic emphasis and strikethrough elements for preview styling', async () => {
+    const rendered = await renderMarkdown('**粗体**、*斜体*、~~删除线~~', () => undefined)
+
+    expect(rendered.html).toContain('<strong>粗体</strong>')
+    expect(rendered.html).toContain('<em>斜体</em>')
+    expect(rendered.html).toContain('<del>删除线</del>')
+  })
+
   it('renders GFM, safe duplicate h2 ids, nested h2-h5 TOC, highlighting, and resolved local images', async () => {
     const rendered = await renderMarkdown(
       '# Excluded\n\n## Guide\n\n### Child\n\n## Guide\n\n###### Excluded\n\n| left | right |\n| --- | --- |\n| a | b |\n\n```ts\nconst answer = 42\n```\n\n![Example](images/example.png)',

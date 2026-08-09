@@ -23,7 +23,7 @@ const sampleBody = [
   '- 列表项二',
 ].join('\n')
 
-async function seedPreview(page: Page): Promise<void> {
+async function seedPreview(page: Page, body = sampleBody): Promise<void> {
   await page.addInitScript(() => {
     const fixed = Date.parse('2026-08-04T01:00:00.000Z')
     const NativeDate = Date
@@ -45,7 +45,7 @@ async function seedPreview(page: Page): Promise<void> {
   await page.getByLabel('分类', { exact: true }).press('Enter')
   await page.getByLabel('标签', { exact: true }).fill('视觉测试')
   await page.getByLabel('标签', { exact: true }).press('Enter')
-  await page.getByRole('textbox', { name: 'Markdown 编辑器' }).fill(sampleBody)
+  await page.getByRole('textbox', { name: 'Markdown 编辑器' }).fill(body)
   await page.getByLabel('添加正文图片').setInputFiles(pngFile('visual.png', 640, 360, [117, 76, 172, 255]))
   await page.getByRole('listitem', { name: 'visual.png' }).getByRole('button', { name: '插入' }).click()
   await expect(page.getByTitle('IMX 文章预览')).toHaveCount(0)
@@ -207,6 +207,40 @@ test.describe('IMX visual regressions', () => {
       cardRadius: '26px',
       cardShadow: 'rgba(75, 64, 52, 0.11) 0px 2px 8px 0px',
       primaryBackground: 'linear-gradient(135deg, rgb(139, 103, 64) 0%, rgb(86, 61, 33) 100%)',
+    })
+  })
+
+  test('renders semantic emphasis with real regular and bold preview fonts', async ({ page }) => {
+    await seedPreview(page, '**粗体正文**、*斜体正文*、~~删除线正文~~。')
+    const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
+    await expect(preview.locator('.article-content strong')).toHaveText('粗体正文')
+    await expect(preview.locator('.article-content em')).toHaveText('斜体正文')
+    await expect(preview.locator('.article-content del')).toHaveText('删除线正文')
+
+    const proof = await preview.locator('.article-content').evaluate(async (content) => {
+      await document.fonts.ready
+      const [regularFaces, boldFaces] = await Promise.all([
+        document.fonts.load('400 1em "IMX Noto Serif SC"', '正文'),
+        document.fonts.load('700 1em "IMX Noto Serif SC"', '粗体'),
+      ])
+      const strong = content.querySelector('strong')
+      const emphasis = content.querySelector('em')
+      const deleted = content.querySelector('del')
+      return {
+        regularLoaded: regularFaces.some((face) => face.family.replaceAll('"', '') === 'IMX Noto Serif SC' && face.weight === '400' && face.status === 'loaded'),
+        boldLoaded: boldFaces.some((face) => face.family.replaceAll('"', '') === 'IMX Noto Serif SC' && face.weight === '700' && face.status === 'loaded'),
+        strongWeight: strong ? getComputedStyle(strong).fontWeight : '',
+        emphasisStyle: emphasis ? getComputedStyle(emphasis).fontStyle : '',
+        deletionLine: deleted ? getComputedStyle(deleted).textDecorationLine : '',
+      }
+    })
+
+    expect(proof).toEqual({
+      regularLoaded: true,
+      boldLoaded: true,
+      strongWeight: '700',
+      emphasisStyle: 'italic',
+      deletionLine: 'line-through',
     })
   })
 
