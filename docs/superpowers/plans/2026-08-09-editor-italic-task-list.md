@@ -1,8 +1,8 @@
-# Editor Italic and Task List Implementation Plan
+# Editor Italic, Task List, and Outline Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add italic and task-list toolbar commands, plus clickable GFM task checkboxes that update Markdown and autosave.
+**Goal:** Add italic and task-list controls, clickable GFM task checkboxes, and a navigable editor outline.
 
 **Architecture:** Keep Markdown creation in the existing pure command module. Render `TaskMarker` nodes as CodeMirror widgets backed by precise document transactions, so the controlled editor and current autosave path remain the only source of truth.
 
@@ -14,6 +14,7 @@
 - Disabled editors cannot run toolbar commands or toggle task checkboxes.
 - Do not change preview/export formats, draft schema, or `hugo-theme-imx`.
 - Preserve and verify the pending CodeMirror heading-underline fix.
+- The outline is derived only from Studio Markdown and never imports IMX theme or preview code.
 
 ---
 
@@ -150,7 +151,72 @@ git add src/editor/live-markdown.ts src/editor/MarkdownEditor.tsx src/editor/edi
 git commit -m "feat: toggle Markdown tasks in the editor"
 ```
 
-### Task 4: Browser Regression
+### Task 4: Editor Outline Data and Navigation
+
+**Files:**
+- Create: `src/editor/outline.ts`
+- Create: `src/editor/OutlinePanel.tsx`
+- Modify: `src/editor/MarkdownEditor.tsx`
+- Modify: `src/app/App.tsx`
+- Modify: `src/app/app.css`
+- Test: `tests/unit/editor-outline.test.ts`
+- Test: `tests/components/Workspace.test.tsx`
+
+**Interfaces:**
+- Produces: `EditorOutlineItem { depth: number; text: string; from: number }`.
+- Produces: `extractEditorOutline(markdown: string): EditorOutlineItem[]`.
+- Produces: `MarkdownEditorHandle.focusPosition(position: number): void`.
+
+- [ ] **Step 1: Write failing outline and workspace tests**
+
+Use literal Markdown containing H1, H3, inline emphasis, duplicate headings, and body
+text. Assert exact title text, depth, and source offsets. In the workspace, assert the
+“文章设置 / 大纲” tabs, empty state, live heading updates, and that clicking an outline
+button moves the CodeMirror selection to the heading offset and selects the mobile
+“写作” tab.
+
+- [ ] **Step 2: Run tests and verify RED**
+
+Run: `npm test -- tests/unit/editor-outline.test.ts tests/components/Workspace.test.tsx`
+
+Expected: FAIL because the extractor, outline panel, and editor navigation handle do not exist.
+
+- [ ] **Step 3: Implement outline extraction and panel switching**
+
+Parse with the existing `remark-parse` and `remark-gfm` stack, obtain heading text with
+`mdast-util-to-string`, and use `node.position.start.offset` as `from`. Add a left-panel
+tablist; render metadata plus cover only for settings, otherwise render indented outline
+buttons or `正文中暂无标题`.
+
+Implement editor navigation with:
+
+```ts
+focusPosition(position: number) {
+  const view = editorRef.current?.view
+  if (!view) return
+  const anchor = Math.max(0, Math.min(view.state.doc.length, position))
+  view.dispatch({
+    selection: { anchor },
+    effects: EditorView.scrollIntoView(anchor, { y: 'center' }),
+  })
+  view.focus()
+}
+```
+
+- [ ] **Step 4: Run focused tests and verify GREEN**
+
+Run: `npm test -- tests/unit/editor-outline.test.ts tests/components/Workspace.test.tsx`
+
+Expected: PASS for extraction, switching, empty state, live updates, and focus navigation.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/editor/outline.ts src/editor/OutlinePanel.tsx src/editor/MarkdownEditor.tsx src/app/App.tsx src/app/app.css tests/unit/editor-outline.test.ts tests/components/Workspace.test.tsx
+git commit -m "feat: navigate articles from the editor outline"
+```
+
+### Task 5: Browser Regression
 
 **Files:**
 - Modify: `tests/e2e/editor.spec.ts`
@@ -170,7 +236,9 @@ Use source mode to enter all six heading levels plus:
 
 Switch to instant mode, click the unchecked widget, verify source contains
 `- [x] 未完成`, click it again, and verify `- [ ] 未完成`. Assert the draft status
-reaches `已保存到本地草稿` after the mutation.
+reaches `已保存到本地草稿` after the mutation. Switch the left rail to “大纲”, click
+“三级标签”, and assert the editor selection moves to that heading without horizontal
+overflow at desktop and mobile widths.
 
 - [ ] **Step 2: Run Chromium and verify the behavior**
 
