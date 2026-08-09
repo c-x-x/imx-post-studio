@@ -246,9 +246,20 @@ test('keeps the preview table of contents controllable on desktop and mobile wit
   const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
   const sidebar = preview.locator('#article-toc')
   const desktopToggle = preview.getByRole('checkbox', { name: '目录' })
+  const titleAndBodyLefts = () => preview.locator('.article-page').evaluate((article) => {
+    const title = article.querySelector('.article-title')
+    const content = article.querySelector('.article-content')
+    if (!title || !content) throw new Error('Preview title or article content is missing')
+    return {
+      title: title.getBoundingClientRect().left,
+      body: content.getBoundingClientRect().left,
+    }
+  })
   await expect(desktopToggle).toBeVisible()
   await expect(desktopToggle).not.toBeChecked()
   await expect(sidebar).toBeVisible()
+  const expandedLefts = await titleAndBodyLefts()
+  expect(Math.abs(expandedLefts.title - expandedLefts.body)).toBeLessThanOrEqual(1)
   expect(await desktopToggle.evaluate((toggle) => {
     const bounds = toggle.getBoundingClientRect()
     return {
@@ -261,6 +272,8 @@ test('keeps the preview table of contents controllable on desktop and mobile wit
   await desktopToggle.click()
   await expect(desktopToggle).toBeChecked()
   await expect(sidebar).toBeHidden()
+  const collapsedLefts = await titleAndBodyLefts()
+  expect(Math.abs(collapsedLefts.title - collapsedLefts.body)).toBeLessThanOrEqual(1)
   expect(await preview.locator('.main-content').evaluate((content) => {
     const bounds = content.getBoundingClientRect()
     return Math.abs(bounds.left + bounds.width / 2 - window.innerWidth / 2)

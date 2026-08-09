@@ -1,4 +1,4 @@
-export const previewOverridesCss = String.raw`:root {
+export const studioPreviewBehaviorCss = String.raw`:root {
   --preview-page-bg: #fbfaf7;
   --floating-action-edge: 2rem;
   --floating-action-toggle-size: 50px;
@@ -70,6 +70,7 @@ body {
 }
 
 @media (min-width: 769px) {
+  .article-page:has(.toc-toggle-input:checked) .article-header,
   .article-page:has(.toc-toggle-input:checked) .layout-with-sidebar {
     grid-template-columns: minmax(0, var(--article-measure));
     width: min(var(--article-measure), calc(100vw - 3rem));
