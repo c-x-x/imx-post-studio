@@ -1,6 +1,7 @@
-import { forwardRef, useImperativeHandle, useRef } from 'react'
+import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
 import CodeMirror, { EditorView, type ReactCodeMirrorRef } from '@uiw/react-codemirror'
 import { markdown } from '@codemirror/lang-markdown'
+import type { EditorMode } from './editor-mode'
 import { runMarkdownCommand, type MarkdownCommand } from './markdown-commands'
 import './editor.css'
 
@@ -25,6 +26,7 @@ const toolbar: Array<{ label: string; command: Exclude<MarkdownCommand, { type: 
 
 export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(function MarkdownEditor({ value, onChange, disabled = false }, ref) {
   const editorRef = useRef<ReactCodeMirrorRef>(null)
+  const [mode, setMode] = useState<EditorMode>('rich')
 
   const applyCommand = (command: MarkdownCommand) => {
     if (disabled) return
@@ -46,10 +48,21 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     },
   }))
 
-  return <section className="markdown-editor" aria-label="Markdown 编辑">
+  return <section className="markdown-editor" data-mode={mode} aria-label="Markdown 编辑">
     <div className="editor-toolbar" role="toolbar" aria-label="Markdown 格式">
       {toolbar.map(({ label, command }) => <button key={label} type="button" disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={() => applyCommand(command)}>{label}</button>)}
+      <span className="editor-toolbar-spacer" aria-hidden="true" />
+      <button
+        className="editor-mode-toggle"
+        type="button"
+        aria-pressed={mode === 'source'}
+        disabled={disabled}
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => setMode((current) => current === 'rich' ? 'source' : 'rich')}
+      >
+        {mode === 'rich' ? '源代码' : '即时排版'}
+      </button>
     </div>
-    <CodeMirror ref={editorRef} value={value} height="calc(100dvh - 190px)" extensions={[markdown(), EditorView.contentAttributes.of({ 'aria-label': 'Markdown 编辑器' })]} editable={!disabled} onChange={onChange} placeholder="从这里开始写 Markdown…" />
+    <CodeMirror ref={editorRef} value={value} height="calc(100dvh - 190px)" extensions={[markdown(), EditorView.lineWrapping, EditorView.contentAttributes.of({ 'aria-label': 'Markdown 编辑器' })]} editable={!disabled} onChange={onChange} placeholder="从这里开始写 Markdown…" />
   </section>
 })

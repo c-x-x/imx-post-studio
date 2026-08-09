@@ -36,6 +36,14 @@
   transform: none;
 }
 
+.editor-toolbar-spacer {
+  flex: 1 1 auto;
+}
+
+.editor-mode-toggle {
+  flex: 0 0 auto;
+}
+
 .markdown-editor .cm-editor {
   min-height: 560px;
   border: 0;
@@ -45,8 +53,12 @@
 }
 
 .markdown-editor .cm-scroller {
-  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
+  font-family: var(--imx-font-reading);
   line-height: 1.78;
+}
+
+.markdown-editor[data-mode='source'] .cm-scroller {
+  font-family: var(--imx-font-mono);
 }
 
 .markdown-editor .cm-content {
@@ -54,6 +66,7 @@
   margin: 0 auto;
   padding: clamp(25px, 4vw, 58px) clamp(18px, 5vw, 72px) 110px;
   caret-color: var(--imx-accent);
+  overflow-wrap: anywhere;
 }
 
 .markdown-editor .cm-line { padding-inline: 0; }
@@ -90,6 +103,7 @@
 @media (max-width: 620px) {
   .editor-toolbar { overflow-x: auto; flex-wrap: nowrap; }
   .editor-toolbar button { flex: 0 0 auto; }
+  .editor-toolbar-spacer { min-width: 12px; }
   .markdown-editor .cm-editor { min-height: 68dvh; }
   .markdown-editor .cm-content { padding: 24px 18px 90px; }
 }
