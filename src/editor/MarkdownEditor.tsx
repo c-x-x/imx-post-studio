@@ -163,7 +163,15 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       const anchor = Math.max(0, Math.min(view.state.doc.length, position))
       view.dispatch({
         selection: { anchor },
-        effects: EditorView.scrollIntoView(anchor, { y: 'center' }),
+      })
+      view.requestMeasure({
+        read(currentView) {
+          const line = currentView.lineBlockAt(anchor)
+          return line.top - (currentView.scrollDOM.clientHeight - line.height) / 2
+        },
+        write(scrollTop, currentView) {
+          currentView.scrollDOM.scrollTop = Math.max(0, scrollTop)
+        },
       })
       view.focus()
     },

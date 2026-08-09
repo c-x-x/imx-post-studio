@@ -384,6 +384,36 @@ test('live writing formats Markdown, preserves source, and visually wraps at nar
   expect((await editor.locator('.cm-line').allTextContents()).join('\n')).toBe(beforeResize)
 })
 
+test('clicking a distant outline heading scrolls it into the editor viewport', async ({ page }) => {
+  await beginArticle(page)
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  const markdown = [
+    '## 开头标题',
+    '',
+    ...Array.from({ length: 90 }, (_, index) => `第 ${index + 1} 段正文，用于拉开标题之间的距离。`),
+    '',
+    '## 末尾标题',
+  ].join('\n\n')
+
+  await page.getByRole('button', { name: '源代码' }).click()
+  await editor.fill(markdown)
+  await page.getByRole('button', { name: '即时排版' }).click()
+  const scroller = page.locator('.markdown-editor .cm-scroller')
+  await scroller.evaluate((element) => { element.scrollTop = 0 })
+
+  await page.getByRole('tab', { name: '大纲' }).click()
+  await page.getByRole('button', { name: '末尾标题' }).click()
+
+  await expect(editor.locator('.cm-activeLine')).toContainText('末尾标题')
+  await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+  const visibility = await editor.locator('.cm-activeLine').evaluate((line) => {
+    const lineBounds = line.getBoundingClientRect()
+    const scrollerBounds = line.closest('.cm-scroller')!.getBoundingClientRect()
+    return lineBounds.top >= scrollerBounds.top && lineBounds.bottom <= scrollerBounds.bottom
+  })
+  expect(visibility).toBe(true)
+})
+
 test('clipboard image paste keeps duplicate filenames ordered and renders the local image', async ({ page }) => {
   await beginArticle(page)
   const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
