@@ -1,4 +1,4 @@
-import { EditorState } from '@codemirror/state'
+import { EditorState, Transaction } from '@codemirror/state'
 import { markdown } from '@codemirror/lang-markdown'
 import { EditorView } from '@codemirror/view'
 import { GFM } from '@lezer/markdown'
@@ -67,17 +67,20 @@ describe('liveMarkdown', () => {
     expect(view.dom.querySelector('.cm-md-image')).toBeNull()
   })
 
-  test('does not change hidden markers during IME composition', () => {
+  test('keeps content and decorations valid during an IME composition transaction', () => {
     const view = createView(documentText, documentText.indexOf('引用'))
-    const before = Array.from(view.dom.querySelectorAll('.cm-md-hidden'), (node) => node.textContent)
+    const insertAt = documentText.indexOf('普通') + 2
 
     view.contentDOM.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true, data: '拼' }))
-    view.dispatch({ selection: { anchor: documentText.indexOf('普通') + 8 } })
-
-    expect(Array.from(view.dom.querySelectorAll('.cm-md-hidden'), (node) => node.textContent)).toEqual(before)
+    view.dispatch({
+      changes: { from: insertAt, insert: '拼' },
+      annotations: Transaction.userEvent.of('input.type.compose'),
+    })
 
     view.contentDOM.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: '拼' }))
-    expect(view.dom.querySelector('.cm-md-strong .cm-md-hidden')).toBeNull()
+    expect(view.state.doc.toString()).toBe(`${documentText.slice(0, insertAt)}拼${documentText.slice(insertAt)}`)
+    expect(view.dom.querySelector('.cm-md-heading-1')).toBeTruthy()
+    expect(view.dom.querySelector('.cm-md-strong')).toBeTruthy()
   })
 
   test('renders only resolved local images as safe DOM widgets', () => {

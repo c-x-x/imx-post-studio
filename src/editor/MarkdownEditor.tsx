@@ -1,8 +1,9 @@
-import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { forwardRef, useCallback, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import CodeMirror, { EditorView, type ReactCodeMirrorRef } from '@uiw/react-codemirror'
 import { Annotation } from '@codemirror/state'
 import { markdown } from '@codemirror/lang-markdown'
 import { GFM } from '@lezer/markdown'
+import type { ViewUpdate } from '@codemirror/view'
 import type { MediaAsset } from '../metadata/article'
 import { mediaAlt } from '../media/names'
 import type { EditorMode } from './editor-mode'
@@ -31,6 +32,8 @@ interface MarkdownEditorProps {
 }
 
 const pastedImageTransaction = Annotation.define<boolean>()
+const markdownLanguage = markdown({ extensions: GFM })
+const markdownAccessibility = EditorView.contentAttributes.of({ 'aria-label': 'Markdown 编辑器' })
 
 const toolbar: Array<{ label: string; command: Exclude<MarkdownCommand, { type: 'image' }> }> = [
   { label: '加粗', command: { type: 'bold' } },
@@ -64,13 +67,33 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const editorRef = useRef<ReactCodeMirrorRef>(null)
   const [mode, setMode] = useState<EditorMode>('rich')
   const pastePending = useRef(false)
-  const liveImages = useMemo(() => new Map(media
-    .filter((asset) => asset.kind === 'body' && resolveMediaUrl)
-    .map((asset) => [asset.name, { alt: mediaAlt(asset.name), name: asset.name, url: resolveMediaUrl!(asset) }])), [media, resolveMediaUrl])
+  const disabledRef = useRef(disabled)
+  const onChangeRef = useRef(onChange)
+  const preparePastedImagesRef = useRef(preparePastedImages)
+  const onCommitPastedImagesRef = useRef(onCommitPastedImages)
+  useLayoutEffect(() => {
+    disabledRef.current = disabled
+    onChangeRef.current = onChange
+    preparePastedImagesRef.current = preparePastedImages
+    onCommitPastedImagesRef.current = onCommitPastedImages
+  }, [disabled, onChange, onCommitPastedImages, preparePastedImages])
+  const bodyMediaKey = media.filter((asset) => asset.kind === 'body').map((asset) => `${asset.id}:${asset.name}`).join('\u0000')
+  // The reducer clones unchanged media wrappers while typing. Asset identity is
+  // the stable id/name pair, so avoid reconfiguring CodeMirror for those clones.
+  const liveImages = useMemo(
+    () => new Map(media
+      .filter((asset) => asset.kind === 'body' && resolveMediaUrl)
+      .map((asset) => [asset.name, { alt: mediaAlt(asset.name), name: asset.name, url: resolveMediaUrl!(asset) }])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [bodyMediaKey, resolveMediaUrl],
+  )
+  const liveMarkdownExtension = useMemo(() => liveMarkdown({ mode, images: liveImages }), [liveImages, mode])
   const pasteHandler = useMemo(() => EditorView.domEventHandlers({
     paste(event, view) {
       const files = clipboardImages(event.clipboardData)
-      if (files.length === 0 || disabled || pastePending.current || !preparePastedImages || !onCommitPastedImages) return false
+      const prepare = preparePastedImagesRef.current
+      const commit = onCommitPastedImagesRef.current
+      if (files.length === 0 || disabledRef.current || pastePending.current || !prepare || !commit) return false
 
       event.preventDefault()
       const currentSelection = view.state.selection.main
@@ -80,7 +103,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         value: view.state.doc.toString(),
       }
       pastePending.current = true
-      void preparePastedImages(request)
+      void prepare(request)
         .then((assets) => {
           if (assets.length === 0 || !view.dom.isConnected) return
           const selection = view.state.selection.main
@@ -91,7 +114,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
             selection: { anchor: edit.selection.from, head: edit.selection.to },
             annotations: pastedImageTransaction.of(true),
           })
-          onCommitPastedImages(assets, edit.value)
+          commit(assets, edit.value)
         })
         .catch(() => undefined)
         .finally(() => {
@@ -100,7 +123,18 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         })
       return true
     },
-  }), [disabled, onCommitPastedImages, preparePastedImages])
+  }), [])
+  const extensions = useMemo(() => [
+    markdownLanguage,
+    liveMarkdownExtension,
+    pasteHandler,
+    EditorView.lineWrapping,
+    markdownAccessibility,
+  ], [liveMarkdownExtension, pasteHandler])
+  const handleChange = useCallback((next: string, update: ViewUpdate) => {
+    if (update.transactions.some((transaction) => transaction.annotation(pastedImageTransaction))) return
+    onChangeRef.current(next)
+  }, [])
 
   const applyCommand = (command: MarkdownCommand) => {
     if (disabled) return
@@ -137,9 +171,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         {mode === 'rich' ? '源代码' : '即时排版'}
       </button>
     </div>
-    <CodeMirror ref={editorRef} value={value} height="calc(100dvh - 190px)" extensions={[markdown({ extensions: GFM }), liveMarkdown({ mode, images: liveImages }), pasteHandler, EditorView.lineWrapping, EditorView.contentAttributes.of({ 'aria-label': 'Markdown 编辑器' })]} editable={!disabled} onChange={(next, update) => {
-      if (update.transactions.some((transaction) => transaction.annotation(pastedImageTransaction))) return
-      onChange(next)
-    }} placeholder="从这里开始写 Markdown…" />
+    <CodeMirror ref={editorRef} value={value} height="calc(100dvh - 190px)" extensions={extensions} editable={!disabled} onChange={handleChange} placeholder="从这里开始写 Markdown…" />
   </section>
 })

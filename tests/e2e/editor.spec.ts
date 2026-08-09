@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { BlobReader, BlobWriter, ZipReader } from '@zip.js/zip.js'
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Download, type Page } from '@playwright/test'
-import { pngFile } from '../helpers/test-images'
+import { pngFile, type TestFilePayload } from '../helpers/test-images'
 
 const ARTICLE_TITLE = '浏览器中的 IMX 图片工作流'
 const ARTICLE_SLUG = 'imx-browser-workflow'
@@ -90,6 +90,25 @@ async function mediaNames(page: Page): Promise<string[]> {
     .sort())
 }
 
+async function pasteImages(page: Page, files: TestFilePayload[]): Promise<void> {
+  await page.getByRole('textbox', { name: 'Markdown 编辑器' }).evaluate((editor, payloads) => {
+    const transfer = new DataTransfer()
+    for (const payload of payloads) {
+      transfer.items.add(new File([new Uint8Array(payload.bytes)], payload.name, { type: payload.mimeType }))
+    }
+    const event = new Event('paste', { bubbles: true, cancelable: true })
+    Object.defineProperty(event, 'clipboardData', { value: transfer })
+    editor.dispatchEvent(event)
+  }, files.map((file) => ({ name: file.name, mimeType: file.mimeType, bytes: [...file.buffer] })))
+}
+
+async function markdownSource(page: Page): Promise<string> {
+  await page.getByRole('button', { name: '源代码' }).click()
+  const source = (await page.getByRole('textbox', { name: 'Markdown 编辑器' }).locator('.cm-line').allTextContents()).join('\n')
+  await page.getByRole('button', { name: '即时排版' }).click()
+  return source
+}
+
 async function assertEditorState(page: Page, expected: {
   draft: boolean
   body: string
@@ -102,7 +121,7 @@ async function assertEditorState(page: Page, expected: {
   expect(await page.locator('[aria-label="标签列表"] .chip').evaluateAll((items) => items.map((item) => item.firstChild?.textContent))).toEqual(['IMX'])
   await expect(page.getByLabel('草稿')).toBeChecked({ checked: expected.draft })
   await expect(page.getByLabel('显示目录')).toBeChecked()
-  expect(await page.getByRole('textbox', { name: 'Markdown 编辑器' }).evaluate((editor) => editor.textContent)).toBe(expected.body)
+  expect(await markdownSource(page)).toBe(expected.body)
   await expect(page.getByLabel('当前封面')).toContainText('封面')
   expect(await mediaNames(page)).toEqual(['workflow.png'])
 }
@@ -149,11 +168,10 @@ test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle
 
   const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
   await editor.fill(ARTICLE_BODY)
-  await page.getByLabel('添加正文图片').setInputFiles(pngFile('workflow.png', 320, 180, [232, 121, 36, 255]))
+  await pasteImages(page, [pngFile('workflow.png', 320, 180, [232, 121, 36, 255])])
   const imageItem = page.getByRole('listitem', { name: 'workflow.png' })
   await expect(imageItem).toBeVisible()
-  await imageItem.getByRole('button', { name: '插入' }).click()
-  const expectedBody = await editor.evaluate((element) => element.textContent ?? '')
+  const expectedBody = await markdownSource(page)
   expect(expectedBody).toContain('![workflow](images/workflow.png)')
 
   await expect(page.getByTitle('IMX 文章预览')).toHaveCount(0)
@@ -281,4 +299,74 @@ test('keeps both responsive workspace tabs mounted and opens preview without hor
   await page.getByRole('tab', { name: '设置' }).click()
   await expect(page.getByLabel('标题')).toHaveValue(ARTICLE_TITLE)
   await expectNoHorizontalOverflow()
+})
+
+test('live writing formats Markdown, preserves source, and visually wraps at narrow widths', async ({ page }) => {
+  await beginArticle(page)
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  const longLine = `长段落${'只做视觉换行而不写入换行符'.repeat(28)}`
+  const markdownSource = [
+    '# 标题',
+    '',
+    '普通 **粗体**、*斜体*、~~删除线~~、`代码` 和 [链接](https://example.com)。',
+    '',
+    '> 引用',
+    '',
+    '- 列表',
+    '',
+    '```ts',
+    'const answer = 42',
+    '```',
+    '',
+    '---',
+    '',
+    longLine,
+  ].join('\n')
+  await page.getByRole('button', { name: '源代码' }).click()
+  await editor.fill(markdownSource)
+  await page.getByRole('button', { name: '即时排版' }).click()
+
+  for (const className of ['heading-1', 'strong', 'emphasis', 'strikethrough', 'inline-code', 'link', 'quote', 'list', 'horizontal-rule']) {
+    await expect(page.locator(`.cm-md-${className}`).first()).toBeVisible()
+  }
+  await expect(page.locator('.cm-md-fenced-code').filter({ hasText: 'const answer = 42' })).toBeVisible()
+  expect(await page.locator('.cm-md-hidden').count()).toBeGreaterThan(0)
+
+  await page.getByRole('button', { name: '源代码' }).click()
+  const beforeResize = (await editor.locator('.cm-line').allTextContents()).join('\n')
+  expect(beforeResize).toBe(markdownSource)
+  await page.getByRole('button', { name: '即时排版' }).click()
+  const longParagraph = page.locator('.cm-line').filter({ hasText: longLine.slice(0, 20) })
+  const wideHeight = await longParagraph.evaluate((line) => line.getBoundingClientRect().height)
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole('tab', { name: '写作' }).click()
+  const narrowHeight = await longParagraph.evaluate((line) => line.getBoundingClientRect().height)
+  expect(narrowHeight).toBeGreaterThan(wideHeight)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+
+  await page.getByRole('button', { name: '源代码' }).click()
+  expect((await editor.locator('.cm-line').allTextContents()).join('\n')).toBe(beforeResize)
+})
+
+test('clipboard image paste keeps duplicate filenames ordered and renders the local image', async ({ page }) => {
+  await beginArticle(page)
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await page.getByRole('button', { name: '源代码' }).click()
+  await editor.fill('正文')
+  await page.getByRole('button', { name: '即时排版' }).click()
+  await pasteImages(page, [
+    pngFile('image.png', 80, 45, [12, 34, 56, 255]),
+    pngFile('image.png', 90, 50, [78, 90, 12, 255]),
+  ])
+
+  const items = page.getByLabel('已添加图片').getByRole('listitem')
+  await expect(items).toHaveCount(2)
+  expect(await items.evaluateAll((entries) => entries.map((entry) => entry.getAttribute('aria-label')))).toEqual(['image.png', 'image-2.png'])
+
+  await editor.press('ControlOrMeta+Home')
+  await expect(page.locator('.cm-md-image img[src^="blob:"]')).toHaveCount(2)
+  await page.getByRole('button', { name: '源代码' }).click()
+  await expect(editor).toContainText('![image](images/image.png)')
+  await expect(editor).toContainText('![image 2](images/image-2.png)')
 })

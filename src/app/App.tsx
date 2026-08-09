@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useReducer, useRef, useState, type MouseEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import type { ArticleDraft, MediaAsset } from '../metadata/article'
 import { createArticleDraft } from '../metadata/article'
 import { MarkdownEditor, type MarkdownEditorHandle, type PastedImageRequest } from '../editor/MarkdownEditor'
@@ -92,6 +92,7 @@ export function App() {
   const previewTrigger = useRef<HTMLButtonElement>(null)
   const confirmReturnFocus = useRef<HTMLElement | null>(null)
   const urls = useRef(new ObjectUrlRegistry())
+  const resolveEditorMediaUrl = useCallback((asset: MediaAsset) => urls.current.get(asset), [])
   const previousMedia = useRef<MediaAsset[]>([])
   const saveStatus = useAutosave(
     view === 'workspace' && draftStarted && hasUnsavedChanges && !newArticlePromptOpen ? draft : null,
@@ -440,7 +441,7 @@ export function App() {
           <CoverPanel draftId={draft.id} cover={draft.media.find((asset) => asset.kind === 'cover')} disabled={transitioning} onReplace={(asset) => dispatchDraft({ type: 'replace-cover', asset })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onIntakeBusyChange={(busy) => setIntakeSourceBusy('cover', busy)} />
         </aside>
         <button className="inspector-toggle" type="button" aria-controls="panel-settings" aria-expanded={!settingsCollapsed} aria-label={settingsCollapsed ? '展开文章设置' : '折叠文章设置'} title={settingsCollapsed ? '展开文章设置' : '折叠文章设置'} onClick={toggleSettings}><span aria-hidden="true">{settingsCollapsed ? '›' : '‹'}</span></button>
-        <section id="panel-write" className="workspace-panel workspace-editor" role="tabpanel" aria-labelledby="tab-write"><h2 className="visually-hidden">写作</h2><MarkdownEditor disabled={workspaceLocked} ref={editorRef} value={draft.body} media={draft.media} preparePastedImages={preparePastedImages} onCommitPastedImages={(assets, body) => dispatchDraft({ type: 'paste-body-media', assets, body })} resolveMediaUrl={(asset) => urls.current.get(asset)} onChange={(body) => dispatchDraft({ type: 'set-body', body })} /></section>
+        <section id="panel-write" className="workspace-panel workspace-editor" role="tabpanel" aria-labelledby="tab-write"><h2 className="visually-hidden">写作</h2><MarkdownEditor disabled={workspaceLocked} ref={editorRef} value={draft.body} media={draft.media} preparePastedImages={preparePastedImages} onCommitPastedImages={(assets, body) => dispatchDraft({ type: 'paste-body-media', assets, body })} resolveMediaUrl={resolveEditorMediaUrl} onChange={(body) => dispatchDraft({ type: 'set-body', body })} /></section>
         <button className="actions-toggle" type="button" aria-controls="panel-actions" aria-expanded={!actionsCollapsed} aria-label={actionsCollapsed ? '展开文章操作' : '折叠文章操作'} title={actionsCollapsed ? '展开文章操作' : '折叠文章操作'} onClick={toggleActions}><span aria-hidden="true">{actionsCollapsed ? '‹' : '›'}</span></button>
         <aside id="panel-actions" className="workspace-actions" aria-label="文章工具">
           <ArticleActions disabled={workspaceLocked} onNew={() => void startNew()} onSave={() => void saveCurrentDraft()} />
