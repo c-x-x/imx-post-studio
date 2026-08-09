@@ -89,7 +89,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [bodyMediaKey, resolveMediaUrl],
   )
-  const liveMarkdownExtension = useMemo(() => liveMarkdown({ mode, images: liveImages }), [liveImages, mode])
+  const liveMarkdownExtension = useMemo(
+    () => liveMarkdown({ mode, images: liveImages, disabled }),
+    [disabled, liveImages, mode],
+  )
   const pasteHandler = useMemo(() => EditorView.domEventHandlers({
     paste(event, view) {
       const files = clipboardImages(event.clipboardData)

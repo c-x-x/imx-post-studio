@@ -115,6 +115,22 @@
 
 .markdown-editor .cm-md-list { padding-left: .4em; }
 
+.markdown-editor .cm-md-task-checkbox {
+  width: 1em;
+  height: 1em;
+  margin: 0 .45em 0 .08em;
+  accent-color: var(--imx-accent);
+  cursor: pointer;
+  vertical-align: -.08em;
+}
+
+.markdown-editor .cm-md-task-checkbox:focus-visible {
+  outline: 2px solid var(--imx-accent);
+  outline-offset: 2px;
+}
+
+.markdown-editor .cm-md-task-checkbox:disabled { cursor: not-allowed; }
+
 .markdown-editor .cm-md-fenced-code {
   color: var(--imx-ink);
   background: var(--imx-gutter);

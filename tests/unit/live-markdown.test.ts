@@ -7,7 +7,13 @@ import { liveMarkdown, type LiveMarkdownImage } from '../../src/editor/live-mark
 
 const views: EditorView[] = []
 
-function createView(doc: string, selection: number, mode: 'rich' | 'source' = 'rich', images = new Map<string, LiveMarkdownImage>()) {
+function createView(
+  doc: string,
+  selection: number,
+  mode: 'rich' | 'source' = 'rich',
+  images = new Map<string, LiveMarkdownImage>(),
+  disabled = false,
+) {
   const parent = document.createElement('div')
   document.body.append(parent)
   const view = new EditorView({
@@ -15,7 +21,7 @@ function createView(doc: string, selection: number, mode: 'rich' | 'source' = 'r
     state: EditorState.create({
       doc,
       selection: { anchor: selection },
-      extensions: [markdown({ extensions: GFM }), liveMarkdown({ mode, images })],
+      extensions: [markdown({ extensions: GFM }), liveMarkdown({ mode, images, disabled })],
     }),
   })
   views.push(view)
@@ -103,5 +109,36 @@ describe('liveMarkdown', () => {
     expect(view.dom.querySelector('.cm-md-list')).toBeTruthy()
     expect(view.dom.querySelector('.cm-md-fenced-code')).toBeTruthy()
     expect(view.dom.querySelector('.cm-md-horizontal-rule')).toBeTruthy()
+  })
+
+  test('renders GFM tasks as checkboxes and writes exact marker changes', () => {
+    const view = createView('- [ ] 未完成\n- [x] 已完成', 0)
+    const checkboxes = [...view.dom.querySelectorAll<HTMLInputElement>('.cm-md-task-checkbox')]
+
+    expect(checkboxes).toHaveLength(2)
+    expect(checkboxes.map((checkbox) => checkbox.checked)).toEqual([false, true])
+
+    checkboxes[0].click()
+    expect(view.state.doc.toString()).toBe('- [x] 未完成\n- [x] 已完成')
+
+    view.dom.querySelector<HTMLInputElement>('.cm-md-task-checkbox')?.click()
+    expect(view.state.doc.toString()).toBe('- [ ] 未完成\n- [x] 已完成')
+  })
+
+  test('keeps task markers literal in source mode', () => {
+    const view = createView('- [ ] 未完成', 0, 'source')
+
+    expect(view.dom.querySelector('.cm-md-task-checkbox')).toBeNull()
+    expect(view.contentDOM.textContent).toContain('[ ]')
+  })
+
+  test('disables task checkboxes when editing is disabled', () => {
+    const view = createView('- [ ] 未完成', 0, 'rich', new Map(), true)
+    const checkbox = view.dom.querySelector<HTMLInputElement>('.cm-md-task-checkbox')
+
+    expect(checkbox).not.toBeNull()
+    expect(checkbox).toBeDisabled()
+    checkbox?.click()
+    expect(view.state.doc.toString()).toBe('- [ ] 未完成')
   })
 })

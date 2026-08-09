@@ -11,6 +11,7 @@ export interface LiveMarkdownImage {
 }
 
 export interface LiveMarkdownOptions {
+  disabled: boolean
   images: ReadonlyMap<string, LiveMarkdownImage>
   mode: EditorMode
 }
@@ -108,6 +109,48 @@ class HorizontalRuleWidget extends WidgetType {
   }
 }
 
+class TaskCheckboxWidget extends WidgetType {
+  constructor(
+    private readonly from: number,
+    private readonly to: number,
+    private readonly checked: boolean,
+    private readonly disabled: boolean,
+  ) {
+    super()
+  }
+
+  eq(other: TaskCheckboxWidget) {
+    return this.from === other.from
+      && this.to === other.to
+      && this.checked === other.checked
+      && this.disabled === other.disabled
+  }
+
+  toDOM(view: EditorView) {
+    const checkbox = document.createElement('input')
+    checkbox.type = 'checkbox'
+    checkbox.className = 'cm-md-task-checkbox'
+    checkbox.checked = this.checked
+    checkbox.disabled = this.disabled
+    checkbox.setAttribute('aria-label', '切换任务完成状态')
+    checkbox.addEventListener('change', () => {
+      if (this.disabled) return
+      view.dispatch({
+        changes: {
+          from: this.from,
+          to: this.to,
+          insert: checkbox.checked ? '[x]' : '[ ]',
+        },
+      })
+    })
+    return checkbox
+  }
+
+  ignoreEvent() {
+    return false
+  }
+}
+
 function localImage(state: EditorState, node: SyntaxNode, options: LiveMarkdownOptions): LiveMarkdownImage | undefined {
   const urlNode = node.getChild('URL')
   if (!urlNode) return undefined
@@ -132,6 +175,13 @@ function buildDecorations(state: EditorState, options: LiveMarkdownOptions): Dec
       if (heading) addLineClasses(state, ranges, node.from, node.to, `cm-md-heading cm-md-heading-${heading[1]}`)
 
       switch (node.name) {
+        case 'TaskMarker': {
+          const marker = state.doc.sliceString(node.from, node.to)
+          ranges.push(Decoration.replace({
+            widget: new TaskCheckboxWidget(node.from, node.to, /^\[[xX]\]$/.test(marker), options.disabled),
+          }).range(node.from, node.to))
+          break
+        }
         case 'StrongEmphasis':
           ranges.push(Decoration.mark({ class: 'cm-md-strong' }).range(node.from, node.to))
           break
