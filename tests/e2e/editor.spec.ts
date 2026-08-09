@@ -306,7 +306,17 @@ test('live writing formats Markdown, preserves source, and visually wraps at nar
   const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
   const longLine = `长段落${'只做视觉换行而不写入换行符'.repeat(28)}`
   const markdownSource = [
-    '# 标题',
+    '# 一级标签',
+    '',
+    '## 二级标签',
+    '',
+    '### 三级标签',
+    '',
+    '#### 四级标签',
+    '',
+    '##### 五级标签',
+    '',
+    '###### 六级标签',
     '',
     '普通 **粗体**、*斜体*、~~删除线~~、`代码` 和 [链接](https://example.com)。',
     '',
@@ -331,6 +341,8 @@ test('live writing formats Markdown, preserves source, and visually wraps at nar
   }
   await expect(page.locator('.cm-md-fenced-code').filter({ hasText: 'const answer = 42' })).toBeVisible()
   expect(await page.locator('.cm-md-hidden').count()).toBeGreaterThan(0)
+  expect([...new Set(await page.locator('.cm-md-heading span').evaluateAll((elements) => elements.map((element) => getComputedStyle(element).textDecorationLine)))])
+    .toEqual(['none'])
 
   await page.getByRole('button', { name: '源代码' }).click()
   const beforeResize = (await editor.locator('.cm-line').allTextContents()).join('\n')

@@ -76,6 +76,8 @@
   line-height: 1.35;
 }
 
+.markdown-editor .cm-md-heading * { text-decoration: none; }
+
 .markdown-editor .cm-md-heading-1 { font-size: 1.85em; }
 .markdown-editor .cm-md-heading-2 { font-size: 1.55em; }
 .markdown-editor .cm-md-heading-3 { font-size: 1.3em; }
