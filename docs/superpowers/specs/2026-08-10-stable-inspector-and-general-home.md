@@ -20,8 +20,17 @@ Keep the inspector tabs at a stable intrinsic height from the first workspace re
 - Rewrite the workflow as writing, managing media, then previewing/exporting.
 - Retain the Markdown syntax reference.
 
+## Live editor heading alignment
+
+- In instant-layout mode, inactive ATX headings must hide both the `#` marker sequence and its single Markdown separator space.
+- Heading text and ordinary paragraph text must therefore share the same left content boundary at every heading level from H1 through H6.
+- When the caret enters a heading block, the complete source prefix, including its marker and separator, must remain available for editing.
+- Source mode, stored Markdown, selection behavior, undo history, IME behavior, and outline offsets must remain unchanged.
+
 ## Verification
 
 - Component coverage asserts the new home content and the absence of the old Hugo/IMX positioning.
 - Browser coverage records the inspector tab height on first render and after switching views, and verifies the height remains unchanged.
+- Unit coverage verifies that inactive heading prefixes include the separator space in the hidden decoration while active headings reveal the complete source.
+- Browser coverage compares the left content boundary of H1 through H6 against an ordinary paragraph.
 - Existing lint, type checking, component tests, build, and focused browser tests remain green.
