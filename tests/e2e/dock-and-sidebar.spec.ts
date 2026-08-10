@@ -217,7 +217,7 @@ test('uses the compact IMX menu and existing workspace tabs on mobile without ov
   await page.getByRole('button', { name: '文章', exact: true }).click()
 
   await expect(page.getByRole('button', { name: '打开菜单' })).toHaveAttribute('aria-expanded', 'false')
-  await expect(page.getByRole('tab', { name: '设置' })).toBeVisible()
+  await expect(page.getByRole('tab', { name: '设置', exact: true })).toBeVisible()
   await expect(page.getByRole('tab', { name: '写作' })).toBeVisible()
   await expect(page.getByRole('button', { name: '折叠文章设置' })).toBeHidden()
   await expect(page.getByRole('button', { name: '折叠文章操作' })).toBeHidden()

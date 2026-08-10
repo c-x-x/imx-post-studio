@@ -297,9 +297,69 @@ test('keeps both responsive workspace tabs mounted and opens preview without hor
   await expect(page.getByTitle('IMX 文章预览')).toBeVisible()
   await expectNoHorizontalOverflow()
   await page.getByRole('button', { name: '返回编辑' }).click()
-  await page.getByRole('tab', { name: '设置' }).click()
+  await page.getByRole('tab', { name: '设置', exact: true }).click()
   await expect(page.getByLabel('标题')).toHaveValue(ARTICLE_TITLE)
   await expectNoHorizontalOverflow()
+})
+
+test('creates and edits a Markdown table across source, preview, and mobile layouts', async ({ page }) => {
+  await beginArticle(page)
+  await fillMetadata(page)
+
+  await page.getByRole('button', { name: '表格' }).click()
+  const dialog = page.getByRole('dialog', { name: '插入表格' })
+  await expect(dialog.getByLabel('列数')).toHaveValue('3')
+  await expect(dialog.getByLabel('数据行数')).toHaveValue('2')
+  await dialog.getByLabel('列数').fill('2')
+  await dialog.getByLabel('数据行数').fill('1')
+  await dialog.getByRole('button', { name: '插入' }).click()
+
+  const firstHeader = page.getByRole('textbox', { name: '第 1 行第 1 列' })
+  await expect(firstHeader).toBeFocused()
+  expect(await firstHeader.evaluate((input) => ({
+    start: (input as HTMLInputElement).selectionStart,
+    end: (input as HTMLInputElement).selectionEnd,
+  }))).toEqual({ start: 0, end: 3 })
+
+  await firstHeader.fill('A|B')
+  await page.getByRole('textbox', { name: '第 1 行第 2 列' }).fill('值')
+  await page.getByRole('textbox', { name: '第 2 行第 1 列' }).fill('格式')
+  await page.getByRole('textbox', { name: '第 2 行第 2 列' }).fill('WebP')
+
+  await firstHeader.focus()
+  await firstHeader.press('Tab')
+  await expect(page.getByRole('textbox', { name: '第 1 行第 2 列' })).toBeFocused()
+  await page.keyboard.press('Shift+Tab')
+  await expect(firstHeader).toBeFocused()
+
+  await page.getByRole('textbox', { name: '第 2 行第 1 列' }).focus()
+  await page.getByRole('button', { name: '在当前行下方添加一行' }).click()
+  await expect(page.getByRole('textbox', { name: '第 3 行第 1 列' })).toBeFocused()
+  await page.getByRole('button', { name: '在当前列右侧添加一列' }).click()
+  await expect(page.getByRole('textbox', { name: '第 3 行第 2 列' })).toBeFocused()
+
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect(page.getByRole('textbox', { name: '第 3 行第 3 列' })).toHaveCount(0)
+  await page.keyboard.press('ControlOrMeta+Shift+z')
+  await expect(page.getByRole('textbox', { name: '第 3 行第 3 列' })).toBeVisible()
+  await expect(page.getByRole('status')).toContainText('已保存到本地草稿')
+
+  const source = await markdownSource(page)
+  expect(source).toContain('| A\\|B | 列 2 | 值 |')
+  expect(source).toContain('| 格式 | 内容 | WebP |')
+  expect(source).toContain('| 内容 | 内容 | 内容 |')
+
+  await page.getByRole('button', { name: '预览文章' }).click()
+  const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
+  await expect(preview.locator('table')).toContainText('A|B')
+  await expect(preview.locator('table')).toContainText('WebP')
+  await page.getByRole('button', { name: '返回编辑' }).click()
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole('tab', { name: '写作' }).click()
+  await expect(page.getByRole('textbox', { name: '第 1 行第 1 列' })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  expect(await page.locator('.cm-md-table-scroll').evaluate((element) => element.scrollWidth >= element.clientWidth)).toBe(true)
 })
 
 test('live writing formats Markdown, preserves source, and visually wraps at narrow widths', async ({ page }) => {
@@ -370,7 +430,7 @@ test('live writing formats Markdown, preserves source, and visually wraps at nar
   const wideHeight = await longParagraph.evaluate((line) => line.getBoundingClientRect().height)
 
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.getByRole('tab', { name: '设置' }).click()
+  await page.getByRole('tab', { name: '设置', exact: true }).click()
   await page.getByRole('tab', { name: '大纲' }).click()
   await page.getByRole('button', { name: '三级标签' }).click()
   await expect(page.getByRole('tab', { name: '写作' })).toHaveAttribute('aria-selected', 'true')

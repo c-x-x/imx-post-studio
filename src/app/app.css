@@ -374,7 +374,7 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
   border: 0;
   border-radius: 999px;
   padding: .45rem .6rem;
-  color: var(--imx-ink-muted);
+  color: var(--imx-ink-secondary);
   background: transparent;
   box-shadow: none;
   font-size: .8rem;
