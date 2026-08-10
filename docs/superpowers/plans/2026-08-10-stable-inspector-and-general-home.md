@@ -4,7 +4,7 @@
 
 **Goal:** Stabilize the inspector tab height and replace Hugo/IMX-specific home copy with a standalone local-first Markdown writing position.
 
-**Architecture:** Keep the current React component structure and solve the inspector defect in CSS with intrinsic top-aligned rows. Update only the home content model for the product-positioning change, and extend the existing CodeMirror decoration layer so inactive heading prefixes include their separator space; no export, preview, draft, or stored Markdown contracts change.
+**Architecture:** Keep the current React component structure and solve the inspector defect with top-aligned rows plus an explicit 48px tab-strip and 38px button size contract. Update only the home content model for the product-positioning change, and extend the existing CodeMirror decoration layer so inactive heading prefixes include their separator space; no export, preview, draft, or stored Markdown contracts change.
 
 **Tech Stack:** React 19, TypeScript, CSS Grid, Vitest, Testing Library, Playwright.
 
@@ -26,37 +26,42 @@
 
 **Interfaces:**
 - Consumes: `.workspace-inspector` and `.inspector-view-tabs` rendered by `App`.
-- Produces: a top-aligned inspector grid whose tab strip retains the same pixel height across view changes.
+- Produces: a top-aligned inspector grid whose tab strip stays at 48px and whose buttons stay at 38px, including during initial stretch pressure.
 
 - [ ] **Step 1: Write the failing browser regression test**
 
-Add a test that opens the article workspace, captures `.inspector-view-tabs` height, switches to `大纲`, switches back to `文章设置`, and asserts every measured height equals the initial height and remains below 64 CSS pixels.
+Add a test that opens the article workspace, applies the same grid stretch pressure seen during unstable initial layout, and asserts the strip remains 48 CSS pixels high and both buttons remain 38 CSS pixels high.
 
 ```ts
-test('keeps inspector tabs at their intrinsic height from first render', async ({ page }) => {
+test('keeps inspector tab controls fixed under initial grid stretch pressure', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: '文章', exact: true }).click()
+  const inspector = page.locator('.workspace-inspector')
   const tabs = page.locator('.inspector-view-tabs')
-  const initialHeight = (await tabs.boundingBox())?.height ?? 0
-  expect(initialHeight).toBeGreaterThan(0)
-  expect(initialHeight).toBeLessThan(64)
+  const tabButtons = tabs.getByRole('tab')
 
-  await page.getByRole('tab', { name: '大纲', exact: true }).click()
-  expect((await tabs.boundingBox())?.height).toBe(initialHeight)
-  await page.getByRole('tab', { name: '文章设置', exact: true }).click()
-  expect((await tabs.boundingBox())?.height).toBe(initialHeight)
+  await inspector.evaluate((element) => {
+    element.style.gridTemplateRows = '84px auto'
+  })
+  await tabs.evaluate((element) => {
+    element.style.alignSelf = 'stretch'
+  })
+
+  expect((await tabs.boundingBox())?.height).toBe(48)
+  expect((await tabButtons.first().boundingBox())?.height).toBe(38)
+  expect((await tabButtons.last().boundingBox())?.height).toBe(38)
 })
 ```
 
 - [ ] **Step 2: Run the focused test before implementation**
 
-Run: `npx playwright test tests/e2e/dock-and-sidebar.spec.ts --project=chromium --grep "intrinsic height"`
+Run: `npx playwright test tests/e2e/dock-and-sidebar.spec.ts --project=chromium --grep "stretch pressure"`
 
-Expected: the regression test exposes the unstable initial layout where reproducible; the explicit layout contract is absent from CSS.
+Expected: FAIL because the strip is stretched to 84px while the explicit layout contract is absent.
 
 - [ ] **Step 3: Constrain the grid to intrinsic rows**
 
-Update `.workspace-inspector` so its grid content starts at the top and implicit rows use max-content sizing. Update `.inspector-view-tabs` to align itself to the start and prevent stretching.
+Keep the inspector rows top-aligned, then give the tab strip and its buttons explicit sizes so browser-restored grid state cannot stretch them during first layout.
 
 ```css
 .workspace-inspector {
@@ -66,12 +71,23 @@ Update `.workspace-inspector` so its grid content starts at the top and implicit
 
 .inspector-view-tabs {
   align-self: start;
+  align-items: center;
+  grid-template-rows: 38px;
+  height: 48px;
+  min-height: 48px;
+  max-height: 48px;
+}
+
+.inspector-view-tabs button {
+  height: 38px;
+  min-height: 38px;
+  max-height: 38px;
 }
 ```
 
 - [ ] **Step 4: Run the focused browser test**
 
-Run: `npx playwright test tests/e2e/dock-and-sidebar.spec.ts --project=chromium --grep "intrinsic height"`
+Run: `npx playwright test tests/e2e/dock-and-sidebar.spec.ts --project=chromium --grep "stretch pressure"`
 
 Expected: PASS.
 

@@ -90,20 +90,23 @@ test('collapses the settings sidebar, expands the editor, and restores the prefe
   await expect(page.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-inspector-collapsed', 'false')
 })
 
-test('keeps inspector tabs at their intrinsic height when inspector content changes', async ({ page }) => {
+test('keeps inspector tab controls fixed under initial grid stretch pressure', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: '文章', exact: true }).click()
   const inspector = page.locator('.workspace-inspector')
   const tabs = page.locator('.inspector-view-tabs')
-  const initialHeight = (await tabs.boundingBox())?.height ?? 0
+  const tabButtons = tabs.getByRole('tab')
 
-  expect(initialHeight).toBeGreaterThan(0)
-  expect(initialHeight).toBeLessThan(64)
-  await page.getByRole('tab', { name: '大纲', exact: true }).click()
-  await inspector.evaluate((element) => { element.style.height = '600px' })
-  expect((await tabs.boundingBox())?.height).toBe(initialHeight)
-  await page.getByRole('tab', { name: '文章设置', exact: true }).click()
-  expect((await tabs.boundingBox())?.height).toBe(initialHeight)
+  await inspector.evaluate((element) => {
+    element.style.gridTemplateRows = '84px auto'
+  })
+  await tabs.evaluate((element) => {
+    element.style.alignSelf = 'stretch'
+  })
+
+  expect((await tabs.boundingBox())?.height).toBe(48)
+  expect((await tabButtons.first().boundingBox())?.height).toBe(38)
+  expect((await tabButtons.last().boundingBox())?.height).toBe(38)
 })
 
 test('collapses the action rail, expands the editor, and restores it independently', async ({ page }) => {

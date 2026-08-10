@@ -6,9 +6,9 @@ Keep the inspector tabs at a stable intrinsic height from the first workspace re
 
 ## Inspector tabs
 
-- The `文章设置 / 大纲` tab strip must use its intrinsic content height.
+- The `文章设置 / 大纲` tab strip must remain exactly 48 CSS pixels high, with each tab button exactly 38 CSS pixels high.
 - The inspector grid must align its rows to the top rather than allowing free vertical space to stretch the tab row during initial layout.
-- Refreshing, entering the article workspace, and switching between the two inspector views must not change the tab strip height.
+- Refreshing, entering the article workspace, switching views, and temporary initial grid stretch pressure must not change the tab strip or button heights.
 - Desktop and responsive behavior outside this sizing correction remains unchanged.
 
 ## Home page
