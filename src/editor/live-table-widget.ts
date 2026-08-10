@@ -1,10 +1,16 @@
 import { Transaction } from '@codemirror/state'
 import { EditorView, WidgetType } from '@codemirror/view'
+import { isolateHistory, redo, undo } from '@codemirror/commands'
 import {
+  addTableColumn,
+  addTableRow,
+  deleteTableColumn,
+  deleteTableRow,
   replaceTableCell,
   serializeMarkdownTable,
   type MarkdownTableModel,
   type TableCellPosition,
+  type TableMutation,
 } from './table-model'
 
 interface TableBinding {
@@ -22,6 +28,15 @@ interface PreservedFocus {
 
 const bindings = new WeakMap<HTMLElement, TableBinding>()
 
+type StructureAction = 'add-row' | 'delete-row' | 'add-column' | 'delete-column'
+
+const structureControls: Array<{ action: StructureAction; label: string; text: string }> = [
+  { action: 'add-row', label: '在当前行下方添加一行', text: '添加行' },
+  { action: 'delete-row', label: '删除当前行', text: '删除行' },
+  { action: 'add-column', label: '在当前列右侧添加一列', text: '添加列' },
+  { action: 'delete-column', label: '删除当前列', text: '删除列' },
+]
+
 function cellKey({ row, column }: TableCellPosition): string {
   return `${row}:${column}`
 }
@@ -37,6 +52,70 @@ function inputAt(root: HTMLElement, position: TableCellPosition): HTMLInputEleme
   return root.querySelector<HTMLInputElement>(
     `input[data-row="${position.row}"][data-column="${position.column}"]`,
   )
+}
+
+function structureMutation(binding: TableBinding, action: StructureAction): TableMutation | null {
+  switch (action) {
+    case 'add-row': return addTableRow(binding.widget.table, binding.active)
+    case 'delete-row': return deleteTableRow(binding.widget.table, binding.active)
+    case 'add-column': return addTableColumn(binding.widget.table, binding.active)
+    case 'delete-column': return deleteTableColumn(binding.widget.table, binding.active)
+  }
+}
+
+function updateControlStates(root: HTMLElement) {
+  const binding = bindings.get(root)
+  if (!binding) return
+  for (const button of root.querySelectorAll<HTMLButtonElement>('.cm-md-table-controls button')) {
+    const action = button.dataset.action as StructureAction
+    button.disabled = binding.widget.disabled || structureMutation(binding, action) === null
+  }
+}
+
+function focusCell(view: EditorView, root: HTMLElement, position: TableCellPosition) {
+  view.requestMeasure({
+    read() {
+      return inputAt(root, position)
+    },
+    write(input) {
+      input?.focus()
+      input?.select()
+    },
+  })
+}
+
+function applyStructure(root: HTMLElement, action: StructureAction) {
+  const binding = bindings.get(root)
+  if (!binding || binding.widget.disabled) return
+  const mutation = structureMutation(binding, action)
+  if (!mutation) return
+  binding.view.dispatch({
+    changes: {
+      from: binding.widget.from,
+      to: binding.widget.to,
+      insert: serializeMarkdownTable(mutation.table),
+    },
+    annotations: [Transaction.userEvent.of('input'), isolateHistory.of('full')],
+  })
+  focusCell(binding.view, root, mutation.focus)
+}
+
+function createControls(root: HTMLElement): HTMLElement {
+  const controls = document.createElement('div')
+  controls.className = 'cm-md-table-controls'
+  controls.setAttribute('role', 'toolbar')
+  controls.setAttribute('aria-label', '表格结构')
+  for (const { action, label, text } of structureControls) {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.dataset.action = action
+    button.setAttribute('aria-label', label)
+    button.textContent = text
+    button.addEventListener('mousedown', (event) => event.preventDefault())
+    button.addEventListener('click', () => applyStructure(root, action))
+    controls.append(button)
+  }
+  return controls
 }
 
 function commitCell(root: HTMLElement, input: HTMLInputElement) {
@@ -71,7 +150,31 @@ function createCellInput(
   input.readOnly = disabled
   input.addEventListener('focus', () => {
     const binding = bindings.get(root)
-    if (binding) binding.active = positionFromInput(input)
+    if (binding) {
+      binding.active = positionFromInput(input)
+      updateControlStates(root)
+    }
+  })
+  input.addEventListener('keydown', (event) => {
+    const binding = bindings.get(root)
+    if (!binding) return
+    if (event.key === 'Tab') {
+      event.preventDefault()
+      const inputs = [...root.querySelectorAll<HTMLInputElement>('.cm-md-table-input')]
+      const index = inputs.indexOf(input)
+      const target = inputs[index + (event.shiftKey ? -1 : 1)]
+      target?.focus()
+      return
+    }
+    const key = event.key.toLowerCase()
+    const modifier = event.ctrlKey || event.metaKey
+    if (modifier && key === 'z') {
+      event.preventDefault()
+      ;(event.shiftKey ? redo : undo)(binding.view)
+    } else if (event.ctrlKey && key === 'y') {
+      event.preventDefault()
+      redo(binding.view)
+    }
   })
   input.addEventListener('compositionstart', () => {
     const binding = bindings.get(root)
@@ -117,7 +220,8 @@ function buildTable(root: HTMLElement, binding: TableBinding) {
   })
   table.append(head, body)
   scroll.append(table)
-  root.replaceChildren(scroll)
+  root.replaceChildren(createControls(root), scroll)
+  updateControlStates(root)
 }
 
 function tableShapeMatches(root: HTMLElement, table: MarkdownTableModel): boolean {
@@ -143,6 +247,7 @@ function syncTable(root: HTMLElement, binding: TableBinding) {
       input.readOnly = binding.widget.disabled
     }
   }
+  updateControlStates(root)
 }
 
 function preserveFocus(root: HTMLElement): PreservedFocus | null {

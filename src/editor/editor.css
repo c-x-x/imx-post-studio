@@ -178,6 +178,36 @@
   overscroll-behavior-inline: contain;
 }
 
+.markdown-editor .cm-md-table-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 7px;
+}
+
+.markdown-editor .cm-md-table-controls button {
+  min-height: 30px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: .32rem .58rem;
+  color: var(--imx-ink-secondary);
+  background: transparent;
+  box-shadow: none;
+  font-size: .72rem;
+}
+
+.markdown-editor .cm-md-table-controls button:hover:not(:disabled) {
+  border-color: var(--imx-line);
+  background: var(--imx-accent-soft);
+  box-shadow: none;
+  transform: none;
+}
+
+.markdown-editor .cm-md-table-controls button:focus-visible {
+  outline: 2px solid var(--imx-accent);
+  outline-offset: 2px;
+}
+
 .markdown-editor .cm-md-table table {
   width: max-content;
   min-width: 100%;

@@ -1,8 +1,9 @@
 import { EditorState, Transaction } from '@codemirror/state'
 import { markdown } from '@codemirror/lang-markdown'
 import { EditorView } from '@codemirror/view'
+import { history } from '@codemirror/commands'
 import { GFM } from '@lezer/markdown'
-import { afterEach, describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import { liveMarkdown, type LiveMarkdownImage } from '../../src/editor/live-markdown'
 
 const views: EditorView[] = []
@@ -21,7 +22,7 @@ function createView(
     state: EditorState.create({
       doc,
       selection: { anchor: selection },
-      extensions: [markdown({ extensions: GFM }), liveMarkdown({ mode, images, disabled })],
+      extensions: [history(), markdown({ extensions: GFM }), liveMarkdown({ mode, images, disabled })],
     }),
   })
   views.push(view)
@@ -207,5 +208,105 @@ describe('liveMarkdown', () => {
     const inputs = [...view.dom.querySelectorAll<HTMLInputElement>('.cm-md-table input')]
     expect(inputs).toHaveLength(4)
     expect(inputs.every((input) => input.readOnly)).toBe(true)
+  })
+
+  test('moves between cells with Tab without creating a row at the boundary', () => {
+    const source = '| A | B |\n| --- | --- |\n| 1 | 2 |'
+    const view = createView(source, 0)
+    const inputs = [...view.dom.querySelectorAll<HTMLInputElement>('.cm-md-table input')]
+
+    inputs[0].focus()
+    inputs[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }))
+    expect(document.activeElement).toBe(inputs[1])
+
+    inputs[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }))
+    expect(document.activeElement).toBe(inputs[0])
+
+    inputs[3].focus()
+    inputs[3].dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }))
+    expect(document.activeElement).toBe(inputs[3])
+    expect(view.state.doc.toString()).toBe(source)
+  })
+
+  test('delegates cell undo and redo shortcuts to CodeMirror history', () => {
+    const source = '| A | B |\n| --- | --- |\n| 1 | 2 |'
+    const view = createView(source, 0)
+    const first = view.dom.querySelector<HTMLInputElement>('.cm-md-table input')!
+    first.focus()
+    first.value = '修改后'
+    first.dispatchEvent(new InputEvent('input', { bubbles: true, data: '修改后' }))
+    expect(view.state.doc.toString()).toContain('| 修改后 | B |')
+
+    first.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true, cancelable: true }))
+    expect(view.state.doc.toString()).toBe(source)
+
+    first.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true }))
+    expect(view.state.doc.toString()).toContain('| 修改后 | B |')
+
+    first.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true, cancelable: true }))
+    first.dispatchEvent(new KeyboardEvent('keydown', { key: 'y', ctrlKey: true, bubbles: true, cancelable: true }))
+    expect(view.state.doc.toString()).toContain('| 修改后 | B |')
+  })
+
+  test('adds rows and columns in one undoable transaction and moves focus', async () => {
+    const source = '| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |'
+    const view = createView(source, 0)
+    const firstData = view.dom.querySelector<HTMLInputElement>('input[data-row="1"][data-column="0"]')!
+    firstData.focus()
+
+    view.dom.querySelector<HTMLButtonElement>('button[aria-label="在当前行下方添加一行"]')!.click()
+    expect(view.state.doc.toString()).toBe(
+      '| A | B |\n| --- | --- |\n| 1 | 2 |\n| 内容 | 内容 |\n| 3 | 4 |',
+    )
+    await vi.waitFor(() => expect(document.activeElement).toHaveAccessibleName('第 3 行第 1 列'))
+
+    const active = document.activeElement as HTMLInputElement
+    view.dom.querySelector<HTMLButtonElement>('button[aria-label="在当前列右侧添加一列"]')!.click()
+    expect(view.state.doc.toString()).toBe(
+      '| A | 列 2 | B |\n| --- | --- | --- |\n| 1 | 内容 | 2 |\n| 内容 | 内容 | 内容 |\n| 3 | 内容 | 4 |',
+    )
+    expect(active.isConnected).toBe(false)
+    await vi.waitFor(() => expect(document.activeElement).toHaveAccessibleName('第 3 行第 2 列'))
+
+    ;(document.activeElement as HTMLInputElement).dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'z', ctrlKey: true, bubbles: true, cancelable: true,
+    }))
+    expect(view.state.doc.toString()).toBe(
+      '| A | B |\n| --- | --- |\n| 1 | 2 |\n| 内容 | 内容 |\n| 3 | 4 |',
+    )
+  })
+
+  test('deletes only eligible rows and columns and focuses the nearest cell', async () => {
+    const source = '| A | B | C |\n| --- | --- | --- |\n| 1 | 2 | 3 |\n| 4 | 5 | 6 |'
+    const view = createView(source, 0)
+    const last = view.dom.querySelector<HTMLInputElement>('input[data-row="2"][data-column="2"]')!
+    last.focus()
+
+    view.dom.querySelector<HTMLButtonElement>('button[aria-label="删除当前行"]')!.click()
+    expect(view.state.doc.toString()).toBe('| A | B | C |\n| --- | --- | --- |\n| 1 | 2 | 3 |')
+    await vi.waitFor(() => expect(document.activeElement).toHaveAccessibleName('第 2 行第 3 列'))
+
+    view.dom.querySelector<HTMLButtonElement>('button[aria-label="删除当前列"]')!.click()
+    expect(view.state.doc.toString()).toBe('| A | B |\n| --- | --- |\n| 1 | 2 |')
+    await vi.waitFor(() => expect(document.activeElement).toHaveAccessibleName('第 2 行第 2 列'))
+
+    expect(view.dom.querySelector<HTMLButtonElement>('button[aria-label="删除当前行"]')).toBeDisabled()
+    expect(view.dom.querySelector<HTMLButtonElement>('button[aria-label="删除当前列"]')).toBeDisabled()
+  })
+
+  test('disables structural controls at upper limits and when editing is disabled', () => {
+    const maxColumns = Array.from({ length: 8 }, (_, index) => `C${index + 1}`)
+    const row = (cells: string[]) => `| ${cells.join(' | ')} |`
+    const maxSource = [
+      row(maxColumns),
+      row(Array.from({ length: 8 }, () => '---')),
+      ...Array.from({ length: 20 }, () => row(Array.from({ length: 8 }, () => '内容'))),
+    ].join('\n')
+    const maxView = createView(maxSource, 0)
+    const disabledView = createView('| A | B |\n| --- | --- |\n| 1 | 2 |', 0, 'rich', new Map(), true)
+
+    expect(maxView.dom.querySelector<HTMLButtonElement>('button[aria-label="在当前行下方添加一行"]')).toBeDisabled()
+    expect(maxView.dom.querySelector<HTMLButtonElement>('button[aria-label="在当前列右侧添加一列"]')).toBeDisabled()
+    expect([...disabledView.dom.querySelectorAll<HTMLButtonElement>('.cm-md-table-controls button')].every((button) => button.disabled)).toBe(true)
   })
 })
