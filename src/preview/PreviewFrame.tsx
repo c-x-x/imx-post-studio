@@ -74,6 +74,34 @@ function wirePreviewFrameScroll(frame: HTMLIFrameElement, dock: HTMLElement | nu
   requestAnimationFrame(trackScroll)
 }
 
+function wirePreviewCodeCopy(document: Document): () => void {
+  const timers = new Set<ReturnType<typeof setTimeout>>()
+  const handleClick = async (event: Event) => {
+    const button = (event.target as Element | null)?.closest<HTMLButtonElement>('[data-copy-code]')
+    if (!button || !document.contains(button)) return
+    const code = button.closest('.highlight')?.querySelector('pre code')?.textContent ?? ''
+    try {
+      await navigator.clipboard.writeText(code)
+      button.textContent = '已复制'
+      button.dataset.copyState = 'success'
+    } catch {
+      button.textContent = '复制失败'
+      button.dataset.copyState = 'error'
+    }
+    const timer = setTimeout(() => {
+      button.textContent = '复制'
+      delete button.dataset.copyState
+      timers.delete(timer)
+    }, 1600)
+    timers.add(timer)
+  }
+  document.addEventListener('click', handleClick)
+  return () => {
+    document.removeEventListener('click', handleClick)
+    timers.forEach(clearTimeout)
+  }
+}
+
 export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClose }: PreviewFrameProps) {
   const [viewport, setViewport] = useState<'desktop' | 'mobile'>(() => (
     typeof window !== 'undefined'
@@ -106,6 +134,7 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
     const frame = frameRef.current
     if (!frame) return
     let readinessFrame = 0
+    let disconnectCodeCopy: () => void = () => undefined
     const connectFrame = () => {
       const document = frame.contentDocument
       if (document === wiredDocument.current) return true
@@ -115,6 +144,8 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
       const savedScrollTop = frameScrollTop.current
       let restoringScroll = savedScrollTop > 0
       if (scroller) scroller.style.scrollBehavior = 'auto'
+      disconnectCodeCopy()
+      disconnectCodeCopy = wirePreviewCodeCopy(document)
       wirePreviewFrameScroll(frame, dockRef.current, (scrollTop) => {
         if (!restoringScroll) frameScrollTop.current = scrollTop
       })
@@ -142,6 +173,7 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
     frame.addEventListener('load', connectWhenReady)
     return () => {
       cancelAnimationFrame(readinessFrame)
+      disconnectCodeCopy()
       frame.removeEventListener('load', connectWhenReady)
     }
   }, [documentHtml])

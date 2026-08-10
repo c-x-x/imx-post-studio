@@ -104,11 +104,7 @@
 .preview-back:hover {
   border-color: rgba(122, 90, 50, .3);
   color: var(--imx-accent-hover);
-  transform: translateY(-1px);
 }
-
-.preview-dock.is-dock-attracting .preview-back:hover,
-.preview-dock.is-dock-merged .preview-back:hover { transform: translate3d(var(--home-dock-brand-shift), 0, 0); }
 
 .preview-stats {
   justify-self: center;

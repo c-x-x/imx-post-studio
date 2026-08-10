@@ -47,10 +47,94 @@ function isSafeBlobUrl(url: string | undefined): url is string {
   return typeof url === 'string' && /^blob:[^\s]+$/i.test(url)
 }
 
+const codeLanguages: Record<string, { key: string; label: string }> = {
+  bash: { key: 'bash', label: 'Bash' },
+  sh: { key: 'shell', label: 'Shell' },
+  shell: { key: 'shell', label: 'Shell' },
+  zsh: { key: 'zsh', label: 'Zsh' },
+  js: { key: 'javascript', label: 'JavaScript' },
+  javascript: { key: 'javascript', label: 'JavaScript' },
+  ts: { key: 'typescript', label: 'TypeScript' },
+  typescript: { key: 'typescript', label: 'TypeScript' },
+  py: { key: 'python', label: 'Python' },
+  python: { key: 'python', label: 'Python' },
+  html: { key: 'html', label: 'HTML' },
+  css: { key: 'css', label: 'CSS' },
+  json: { key: 'json', label: 'JSON' },
+  yaml: { key: 'yaml', label: 'YAML' },
+  yml: { key: 'yaml', label: 'YAML' },
+  md: { key: 'markdown', label: 'Markdown' },
+  markdown: { key: 'markdown', label: 'Markdown' },
+  go: { key: 'go', label: 'Go' },
+  rust: { key: 'rust', label: 'Rust' },
+  java: { key: 'java', label: 'Java' },
+  c: { key: 'c', label: 'C' },
+  cpp: { key: 'cpp', label: 'C++' },
+}
+
+function codeLanguage(code: Element): { key: string; label: string } {
+  const classes = Array.isArray(code.properties.className) ? code.properties.className : []
+  const source = classes
+    .map(String)
+    .find((className) => className.startsWith('language-'))
+    ?.slice('language-'.length)
+    .toLowerCase()
+  if (!source) return { key: 'code', label: 'Code' }
+  return codeLanguages[source] ?? {
+    key: /^[a-z0-9-]+$/.test(source) ? source : 'code',
+    label: source.replace(/(^|-)([a-z])/g, (_, separator: string, letter: string) => `${separator ? ' ' : ''}${letter.toUpperCase()}`),
+  }
+}
+
+function codeBlockHeader(label: string): Element {
+  return {
+    type: 'element',
+    tagName: 'div',
+    properties: { className: ['code-block-header'] },
+    children: [
+      {
+        type: 'element',
+        tagName: 'span',
+        properties: { className: ['code-window-controls'], ariaHidden: 'true' },
+        children: [1, 2, 3].map(() => ({ type: 'element', tagName: 'span', properties: {}, children: [] })),
+      },
+      { type: 'element', tagName: 'span', properties: { className: ['code-language'] }, children: [{ type: 'text', value: label }] },
+      {
+        type: 'element',
+        tagName: 'button',
+        properties: { type: 'button', className: ['copy-code-button'], dataCopyCode: '', ariaLabel: '复制代码', ariaLive: 'polite' },
+        children: [{ type: 'text', value: '复制' }],
+      },
+    ],
+  }
+}
+
+function decorateCodeBlocks() {
+  return (tree: Root) => {
+    visit(tree, 'element', (node: Element, index, parent) => {
+      if (node.tagName !== 'pre' || typeof index !== 'number' || !parent) return
+      const code = node.children.find((child): child is Element => child.type === 'element' && child.tagName === 'code')
+      if (!code) return
+      const language = codeLanguage(code)
+      const wrapper: Element = {
+        type: 'element',
+        tagName: 'div',
+        properties: { className: ['highlight'], dataCodeLang: language.key },
+        children: [codeBlockHeader(language.label), node],
+      }
+      parent.children[index] = wrapper
+      return index + 1
+    })
+  }
+}
+
 function renderedText(node: Root | Root['children'][number], skip = false): string {
   if (node.type === 'text') return skip ? '' : node.value
   if (!('children' in node)) return ''
-  const omit = skip || (node.type === 'element' && (node.tagName === 'code' || node.tagName === 'style'))
+  const classes = node.type === 'element' && Array.isArray(node.properties.className)
+    ? node.properties.className.map(String)
+    : []
+  const omit = skip || (node.type === 'element' && (node.tagName === 'code' || node.tagName === 'style' || classes.includes('highlight')))
   return node.children.map((child) => renderedText(child, omit)).join('')
 }
 
@@ -95,6 +179,7 @@ export async function renderMarkdown(
     .use(rehypeRaw)
     .use(rehypeSanitize)
     .use(rehypeHighlight, { detect: false })
+    .use(decorateCodeBlocks)
     .use(() => collectHeadingsRewriteImagesAndMeasure(resolveLocalImage, headings, metrics))
     .use(rehypeStringify)
 

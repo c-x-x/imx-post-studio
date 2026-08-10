@@ -5334,6 +5334,39 @@ body.is-article-page .sidebar-toggle:hover {
   border-color: #1cad34;
 }
 
+.code-language {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--code-muted);
+  font-size: 0.82rem;
+  font-weight: 650;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copy-code-button {
+  justify-self: end;
+  min-height: 32px;
+  padding: 0.3rem 0.72rem;
+  border: 1px solid var(--code-button-border);
+  border-radius: 999px;
+  color: var(--code-text);
+  background: var(--code-button-bg);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.copy-code-button:hover {
+  border-color: var(--code-button-border);
+  background: var(--code-button-hover-bg);
+}
+
+.copy-code-button[data-copy-state="success"] { color: var(--code-function); }
+.copy-code-button[data-copy-state="error"] { color: var(--code-keyword); }
+
 .highlight pre {
   position: relative;
   z-index: 1;
@@ -5600,3 +5633,53 @@ code {
 .highlight .gs {
   font-weight: 600;
 }
+
+/* Highlight.js aliases used by the standalone Markdown renderer. */
+.highlight .hljs-comment,
+.highlight .hljs-quote {
+  color: var(--code-comment);
+  font-style: italic;
+}
+
+.highlight .hljs-keyword,
+.highlight .hljs-selector-tag,
+.highlight .hljs-subst {
+  color: var(--code-keyword);
+  font-weight: 600;
+}
+
+.highlight .hljs-string,
+.highlight .hljs-doctag,
+.highlight .hljs-regexp,
+.highlight .hljs-template-tag,
+.highlight .hljs-template-variable {
+  color: var(--code-string);
+}
+
+.highlight .hljs-title,
+.highlight .hljs-title.function_,
+.highlight .hljs-selector-id,
+.highlight .hljs-selector-class {
+  color: var(--code-function);
+  font-weight: 600;
+}
+
+.highlight .hljs-number { color: var(--code-number); }
+.highlight .hljs-operator { color: var(--code-operator); }
+.highlight .hljs-variable { color: var(--code-variable); }
+
+.highlight .hljs-literal,
+.highlight .hljs-symbol,
+.highlight .hljs-bullet { color: var(--code-constant); }
+
+.highlight .hljs-title.class_,
+.highlight .hljs-type { color: var(--code-class); }
+.highlight .hljs-tag,
+.highlight .hljs-name { color: var(--code-tag); }
+.highlight .hljs-attr,
+.highlight .hljs-attribute { color: var(--code-attr); }
+.highlight .hljs-built_in { color: var(--code-builtin); }
+.highlight .hljs-meta { color: var(--code-muted); }
+
+.highlight .hljs-emphasis { font-style: italic; }
+.highlight .hljs-strong { font-weight: 600; }

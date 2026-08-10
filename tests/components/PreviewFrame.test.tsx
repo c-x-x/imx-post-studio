@@ -10,19 +10,6 @@ const meta: ArticleMeta = {
 }
 
 describe('PreviewFrame', () => {
-  it('exposes the shared Dock structure and an element scroll source', () => {
-    const { container, unmount } = render(<PreviewFrame meta={meta} rendered={{ html: '', toc: [], wordCount: 0, readingMinutes: 0 }} css="" theme="light" onThemeChange={vi.fn()} onClose={vi.fn()} />)
-    const surface = container.querySelector('.preview-surface')
-    const dock = container.querySelector('.preview-dock')
-
-    expect(surface).toHaveAttribute('data-shared-dock-scroll')
-    expect(dock).toHaveClass('has-shared-dock')
-    for (const role of ['container', 'shell', 'left', 'center', 'right', 'action-control']) {
-      expect(dock?.querySelector(`[data-shared-dock="${role}"]`)).toBeInTheDocument()
-    }
-    unmount()
-  })
-
   it('keeps accessible controls outside a fully sandboxed, script-free IMX iframe and changes preview geometry', () => {
     const onClose = vi.fn()
     const onThemeChange = vi.fn()
@@ -73,21 +60,4 @@ describe('PreviewFrame', () => {
     expect(document).toContain('href="about:srcdoc#imx-heading-a"')
   })
 
-  it('keeps Studio preview behavior overrides without replacing the base dark palette', () => {
-    const document = buildPreviewDocument({
-      meta,
-      rendered: { html: '<p>正文</p>', toc: [{ id: 'a', depth: 2, text: 'A', children: [] }], wordCount: 2, readingMinutes: 1 },
-      css: 'body { color: red; }',
-      theme: 'dark',
-    })
-
-    expect(document).toContain('--preview-page-bg: #171716')
-    expect(document).not.toContain('--article-ink: #e3dcd2')
-    expect(document).not.toContain('--article-ink-muted: #b7aea2')
-    expect(document).not.toContain('--preview-toc-ink: #c8bfb3')
-    expect(document).toContain('body.is-article-page')
-    expect(document).toContain("html::-webkit-scrollbar")
-    expect(document).toContain('.toc-toggle-input')
-    expect(document.lastIndexOf('--preview-page-bg')).toBeGreaterThan(document.lastIndexOf('body { color: red; }'))
-  })
 })

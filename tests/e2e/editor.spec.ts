@@ -302,6 +302,36 @@ test('keeps both responsive workspace tabs mounted and opens preview without hor
   await expectNoHorizontalOverflow()
 })
 
+test('renders usable code blocks and keeps the preview back control stationary', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: async () => undefined },
+    })
+  })
+  await beginArticle(page)
+  await fillMetadata(page)
+  await page.getByRole('textbox', { name: 'Markdown 编辑器' }).fill('```bash\n# 当前目录\nclear\n```')
+  await page.getByRole('button', { name: '预览文章' }).click()
+
+  const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
+  const codeBlock = preview.locator('.highlight')
+  await expect(codeBlock).toHaveAttribute('data-code-lang', 'bash')
+  await expect(codeBlock.locator('.code-window-controls span')).toHaveCount(3)
+  await expect(codeBlock.locator('.code-language')).toHaveText('Bash')
+  const codeColor = await codeBlock.locator('code').evaluate((element) => getComputedStyle(element).color)
+  const commentColor = await codeBlock.locator('.hljs-comment').evaluate((element) => getComputedStyle(element).color)
+  expect(commentColor).not.toBe(codeColor)
+  const copy = codeBlock.getByRole('button', { name: '复制代码' })
+  await copy.click()
+  await expect(copy).toHaveText('已复制')
+
+  const back = page.getByRole('button', { name: '返回编辑' })
+  const beforeHover = await back.boundingBox()
+  await back.hover()
+  await expect.poll(async () => await back.boundingBox()).toEqual(beforeHover)
+})
+
 test('creates and edits a Markdown table across source, preview, and mobile layouts', async ({ page }) => {
   await beginArticle(page)
   await fillMetadata(page)

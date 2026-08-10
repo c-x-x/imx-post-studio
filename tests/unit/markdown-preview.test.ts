@@ -21,6 +21,12 @@ describe('renderMarkdown', () => {
     expect(rendered.html).toContain('<h2 id="imx-heading-guide-1">Guide</h2>')
     expect(rendered.html).not.toContain('id="location"')
     expect(rendered.html).toContain('language-ts')
+    expect(rendered.html).toContain('class="highlight"')
+    expect(rendered.html).toContain('data-code-lang="typescript"')
+    expect(rendered.html).toContain('class="code-window-controls"')
+    expect(rendered.html).toContain('class="code-language">TypeScript</span>')
+    expect(rendered.html).toContain('class="copy-code-button"')
+    expect(rendered.html).toContain('aria-label="复制代码"')
     expect(rendered.html).toContain('src="blob:example"')
     expect(rendered.toc).toEqual([
       {
