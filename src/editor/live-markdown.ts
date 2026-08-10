@@ -67,6 +67,12 @@ function nodeIsActive(node: SyntaxNode, blocks: BlockRange[]): boolean {
   return block !== null && blocks.some(({ from, to }) => from === block.from && to === block.to)
 }
 
+function hiddenMarkerRange(state: EditorState, node: SyntaxNode): BlockRange {
+  if (node.name !== 'HeaderMark') return { from: node.from, to: node.to }
+  const separator = state.doc.sliceString(node.to, node.to + 1)
+  return { from: node.from, to: /[\t ]/.test(separator) ? node.to + 1 : node.to }
+}
+
 function addLineClasses(state: EditorState, ranges: Array<Range<Decoration>>, from: number, to: number, className: string) {
   let line = state.doc.lineAt(from)
   while (line.from <= to) {
@@ -239,7 +245,8 @@ function buildDecorations(state: EditorState, options: LiveMarkdownOptions): Dec
       }
 
       if (markerNames.has(node.name) && !nodeIsActive(node, blocks)) {
-        ranges.push(Decoration.mark({ class: 'cm-md-hidden' }).range(node.from, node.to))
+        const marker = hiddenMarkerRange(state, node)
+        ranges.push(Decoration.mark({ class: 'cm-md-hidden' }).range(marker.from, marker.to))
       }
       return undefined
     },

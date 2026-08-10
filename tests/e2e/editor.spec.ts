@@ -407,6 +407,29 @@ test('live writing formats Markdown, preserves source, and visually wraps at nar
   expect(await page.locator('.cm-md-hidden').count()).toBeGreaterThan(0)
   expect([...new Set(await page.locator('.cm-md-heading span').evaluateAll((elements) => elements.map((element) => getComputedStyle(element).textDecorationLine)))])
     .toEqual(['none'])
+  const leftEdges = await page.locator('.markdown-editor .cm-content').evaluate((content) => {
+    const lines = [...content.querySelectorAll<HTMLElement>('.cm-line')]
+      .filter((line) => line.classList.contains('cm-md-heading') || line.textContent?.includes('普通 '))
+    return lines.map((line) => {
+      const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+          const text = node.textContent ?? ''
+          return node.parentElement?.closest('.cm-md-hidden') || !/\S/.test(text)
+            ? NodeFilter.FILTER_REJECT
+            : NodeFilter.FILTER_ACCEPT
+        },
+      })
+      const text = walker.nextNode()
+      const offset = text?.textContent?.search(/\S/) ?? -1
+      if (!text || offset < 0) throw new Error('Missing visible editor text')
+      const range = document.createRange()
+      range.setStart(text, offset)
+      range.setEnd(text, offset + 1)
+      return range.getBoundingClientRect().left
+    })
+  })
+  expect(leftEdges).toHaveLength(7)
+  expect(Math.max(...leftEdges) - Math.min(...leftEdges)).toBeLessThanOrEqual(1)
   const tasks = page.locator('.cm-md-task-checkbox')
   await expect(tasks).toHaveCount(2)
   await expect(tasks.nth(0)).not.toBeChecked()

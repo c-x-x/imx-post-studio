@@ -65,6 +65,28 @@ describe('liveMarkdown', () => {
     expect(view.dom.querySelector('.cm-md-link .cm-md-hidden')).toBeNull()
   })
 
+  test('hides heading markers with their separator while revealing the active heading source', () => {
+    const doc = [
+      '# 一级',
+      '## 二级',
+      '### 三级',
+      '#### 四级',
+      '##### 五级',
+      '###### 六级',
+      '普通正文',
+    ].join('\n')
+    const view = createView(doc, doc.indexOf('普通正文'))
+
+    for (let depth = 1; depth <= 6; depth += 1) {
+      expect(view.dom.querySelector(`.cm-md-heading-${depth} .cm-md-hidden`)?.textContent)
+        .toBe(`${'#'.repeat(depth)} `)
+    }
+
+    view.dispatch({ selection: { anchor: doc.indexOf('三级') } })
+    expect(view.dom.querySelector('.cm-md-heading-3 .cm-md-hidden')).toBeNull()
+    expect(view.state.doc.toString()).toBe(doc)
+  })
+
   test('keeps literal Markdown untouched in source mode', () => {
     const view = createView(documentText, 0, 'source')
 
