@@ -58,6 +58,44 @@ describe('Markdown table model', () => {
     )
   })
 
+  test('recognizes a trailing outer pipe after an even backslash run', () => {
+    const source = [
+      String.raw`A | B\\|`,
+      '--- | ---|',
+      '1 | 2|',
+    ].join('\n')
+
+    expect(parseMarkdownTable(source)).toEqual({
+      header: ['A', String.raw`B\\`],
+      alignments: ['none', 'none'],
+      rows: [['1', '2']],
+    })
+  })
+
+  test('does not rewrite unrelated backslashes when another cell changes', () => {
+    const source = [
+      String.raw`| A\path | B |`,
+      '| --- | --- |',
+      '| 1 | 2 |',
+    ].join('\n')
+    const table = parseMarkdownTable(source)!
+
+    expect(serializeMarkdownTable(replaceTableCell(table, { row: 0, column: 1 }, 'C'))).toBe([
+      String.raw`| A\path | C |`,
+      '| --- | --- |',
+      '| 1 | 2 |',
+    ].join('\n'))
+  })
+
+  test('round-trips a literal backslash immediately before a literal pipe', () => {
+    const table = parseMarkdownTable('| A | B |\n| --- | --- |\n| 1 | 2 |')!
+    const serialized = serializeMarkdownTable(
+      replaceTableCell(table, { row: 1, column: 0 }, String.raw`\|`),
+    )
+
+    expect(parseMarkdownTable(serialized)?.rows[0][0]).toBe(String.raw`\|`)
+  })
+
   test('adds a data row below the active row and after the header', () => {
     const table = parseMarkdownTable('| A | B |\n| --- | --- |\n| 1 | 2 |')!
 

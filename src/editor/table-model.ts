@@ -16,6 +16,14 @@ export interface TableMutation {
   focus: TableCellPosition
 }
 
+function isEscaped(source: string, index: number): boolean {
+  let backslashes = 0
+  for (let cursor = index - 1; cursor >= 0 && source[cursor] === '\\'; cursor -= 1) {
+    backslashes += 1
+  }
+  return backslashes % 2 === 1
+}
+
 function splitTableRow(line: string): string[] {
   const source = line.trim()
   const cells: string[] = []
@@ -34,7 +42,7 @@ function splitTableRow(line: string): string[] {
   cells.push(cell.trim())
 
   if (source.startsWith('|')) cells.shift()
-  if (source.endsWith('|') && !source.endsWith('\\|')) cells.pop()
+  if (source.endsWith('|') && !isEscaped(source, source.length - 1)) cells.pop()
   return cells
 }
 
@@ -42,23 +50,49 @@ function decodeTableCell(value: string): string {
   let decoded = ''
   for (let index = 0; index < value.length; index += 1) {
     const character = value[index]
-    const next = value[index + 1]
-    if (character === '\\' && (next === '\\' || next === '|')) {
-      decoded += next
-      index += 1
-    } else {
+    if (character !== '\\') {
       decoded += character
+      continue
+    }
+    let end = index
+    while (value[end] === '\\') end += 1
+    const count = end - index
+    if (value[end] === '|' && count % 2 === 1) {
+      decoded += '\\'.repeat((count - 1) / 2) + '|'
+      index = end
+    } else {
+      decoded += '\\'.repeat(count)
+      index = end - 1
     }
   }
   return decoded
 }
 
 function encodeTableCell(value: string): string {
-  return value
-    .replace(/\r?\n|\r/g, ' ')
-    .replace(/\\/g, '\\\\')
-    .replace(/\|/g, '\\|')
-    .trim()
+  const normalized = value.replace(/\r?\n|\r/g, ' ').trim()
+  let encoded = ''
+  for (let index = 0; index < normalized.length; index += 1) {
+    const character = normalized[index]
+    if (character === '|') {
+      encoded += '\\|'
+      continue
+    }
+    if (character !== '\\') {
+      encoded += character
+      continue
+    }
+    let end = index
+    while (normalized[end] === '\\') end += 1
+    const count = end - index
+    if (normalized[end] === '|') {
+      encoded += '\\'.repeat((count * 2) + 1) + '|'
+      index = end
+    } else {
+      encoded += '\\'.repeat(count)
+      index = end - 1
+    }
+  }
+  return encoded
 }
 
 function parseAlignment(value: string): TableAlignment | null {

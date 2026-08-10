@@ -18,6 +18,7 @@ interface TableBinding {
   view: EditorView
   active: TableCellPosition
   composing: string | null
+  compositionCommit: { cell: string; value: string } | null
 }
 
 interface PreservedFocus {
@@ -178,17 +179,26 @@ function createCellInput(
   })
   input.addEventListener('compositionstart', () => {
     const binding = bindings.get(root)
-    if (binding) binding.composing = cellKey(positionFromInput(input))
+    if (binding) {
+      binding.composing = cellKey(positionFromInput(input))
+      binding.compositionCommit = null
+    }
   })
   input.addEventListener('compositionend', () => {
     const binding = bindings.get(root)
     if (!binding) return
+    const cell = cellKey(positionFromInput(input))
     binding.composing = null
+    binding.compositionCommit = { cell, value: input.value }
     commitCell(root, input)
   })
   input.addEventListener('input', (event) => {
     const binding = bindings.get(root)
-    if (!binding || binding.composing === cellKey(positionFromInput(input)) || (event as InputEvent).isComposing) return
+    const cell = cellKey(positionFromInput(input))
+    if (!binding || binding.composing === cell || (event as InputEvent).isComposing) return
+    const compositionCommit = binding.compositionCommit
+    binding.compositionCommit = null
+    if (compositionCommit?.cell === cell && compositionCommit.value === input.value) return
     commitCell(root, input)
   })
   return input
@@ -294,6 +304,7 @@ export class EditableTableWidget extends WidgetType {
       view,
       active: { row: 0, column: 0 },
       composing: null,
+      compositionCommit: null,
     }
     bindings.set(root, binding)
     syncTable(root, binding)
@@ -308,6 +319,7 @@ export class EditableTableWidget extends WidgetType {
       view,
       active: previous?.active ?? { row: 0, column: 0 },
       composing: previous?.composing ?? null,
+      compositionCommit: previous?.compositionCommit ?? null,
     }
     bindings.set(dom, binding)
     syncTable(dom, binding)

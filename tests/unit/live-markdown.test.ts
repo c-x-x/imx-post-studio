@@ -173,11 +173,12 @@ describe('liveMarkdown', () => {
     expect(first.selectionEnd).toBe(1)
   })
 
-  test('commits a composed cell value only after composition ends', () => {
+  test('commits a composed cell value once when a trailing input follows compositionend', () => {
     const source = '| 名称 | 值 |\n| --- | --- |\n| 格式 | WebP |'
     const view = createView(source, 0)
     const first = view.dom.querySelector<HTMLInputElement>('.cm-md-table input[data-row="0"][data-column="0"]')!
     const before = view.state.doc.toString()
+    const dispatch = vi.spyOn(view, 'dispatch')
 
     first.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
     first.value = '拼'
@@ -186,7 +187,25 @@ describe('liveMarkdown', () => {
 
     first.value = '拼音'
     first.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: '拼音' }))
+    first.dispatchEvent(new InputEvent('input', { bubbles: true, data: '拼音', isComposing: false }))
     expect(view.state.doc.toString()).toContain('| 拼音 | 值 |')
+    expect(dispatch).toHaveBeenCalledTimes(1)
+  })
+
+  test('commits the next changed input when no trailing composition input arrives', () => {
+    const source = '| 名称 | 值 |\n| --- | --- |\n| 格式 | WebP |'
+    const view = createView(source, 0)
+    const first = view.dom.querySelector<HTMLInputElement>('.cm-md-table input[data-row="0"][data-column="0"]')!
+    const dispatch = vi.spyOn(view, 'dispatch')
+
+    first.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
+    first.value = '拼音'
+    first.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: '拼音' }))
+    first.value = '拼音法'
+    first.dispatchEvent(new InputEvent('input', { bubbles: true, data: '法', isComposing: false }))
+
+    expect(view.state.doc.toString()).toContain('| 拼音法 | 值 |')
+    expect(dispatch).toHaveBeenCalledTimes(2)
   })
 
   test('keeps unsupported and source-mode tables literal', () => {
