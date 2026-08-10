@@ -44,20 +44,23 @@ describe('PreviewFrame', () => {
     expect(iframe).toHaveStyle({ width: 'min(390px, 100%)' })
   })
 
-  it('uses the Studio-owned TOC nav and toggle contract in a script-free document', () => {
-    const document = buildPreviewDocument({
+  it('builds sanitized Shadow DOM content with the Studio-owned TOC contract', () => {
+    const content = buildPreviewDocument({
       meta,
       rendered: { html: '<h2 id="imx-heading-a">A</h2>', toc: [{ id: 'imx-heading-a', depth: 2, text: 'A', children: [] }], wordCount: 1, readingMinutes: 1 },
       css: 'body {}', theme: 'light',
     })
 
-    expect(document).toContain('class="preview-symbols" style="display:none"')
-    expect(document).toContain(':root[data-theme="light"] .article-page { --article-ink-muted: #746c62; }')
-    expect(document).toContain('<aside class="sidebar" id="article-toc" aria-label="文章目录">')
-    expect(document).toContain('<div class="toc"><h3 class="toc-title">目录</h3><nav aria-label="文章目录"><ul>')
-    expect(document).toContain('<div class="article-tools-actions"><label class="toc-toggle-control"><input class="toc-toggle-input" type="checkbox"')
-    expect(document).toContain('aria-label="目录" aria-controls="article-toc"')
-    expect(document).toContain('href="about:srcdoc#imx-heading-a"')
+    expect(content).toContain('class="preview-html" data-theme="light"')
+    expect(content).toContain('class="preview-body is-article-page"')
+    expect(content).toContain('class="preview-symbols" style="display:none"')
+    expect(content).toContain(':host([data-theme="light"]) .article-page { --article-ink-muted: #746c62; }')
+    expect(content).toContain('<aside class="sidebar" id="article-toc" aria-label="文章目录">')
+    expect(content).toContain('<div class="toc"><h3 class="toc-title">目录</h3><nav aria-label="文章目录"><ul>')
+    expect(content).toContain('<div class="article-tools-actions"><label class="toc-toggle-control"><input class="toc-toggle-input" type="checkbox"')
+    expect(content).toContain('aria-label="目录" aria-controls="article-toc"')
+    expect(content).toContain('href="#imx-heading-a"')
+    expect(content).not.toMatch(/<(?:html|body|script)\b/i)
   })
 
 })

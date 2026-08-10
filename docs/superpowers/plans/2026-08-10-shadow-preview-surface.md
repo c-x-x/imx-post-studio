@@ -43,9 +43,10 @@ expect(content).not.toMatch(/<(?:html|body|script)\b/i)
 ```ts
 function shadowCss(value: string): string {
   return safeCss(value)
+    .replace(/:root(\[[^\]]+\])/g, ':host($1)')
     .replaceAll(':root', ':host')
-    .replace(/\bhtml\s*\{/g, '.preview-html {')
-    .replace(/\bbody(?=\s*[.{])/g, '.preview-body')
+    .replace(/\bhtml(?=\s*[{,:])/g, '.preview-html')
+    .replace(/\bbody(?=\s*[.{,:])/g, '.preview-body')
 }
 ```
 
