@@ -4,7 +4,7 @@
 
 **Goal:** Stabilize the inspector tab height and replace Hugo/IMX-specific home copy with a standalone local-first Markdown writing position.
 
-**Architecture:** Keep the current React component structure and solve the layout defect in CSS by constraining the inspector grid to intrinsic top-aligned rows. Update only the home content model and its assertions; no export, preview, or draft behavior changes.
+**Architecture:** Keep the current React component structure and solve the inspector defect in CSS with intrinsic top-aligned rows. Update only the home content model for the product-positioning change, and extend the existing CodeMirror decoration layer so inactive heading prefixes include their separator space; no export, preview, draft, or stored Markdown contracts change.
 
 **Tech Stack:** React 19, TypeScript, CSS Grid, Vitest, Testing Library, Playwright.
 
@@ -14,6 +14,7 @@
 - Keep the existing IMX-style visual language.
 - Do not introduce dependencies or alter article, draft, preview, media, or export contracts.
 - The home page must not position the product as dependent on Hugo or IMX.
+- Instant-layout headings from H1 through H6 must share the paragraph content boundary without changing stored Markdown or source-mode behavior.
 
 ---
 
@@ -158,4 +159,104 @@ Expected: all commands PASS.
 ```bash
 git add src/home/HomePage.tsx tests/components/App.test.tsx tests/e2e/visual.spec.ts
 git commit -m "feat: generalize the studio home page"
+```
+
+### Task 3: Align instant-layout headings with paragraph text
+
+**Files:**
+- Modify: `src/editor/live-markdown.ts`
+- Test: `tests/unit/live-markdown.test.ts`
+- Test: `tests/e2e/editor.spec.ts`
+
+**Interfaces:**
+- Consumes: Lezer `ATXHeading1` through `ATXHeading6` nodes and their `HeaderMark` children.
+- Produces: inactive heading prefix decorations that hide the marker plus its single separator space while preserving the complete Markdown document.
+
+- [ ] **Step 1: Write the failing unit regression test**
+
+Render H1 through H6 with the selection in an ordinary paragraph. Assert each `.cm-md-heading-N .cm-md-hidden` contains the exact Markdown prefix including its trailing space. Move the selection into one heading and assert that line has no hidden prefix.
+
+```ts
+test('hides heading markers with their separator while revealing the active heading source', () => {
+  const doc = [
+    '# 一级', '## 二级', '### 三级',
+    '#### 四级', '##### 五级', '###### 六级',
+    '普通正文',
+  ].join('\n')
+  const view = createView(doc, doc.indexOf('普通正文'))
+
+  for (let depth = 1; depth <= 6; depth += 1) {
+    expect(view.dom.querySelector(`.cm-md-heading-${depth} .cm-md-hidden`)?.textContent)
+      .toBe(`${'#'.repeat(depth)} `)
+  }
+
+  view.dispatch({ selection: { anchor: doc.indexOf('三级') } })
+  expect(view.dom.querySelector('.cm-md-heading-3 .cm-md-hidden')).toBeNull()
+  expect(view.state.doc.toString()).toBe(doc)
+})
+```
+
+- [ ] **Step 2: Run the unit test to verify it fails**
+
+Run: `npm test -- tests/unit/live-markdown.test.ts -t "separator"`
+
+Expected: FAIL because each current hidden prefix contains only the `#` marker sequence and leaves the separator visible.
+
+- [ ] **Step 3: Extend inactive heading prefix decoration**
+
+In `buildDecorations`, special-case `HeaderMark`: when its heading block is inactive, extend the hidden decoration through exactly one following space or tab before the heading text. Do not alter the document, active block selection, or generic handling for other marker types.
+
+```ts
+function hiddenMarkerRange(state: EditorState, node: SyntaxNode): BlockRange {
+  if (node.name !== 'HeaderMark') return { from: node.from, to: node.to }
+  const separator = state.doc.sliceString(node.to, node.to + 1)
+  return { from: node.from, to: /[\t ]/.test(separator) ? node.to + 1 : node.to }
+}
+```
+
+- [ ] **Step 4: Run the unit test to verify it passes**
+
+Run: `npm test -- tests/unit/live-markdown.test.ts -t "separator"`
+
+Expected: PASS with the source document unchanged.
+
+- [ ] **Step 5: Add a browser-level visual geometry assertion**
+
+In the existing live-writing browser test, locate the first rendered text character on each inactive heading and the ordinary paragraph with DOM `Range#getBoundingClientRect()`. Assert all seven left coordinates differ by no more than one CSS pixel.
+
+```ts
+const leftEdges = await page.locator('.cm-content').evaluate((content) => {
+  const lines = [...content.querySelectorAll<HTMLElement>('.cm-line')]
+  return lines.slice(0, 13).filter((_, index) => index % 2 === 0).map((line) => {
+    const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        return node.parentElement?.closest('.cm-md-hidden') || !node.textContent?.trim()
+          ? NodeFilter.FILTER_REJECT
+          : NodeFilter.FILTER_ACCEPT
+      },
+    })
+    const text = walker.nextNode()
+    if (!text) throw new Error('Missing visible editor text')
+    const range = document.createRange()
+    range.setStart(text, 0)
+    range.setEnd(text, 1)
+    return range.getBoundingClientRect().left
+  })
+})
+expect(Math.max(...leftEdges) - Math.min(...leftEdges)).toBeLessThanOrEqual(1)
+```
+
+- [ ] **Step 6: Run focused editor verification**
+
+Run: `npm test -- tests/unit/live-markdown.test.ts`
+
+Run: `npx playwright test tests/e2e/editor.spec.ts --project=chromium --grep "live writing formats"`
+
+Expected: both commands PASS, including the existing source preservation, task interaction, outline navigation, and responsive wrapping assertions.
+
+- [ ] **Step 7: Commit the independently testable editor fix**
+
+```bash
+git add src/editor/live-markdown.ts tests/unit/live-markdown.test.ts tests/e2e/editor.spec.ts
+git commit -m "fix: align live headings with body text"
 ```
