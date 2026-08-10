@@ -8,7 +8,15 @@ import type { MediaAsset } from '../metadata/article'
 import { mediaAlt } from '../media/names'
 import type { EditorMode } from './editor-mode'
 import { liveMarkdown } from './live-markdown'
-import { insertMarkdownImages, runMarkdownCommand, type MarkdownCommand, type MarkdownSelection } from './markdown-commands'
+import {
+  insertMarkdownImages,
+  insertMarkdownTable,
+  runMarkdownCommand,
+  type MarkdownCommand,
+  type MarkdownSelection,
+  type MarkdownTableDimensions,
+} from './markdown-commands'
+import { TableDialog } from './TableDialog'
 import './editor.css'
 
 export interface MarkdownEditorHandle {
@@ -68,7 +76,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   disabled = false,
 }, ref) {
   const editorRef = useRef<ReactCodeMirrorRef>(null)
+  const tableButtonRef = useRef<HTMLButtonElement>(null)
   const [mode, setMode] = useState<EditorMode>('rich')
+  const [tableDialogOpen, setTableDialogOpen] = useState(false)
   const pastePending = useRef(false)
   const disabledRef = useRef(disabled)
   const onChangeRef = useRef(onChange)
@@ -156,6 +166,37 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     view.focus()
   }
 
+  const insertTable = (dimensions: MarkdownTableDimensions) => {
+    if (disabled) return
+    const view = editorRef.current?.view
+    if (!view) return
+    const selection = view.state.selection.main
+    const edit = insertMarkdownTable(
+      view.state.doc.toString(),
+      { from: selection.from, to: selection.to },
+      dimensions,
+    )
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length, insert: edit.value },
+      selection: { anchor: edit.selection.from, head: edit.selection.to },
+    })
+    onChange(edit.value)
+    const selector = `.cm-md-table[data-table-from="${edit.tableFrom}"] input[data-row="0"][data-column="0"]`
+    view.requestMeasure({
+      read() {
+        return view.dom.querySelector<HTMLInputElement>(selector)
+      },
+      write(input) {
+        if (input) {
+          input.focus()
+          input.select()
+        } else {
+          view.focus()
+        }
+      },
+    })
+  }
+
   useImperativeHandle(ref, () => ({
     focusPosition(position: number) {
       const view = editorRef.current?.view
@@ -180,9 +221,16 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     },
   }))
 
-  return <section className="markdown-editor" data-mode={mode} aria-label="Markdown 编辑">
+  return <><section className="markdown-editor" data-mode={mode} aria-label="Markdown 编辑">
     <div className="editor-toolbar" role="toolbar" aria-label="Markdown 格式">
       {toolbar.map(({ label, command }) => <button key={label} type="button" disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={() => applyCommand(command)}>{label}</button>)}
+      <button
+        ref={tableButtonRef}
+        type="button"
+        disabled={disabled}
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => setTableDialogOpen(true)}
+      >表格</button>
       <span className="editor-toolbar-spacer" aria-hidden="true" />
       <button
         className="editor-mode-toggle"
@@ -197,4 +245,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     </div>
     <CodeMirror ref={editorRef} value={value} height="calc(100dvh - 190px)" extensions={extensions} editable={!disabled} onChange={handleChange} placeholder="从这里开始写 Markdown…" />
   </section>
+  {tableDialogOpen && <TableDialog
+    onClose={() => setTableDialogOpen(false)}
+    onInsert={insertTable}
+    returnFocus={() => tableButtonRef.current}
+  />}</>
 })

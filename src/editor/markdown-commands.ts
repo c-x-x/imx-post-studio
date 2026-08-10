@@ -13,6 +13,16 @@ export interface MarkdownImageInput {
   name: string
 }
 
+export interface MarkdownTableDimensions {
+  columns: number
+  dataRows: number
+}
+
+export interface MarkdownTableEdit extends MarkdownEdit {
+  tableFrom: number
+  tableTo: number
+}
+
 export type MarkdownCommand =
   | { type: 'bold' }
   | { type: 'italic' }
@@ -54,6 +64,54 @@ export function insertMarkdownImages(
   return {
     value: `${prefix}${imageBlock}${suffix}`,
     selection: { from: cursor, to: cursor },
+  }
+}
+
+function validateTableDimensions({ columns, dataRows }: MarkdownTableDimensions) {
+  if (!Number.isInteger(columns) || columns < 2 || columns > 8
+    || !Number.isInteger(dataRows) || dataRows < 1 || dataRows > 20) {
+    throw new RangeError('表格尺寸无效')
+  }
+}
+
+export function createMarkdownTable(dimensions: MarkdownTableDimensions): string {
+  validateTableDimensions(dimensions)
+  const { columns, dataRows } = dimensions
+  const row = (cells: string[]) => `| ${cells.join(' | ')} |`
+  return [
+    row(Array.from({ length: columns }, (_, index) => `列 ${index + 1}`)),
+    row(Array.from({ length: columns }, () => '---')),
+    ...Array.from({ length: dataRows }, () => row(Array.from({ length: columns }, () => '内容'))),
+  ].join('\n')
+}
+
+function blankLineBefore(value: string): string {
+  if (!value || value.endsWith('\n\n')) return ''
+  return value.endsWith('\n') ? '\n' : '\n\n'
+}
+
+function blankLineAfter(value: string): string {
+  if (!value || value.startsWith('\n\n')) return ''
+  return value.startsWith('\n') ? '\n' : '\n\n'
+}
+
+export function insertMarkdownTable(
+  value: string,
+  initialSelection: MarkdownSelection,
+  dimensions: MarkdownTableDimensions,
+): MarkdownTableEdit {
+  const selection = clampSelection(value, initialSelection)
+  const table = createMarkdownTable(dimensions)
+  const before = value.slice(0, selection.to)
+  const after = value.slice(selection.to)
+  const prefix = `${before}${blankLineBefore(before)}`
+  const suffix = `${blankLineAfter(after)}${after}`
+  const tableFrom = prefix.length
+  return {
+    value: `${prefix}${table}${suffix}`,
+    selection: { from: tableFrom + 2, to: tableFrom + 5 },
+    tableFrom,
+    tableTo: tableFrom + table.length,
   }
 }
 

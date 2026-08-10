@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { insertMarkdownImages, runMarkdownCommand } from '../../src/editor/markdown-commands'
+import {
+  createMarkdownTable,
+  insertMarkdownImages,
+  insertMarkdownTable,
+  runMarkdownCommand,
+} from '../../src/editor/markdown-commands'
 
 describe('runMarkdownCommand', () => {
   it('wraps the selected text in bold markers and retains the selected content', () => {
@@ -65,5 +70,56 @@ describe('insertMarkdownImages', () => {
       value: '![图片](images/image.png)',
       selection: { from: 23, to: 23 },
     })
+  })
+})
+
+describe('Markdown tables', () => {
+  it('creates a table with numbered headers and requested data rows', () => {
+    expect(createMarkdownTable({ columns: 3, dataRows: 2 })).toBe([
+      '| 列 1 | 列 2 | 列 3 |',
+      '| --- | --- | --- |',
+      '| 内容 | 内容 | 内容 |',
+      '| 内容 | 内容 | 内容 |',
+    ].join('\n'))
+  })
+
+  it('inserts a standalone table and selects its first header', () => {
+    expect(insertMarkdownTable('前文后文', { from: 2, to: 2 }, { columns: 2, dataRows: 1 })).toEqual({
+      value: '前文\n\n| 列 1 | 列 2 |\n| --- | --- |\n| 内容 | 内容 |\n\n后文',
+      selection: { from: 6, to: 9 },
+      tableFrom: 4,
+      tableTo: 43,
+    })
+  })
+
+  it('preserves selected text and inserts after the selection', () => {
+    expect(insertMarkdownTable('保留这些字', { from: 2, to: 4 }, { columns: 2, dataRows: 1 })).toEqual({
+      value: '保留这些\n\n| 列 1 | 列 2 |\n| --- | --- |\n| 内容 | 内容 |\n\n字',
+      selection: { from: 8, to: 11 },
+      tableFrom: 6,
+      tableTo: 45,
+    })
+  })
+
+  it('adds only missing blank-line separators at document boundaries', () => {
+    expect(insertMarkdownTable('', { from: 0, to: 0 }, { columns: 2, dataRows: 1 })).toEqual({
+      value: '| 列 1 | 列 2 |\n| --- | --- |\n| 内容 | 内容 |',
+      selection: { from: 2, to: 5 },
+      tableFrom: 0,
+      tableTo: 39,
+    })
+    expect(insertMarkdownTable('前文\n\n后文', { from: 4, to: 4 }, { columns: 2, dataRows: 1 }).value).toBe(
+      '前文\n\n| 列 1 | 列 2 |\n| --- | --- |\n| 内容 | 内容 |\n\n后文',
+    )
+  })
+
+  it.each([
+    { columns: 1, dataRows: 2 },
+    { columns: 9, dataRows: 2 },
+    { columns: 3, dataRows: 0 },
+    { columns: 3, dataRows: 21 },
+    { columns: 2.5, dataRows: 2 },
+  ])('rejects invalid table dimensions: %o', (dimensions) => {
+    expect(() => createMarkdownTable(dimensions)).toThrow('表格尺寸无效')
   })
 })

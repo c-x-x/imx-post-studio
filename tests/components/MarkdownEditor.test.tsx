@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { undo } from '@codemirror/commands'
 import { EditorView } from '@uiw/react-codemirror'
 import { afterEach, describe, expect, test, vi } from 'vitest'
@@ -30,6 +30,63 @@ function dispatchPaste(target: HTMLElement, items: Array<ReturnType<typeof clipb
 }
 
 describe('MarkdownEditor', () => {
+  test('configures and inserts a table while preserving editor selection', () => {
+    function ControlledEditor() {
+      const [value, setValue] = useState('前文后文')
+      return <MarkdownEditor value={value} onChange={setValue} media={[]} />
+    }
+
+    render(<ControlledEditor />)
+    const textbox = screen.getByRole('textbox', { name: 'Markdown 编辑器' })
+    const view = EditorView.findFromDOM(textbox)
+    if (!view) throw new Error('CodeMirror view not found')
+    view.dispatch({ selection: { anchor: 2 } })
+
+    fireEvent.click(screen.getByRole('button', { name: '表格' }))
+    const dialog = screen.getByRole('dialog', { name: '插入表格' })
+    const columns = within(dialog).getByLabelText('列数')
+    const rows = within(dialog).getByLabelText('数据行数')
+    expect(columns).toHaveValue(3)
+    expect(rows).toHaveValue(2)
+    expect(document.activeElement).toBe(columns)
+
+    fireEvent.change(columns, { target: { value: '8' } })
+    fireEvent.change(rows, { target: { value: '20' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: '插入' }))
+
+    expect(screen.queryByRole('dialog', { name: '插入表格' })).not.toBeInTheDocument()
+    expect(view.state.doc.toString()).toContain('| 列 1 | 列 2 | 列 3 | 列 4 | 列 5 | 列 6 | 列 7 | 列 8 |')
+    expect(view.state.sliceDoc(view.state.selection.main.from, view.state.selection.main.to)).toBe('列 1')
+  })
+
+  test('validates table dimensions and restores toolbar focus on cancel', () => {
+    render(<MarkdownEditor value="" onChange={vi.fn()} media={[]} />)
+    const tableButton = screen.getByRole('button', { name: '表格' })
+    tableButton.focus()
+    fireEvent.click(tableButton)
+    const dialog = screen.getByRole('dialog', { name: '插入表格' })
+    const columns = within(dialog).getByLabelText('列数')
+    const insert = within(dialog).getByRole('button', { name: '插入' })
+
+    fireEvent.change(columns, { target: { value: '' } })
+    expect(insert).toBeDisabled()
+    fireEvent.change(columns, { target: { value: '9' } })
+    expect(insert).toBeDisabled()
+    fireEvent.keyDown(dialog, { key: 'Escape' })
+
+    expect(screen.queryByRole('dialog', { name: '插入表格' })).not.toBeInTheDocument()
+    expect(document.activeElement).toBe(tableButton)
+  })
+
+  test('disables table insertion with the editor', () => {
+    render(<MarkdownEditor value="" onChange={vi.fn()} media={[]} disabled />)
+
+    const tableButton = screen.getByRole('button', { name: '表格' })
+    expect(tableButton).toBeDisabled()
+    fireEvent.click(tableButton)
+    expect(screen.queryByRole('dialog', { name: '插入表格' })).not.toBeInTheDocument()
+  })
+
   test('offers italic and task controls and disables them with the editor', () => {
     const { rerender } = render(<MarkdownEditor value="" onChange={vi.fn()} media={[]} />)
 

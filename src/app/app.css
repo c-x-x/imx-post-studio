@@ -826,6 +826,29 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
 .confirm-dialog h2,
 .crop-dialog h2 { margin: 0 0 16px; font-family: var(--imx-font-reading); }
 
+.table-dialog { width: min(100%, 440px); }
+
+.table-dialog-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.table-dialog-fields label {
+  display: grid;
+  gap: 7px;
+  color: var(--imx-ink-secondary);
+  font-size: .8rem;
+  font-weight: 680;
+}
+
+.table-dialog-help {
+  margin: 12px 0 0;
+  color: var(--imx-ink-muted);
+  font-size: .78rem;
+  line-height: 1.6;
+}
+
 .crop-canvas {
   position: relative;
   height: min(48vh, 360px);
@@ -971,4 +994,5 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
   .crop-dialog h2 { margin-bottom: 12px; font-size: 1.35rem; }
   .dialog-actions { gap: 6px; margin-top: 14px; }
   .dialog-actions > * { flex: 1 1 150px; }
+  .table-dialog-fields { grid-template-columns: 1fr; }
 }
