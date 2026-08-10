@@ -160,7 +160,7 @@ test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle
   await beginArticle(page)
   await fillMetadata(page)
 
-  await page.getByLabel('选择封面').setInputFiles(pngFile('cover-source.png', 2000, 1200, [31, 112, 180, 255]))
+  await page.getByLabel('选择封面').setInputFiles(pngFile('cover-source.png', 900, 1600, [31, 112, 180, 255]))
   await expect(page.getByRole('dialog', { name: '裁剪封面' })).toBeVisible()
   await page.getByRole('button', { name: '使用此封面' }).click()
   await expect(page.getByRole('dialog', { name: '裁剪封面' })).toHaveCount(0)

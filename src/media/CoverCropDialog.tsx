@@ -59,7 +59,7 @@ export function CoverCropDialog({ source, onCancel, onComplete, disabled = false
 
   return <AccessibleDialog title="裁剪封面" className="crop-dialog" onClose={close} returnFocus={() => triggerRef.current}>
       <p>封面将裁剪为 16:9，并导出为 1600×900 以内的 WebP。</p>
-      <div className="crop-canvas"><Cropper image={previewUrl} crop={crop} zoom={zoom} aspect={16 / 9} onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={(_pixels, percentages) => setArea(percentages)} /></div>
+      <div className="crop-canvas"><Cropper image={previewUrl} crop={crop} zoom={zoom} aspect={16 / 9} onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={(percentages) => setArea(percentages)} /></div>
       <label htmlFor="cover-zoom">缩放<input id="cover-zoom" disabled={disabled} type="range" min="1" max="3" step="0.05" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} /></label>
       {error ? <p role="alert" className="field-error">{error}</p> : null}
       <div className="dialog-actions"><DialogClose>{(dialogClose) => <button type="button" onClick={dialogClose} disabled={disabled || processing}>取消</button>}</DialogClose><button type="button" onClick={() => void confirm()} disabled={disabled || processing}>{processing ? '正在转换…' : '使用此封面'}</button></div>
