@@ -161,6 +161,67 @@
   background: var(--imx-line);
 }
 
+.markdown-editor .cm-md-table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin-block: 1.1rem;
+  overflow: hidden;
+  color: var(--imx-ink);
+  white-space: normal;
+}
+
+.markdown-editor .cm-md-table-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
+.markdown-editor .cm-md-table table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  background: var(--imx-paper);
+}
+
+.markdown-editor .cm-md-table th,
+.markdown-editor .cm-md-table td {
+  min-width: 9rem;
+  border: 1px solid var(--imx-line);
+  padding: 0;
+  background: var(--imx-paper);
+}
+
+.markdown-editor .cm-md-table th { background: var(--imx-gutter); }
+
+.markdown-editor .cm-md-table-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  padding: .62rem .7rem;
+  color: var(--imx-ink);
+  background: transparent;
+  font: inherit;
+  line-height: 1.45;
+  outline: 0;
+}
+
+.markdown-editor th .cm-md-table-input { font-weight: 700; }
+
+.markdown-editor .cm-md-table-input:focus {
+  position: relative;
+  z-index: 1;
+  box-shadow: inset 0 0 0 2px var(--imx-accent);
+}
+
+.markdown-editor .cm-md-table-input[readonly] {
+  color: var(--imx-ink-secondary);
+  cursor: not-allowed;
+}
+
 .markdown-editor .cm-content {
   max-width: 920px;
   margin: 0 auto;

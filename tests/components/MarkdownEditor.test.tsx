@@ -59,6 +59,23 @@ describe('MarkdownEditor', () => {
     expect(view.state.sliceDoc(view.state.selection.main.from, view.state.selection.main.to)).toBe('列 1')
   })
 
+  test('focuses and selects the first table header after insertion', async () => {
+    function ControlledEditor() {
+      const [value, setValue] = useState('')
+      return <MarkdownEditor value={value} onChange={setValue} media={[]} />
+    }
+
+    render(<ControlledEditor />)
+    fireEvent.click(screen.getByRole('button', { name: '表格' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: '插入表格' })).getByRole('button', { name: '插入' }))
+
+    const first = await screen.findByRole('textbox', { name: '第 1 行第 1 列' }) as HTMLInputElement
+    await waitFor(() => expect(document.activeElement).toBe(first))
+    expect(first).toHaveValue('列 1')
+    expect(first.selectionStart).toBe(0)
+    expect(first.selectionEnd).toBe(3)
+  })
+
   test('validates table dimensions and restores toolbar focus on cancel', () => {
     render(<MarkdownEditor value="" onChange={vi.fn()} media={[]} />)
     const tableButton = screen.getByRole('button', { name: '表格' })

@@ -141,4 +141,71 @@ describe('liveMarkdown', () => {
     checkbox?.click()
     expect(view.state.doc.toString()).toBe('- [ ] 未完成')
   })
+
+  test('renders a complete GFM table as editable semantic controls', () => {
+    const source = '| 名称 | 值 |\n| --- | --- |\n| 格式 | WebP |'
+    const view = createView(`正文\n\n${source}`, 0)
+    const table = view.dom.querySelector<HTMLDivElement>('.cm-md-table')
+
+    expect(table).not.toBeNull()
+    expect(table?.querySelectorAll('thead th')).toHaveLength(2)
+    expect(table?.querySelectorAll('tbody tr')).toHaveLength(1)
+    expect(table?.querySelector<HTMLInputElement>('input[data-row="0"][data-column="0"]')).toHaveValue('名称')
+    expect(table?.querySelector<HTMLInputElement>('input[data-row="1"][data-column="1"]')).toHaveAccessibleName('第 2 行第 2 列')
+  })
+
+  test('writes escaped cell Markdown while reusing DOM and preserving the caret', () => {
+    const source = '| 名称 | 值 |\n| --- | --- |\n| 格式 | WebP |'
+    const view = createView(`正文\n\n${source}`, 0)
+    const table = view.dom.querySelector<HTMLDivElement>('.cm-md-table')!
+    const first = table.querySelector<HTMLInputElement>('input[data-row="0"][data-column="0"]')!
+
+    first.focus()
+    first.value = '名|称'
+    first.setSelectionRange(1, 1)
+    first.dispatchEvent(new InputEvent('input', { bubbles: true, data: '|' }))
+
+    expect(view.state.doc.toString()).toContain('| 名\\|称 | 值 |')
+    expect(view.dom.querySelector('.cm-md-table')).toBe(table)
+    expect(document.activeElement).toBe(first)
+    expect(first.selectionStart).toBe(1)
+    expect(first.selectionEnd).toBe(1)
+  })
+
+  test('commits a composed cell value only after composition ends', () => {
+    const source = '| 名称 | 值 |\n| --- | --- |\n| 格式 | WebP |'
+    const view = createView(source, 0)
+    const first = view.dom.querySelector<HTMLInputElement>('.cm-md-table input[data-row="0"][data-column="0"]')!
+    const before = view.state.doc.toString()
+
+    first.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
+    first.value = '拼'
+    first.dispatchEvent(new InputEvent('input', { bubbles: true, data: '拼', isComposing: true }))
+    expect(view.state.doc.toString()).toBe(before)
+
+    first.value = '拼音'
+    first.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: '拼音' }))
+    expect(view.state.doc.toString()).toContain('| 拼音 | 值 |')
+  })
+
+  test('keeps unsupported and source-mode tables literal', () => {
+    const valid = '| A | B |\n| --- | --- |\n| 1 | 2 |'
+    const invalid = '| A | B |\n| --- | --- |\n| only one |'
+    const sourceView = createView(valid, 0, 'source')
+    const invalidView = createView(invalid, 0)
+
+    expect(sourceView.dom.querySelector('.cm-md-table')).toBeNull()
+    expect(sourceView.contentDOM.textContent).toContain('| A | B |')
+    expect(invalidView.dom.querySelector('.cm-md-table')).toBeNull()
+    expect(invalidView.contentDOM.textContent).toContain('only one')
+  })
+
+  test('makes table inputs read-only when editing is disabled', () => {
+    const source = '| A | B |\n| --- | --- |\n| 1 | 2 |'
+    const view = createView(source, 0, 'rich', new Map(), true)
+
+    const inputs = [...view.dom.querySelectorAll<HTMLInputElement>('.cm-md-table input')]
+    expect(inputs).toHaveLength(4)
+    expect(inputs.every((input) => input.readOnly)).toBe(true)
+  })
 })

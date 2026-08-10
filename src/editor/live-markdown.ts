@@ -3,6 +3,8 @@ import { syntaxTree } from '@codemirror/language'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
 import { safeMediaName } from '../media/names'
 import type { EditorMode } from './editor-mode'
+import { EditableTableWidget } from './live-table-widget'
+import { parseMarkdownTable } from './table-model'
 
 export interface LiveMarkdownImage {
   alt: string
@@ -175,6 +177,17 @@ function buildDecorations(state: EditorState, options: LiveMarkdownOptions): Dec
       if (heading) addLineClasses(state, ranges, node.from, node.to, `cm-md-heading cm-md-heading-${heading[1]}`)
 
       switch (node.name) {
+        case 'Table': {
+          const table = parseMarkdownTable(state.doc.sliceString(node.from, node.to))
+          if (table) {
+            ranges.push(Decoration.replace({
+              block: true,
+              widget: new EditableTableWidget(node.from, node.to, table, options.disabled),
+            }).range(node.from, node.to))
+            return false
+          }
+          break
+        }
         case 'TaskMarker': {
           const marker = state.doc.sliceString(node.from, node.to)
           ranges.push(Decoration.replace({
