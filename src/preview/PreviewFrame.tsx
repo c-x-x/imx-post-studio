@@ -16,34 +16,31 @@ interface PreviewFrameProps {
   onClose: () => void
 }
 
-function wirePreviewFrameScroll(frame: HTMLIFrameElement, dock: HTMLElement | null, onScroll: (scrollTop: number) => void): void {
-  const document = frame.contentDocument
-  const window = frame.contentWindow
-  if (!document || !window) return
-  const toc = document.querySelector<HTMLElement>('.article-page .toc')
-  const headings = [...document.querySelectorAll<HTMLElement>('.article-content h2, .article-content h3, .article-content h4, .article-content h5, .article-content h6')]
+function wirePreviewFrameScroll(host: HTMLElement, root: ShadowRoot, dock: HTMLElement | null, onScroll: (scrollTop: number) => void): () => void {
+  const toc = root.querySelector<HTMLElement>('.article-page .toc')
+  const headings = [...root.querySelectorAll<HTMLElement>('.article-content h2, .article-content h3, .article-content h4, .article-content h5, .article-content h6')]
   const tocLinkById = new Map<string, HTMLAnchorElement>()
-  document.querySelectorAll<HTMLAnchorElement>('.toc a').forEach((link) => {
+  root.querySelectorAll<HTMLAnchorElement>('.toc a').forEach((link) => {
     try {
-      const hash = new URL(link.href).hash.slice(1)
+      const hash = (link.getAttribute('href') ?? '').replace(/^#/, '')
       tocLinkById.set(decodeURIComponent(hash), link)
     } catch { /* Ignore malformed directory links. */ }
   })
   let lastScrollTop = -1
   let activeTocLink: HTMLAnchorElement | undefined
-  const readScrollTop = () => Math.max(window.scrollY, document.documentElement.scrollTop, document.body.scrollTop)
   const syncDock = () => dock?.dispatchEvent(new CustomEvent(SHARED_DOCK_SCROLL_EVENT, {
     detail: {
-      scrollTop: readScrollTop(),
-      viewportHeight: window.innerHeight,
+      scrollTop: host.scrollTop,
+      viewportHeight: host.clientHeight,
     },
   }))
   const syncToc = (scrollTop: number) => {
     if (!toc || headings.length === 0) return
-    const probeTop = scrollTop + Math.min(Math.max(window.innerHeight * 0.22, 112), 168)
+    const probeTop = scrollTop + Math.min(Math.max(host.clientHeight * 0.22, 112), 168)
+    const hostTop = host.getBoundingClientRect().top
     let nextActiveLink: HTMLAnchorElement | undefined
     for (const heading of headings) {
-      if (scrollTop + heading.getBoundingClientRect().top > probeTop) break
+      if (scrollTop + heading.getBoundingClientRect().top - hostTop > probeTop) break
       nextActiveLink = tocLinkById.get(heading.id) ?? nextActiveLink
     }
     nextActiveLink ??= tocLinkById.get(headings[0].id)
@@ -60,28 +57,52 @@ function wirePreviewFrameScroll(frame: HTMLIFrameElement, dock: HTMLElement | nu
     const targetTop = linkCenter - toc.clientHeight * 0.42
     toc.scrollTop = Math.min(Math.max(targetTop, 0), toc.scrollHeight - toc.clientHeight)
   }
-  const trackScroll = () => {
-    if (!frame.isConnected || frame.contentDocument !== document) return
-    const scrollTop = readScrollTop()
+  let animationFrame = 0
+  const sync = () => {
+    animationFrame = 0
+    const scrollTop = host.scrollTop
     if (scrollTop !== lastScrollTop) {
       lastScrollTop = scrollTop
       onScroll(scrollTop)
       syncDock()
       syncToc(scrollTop)
     }
-    requestAnimationFrame(trackScroll)
   }
-  requestAnimationFrame(trackScroll)
+  const scheduleSync = () => {
+    if (!animationFrame) animationFrame = requestAnimationFrame(sync)
+  }
+  host.addEventListener('scroll', scheduleSync, { passive: true })
+  scheduleSync()
+  return () => {
+    host.removeEventListener('scroll', scheduleSync)
+    cancelAnimationFrame(animationFrame)
+  }
 }
 
-function wirePreviewCodeCopy(document: Document): () => void {
+function wirePreviewCodeCopy(root: ShadowRoot): () => void {
   const timers = new Set<ReturnType<typeof setTimeout>>()
+  const copyText = async (text: string): Promise<void> => {
+    const document = root.ownerDocument
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.setAttribute('readonly', '')
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    document.body.append(textarea)
+    textarea.select()
+    const copied = typeof document.execCommand === 'function' && document.execCommand('copy')
+    textarea.remove()
+    if (copied) return
+    const clipboard = document.defaultView?.navigator.clipboard
+    if (!clipboard?.writeText) throw new Error('Clipboard API unavailable')
+    await clipboard.writeText(text)
+  }
   const handleClick = async (event: Event) => {
     const button = (event.target as Element | null)?.closest<HTMLButtonElement>('[data-copy-code]')
-    if (!button || !document.contains(button)) return
+    if (!button || !root.contains(button)) return
     const code = button.closest('.highlight')?.querySelector('pre code')?.textContent ?? ''
     try {
-      await navigator.clipboard.writeText(code)
+      await copyText(code)
       button.textContent = '已复制'
       button.dataset.copyState = 'success'
     } catch {
@@ -95,9 +116,9 @@ function wirePreviewCodeCopy(document: Document): () => void {
     }, 1600)
     timers.add(timer)
   }
-  document.addEventListener('click', handleClick)
+  root.addEventListener('click', handleClick)
   return () => {
-    document.removeEventListener('click', handleClick)
+    root.removeEventListener('click', handleClick)
     timers.forEach(clearTimeout)
   }
 }
@@ -111,9 +132,8 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
       : 'desktop'
   ))
   const dockRef = useRef<HTMLElement>(null)
-  const frameRef = useRef<HTMLIFrameElement>(null)
+  const frameRef = useRef<HTMLDivElement>(null)
   const frameScrollTop = useRef(0)
-  const wiredDocument = useRef<Document | null>(null)
   const [documentTheme] = useState(theme)
   useSharedDock(dockRef)
   const documentHtml = useMemo(
@@ -124,59 +144,45 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
   useEffect(() => {
     const frame = frameRef.current
     if (!frame) return
-    const applyPreviewTheme = () => frame.contentDocument?.documentElement.setAttribute('data-theme', theme)
-    applyPreviewTheme()
-    frame.addEventListener('load', applyPreviewTheme)
-    return () => frame.removeEventListener('load', applyPreviewTheme)
+    frame.dataset.theme = theme
+    const previewHtml = frame.shadowRoot?.querySelector<HTMLElement>('.preview-html')
+    if (previewHtml) previewHtml.dataset.theme = theme
   }, [theme])
 
   useEffect(() => {
     const frame = frameRef.current
     if (!frame) return
-    let readinessFrame = 0
-    let disconnectCodeCopy: () => void = () => undefined
-    const connectFrame = () => {
-      const document = frame.contentDocument
-      if (document === wiredDocument.current) return true
-      if (!document?.querySelector('.article-page')) return false
-      wiredDocument.current = document
-      const scroller = document.scrollingElement as HTMLElement | null
-      const savedScrollTop = frameScrollTop.current
-      let restoringScroll = savedScrollTop > 0
-      if (scroller) scroller.style.scrollBehavior = 'auto'
-      disconnectCodeCopy()
-      disconnectCodeCopy = wirePreviewCodeCopy(document)
-      wirePreviewFrameScroll(frame, dockRef.current, (scrollTop) => {
-        if (!restoringScroll) frameScrollTop.current = scrollTop
-      })
-      if (scroller && restoringScroll) {
-        let attempts = 0
-        const restoreScroll = () => {
-          scroller.scrollTop = savedScrollTop
-          attempts += 1
-          if (Math.abs(scroller.scrollTop - savedScrollTop) > 1 && attempts < 12) {
-            requestAnimationFrame(restoreScroll)
-            return
-          }
-          restoringScroll = false
-          frameScrollTop.current = scroller.scrollTop
+    const root = frame.shadowRoot ?? frame.attachShadow({ mode: 'open' })
+    root.innerHTML = documentHtml
+    const previewHtml = root.querySelector<HTMLElement>('.preview-html')
+    if (previewHtml) previewHtml.dataset.theme = frame.dataset.theme ?? documentTheme
+    const savedScrollTop = frameScrollTop.current
+    let restoringScroll = savedScrollTop > 0
+    const disconnectCodeCopy = wirePreviewCodeCopy(root)
+    const disconnectScroll = wirePreviewFrameScroll(frame, root, dockRef.current, (scrollTop) => {
+      if (!restoringScroll) frameScrollTop.current = scrollTop
+    })
+    let restoreFrame = 0
+    if (restoringScroll) {
+      let attempts = 0
+      const restoreScroll = () => {
+        frame.scrollTop = savedScrollTop
+        attempts += 1
+        if (Math.abs(frame.scrollTop - savedScrollTop) > 1 && attempts < 12) {
+          restoreFrame = requestAnimationFrame(restoreScroll)
+          return
         }
-        requestAnimationFrame(restoreScroll)
+        restoringScroll = false
+        frameScrollTop.current = frame.scrollTop
       }
-      return true
+      restoreFrame = requestAnimationFrame(restoreScroll)
     }
-    const connectWhenReady = () => {
-      cancelAnimationFrame(readinessFrame)
-      if (!connectFrame()) readinessFrame = requestAnimationFrame(connectWhenReady)
-    }
-    connectWhenReady()
-    frame.addEventListener('load', connectWhenReady)
     return () => {
-      cancelAnimationFrame(readinessFrame)
+      cancelAnimationFrame(restoreFrame)
       disconnectCodeCopy()
-      frame.removeEventListener('load', connectWhenReady)
+      disconnectScroll()
     }
-  }, [documentHtml])
+  }, [documentHtml, documentTheme])
 
   const frameWidth = viewport === 'desktop' ? 'min(1180px, 100%)' : 'min(390px, 100%)'
   return <section className="preview-surface" data-theme={theme} data-viewport={viewport} data-shared-dock-scroll aria-label="IMX 文章预览内容">
@@ -199,7 +205,7 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
       </div>
     </header>
     <div className={`preview-viewport preview-viewport-${viewport}`} tabIndex={0} aria-label="文章预览画布">
-      <iframe ref={frameRef} className="preview-frame" title="IMX 文章预览" sandbox="allow-same-origin" referrerPolicy="no-referrer" srcDoc={documentHtml} style={{ width: frameWidth }} />
+      <div ref={frameRef} className="preview-frame" title="IMX 文章预览" role="document" aria-label="IMX 文章预览" data-theme={theme} style={{ width: frameWidth }} />
     </div>
   </section>
 }

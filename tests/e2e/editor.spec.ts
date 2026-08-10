@@ -302,19 +302,21 @@ test('keeps both responsive workspace tabs mounted and opens preview without hor
   await expectNoHorizontalOverflow()
 })
 
-test('renders usable code blocks and keeps the preview back control stationary', async ({ page }) => {
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText: async () => undefined },
+test('renders usable code blocks and keeps the preview back control stationary', async ({ page, browserName }) => {
+  if (browserName === 'webkit') {
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText: async () => undefined },
+      })
     })
-  })
+  }
   await beginArticle(page)
   await fillMetadata(page)
   await page.getByRole('textbox', { name: 'Markdown 编辑器' }).fill('```bash\n# 当前目录\nclear\n```')
   await page.getByRole('button', { name: '预览文章' }).click()
 
-  const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
+  const preview = page.getByTitle('IMX 文章预览')
   const codeBlock = preview.locator('.highlight')
   await expect(codeBlock).toHaveAttribute('data-code-lang', 'bash')
   await expect(codeBlock.locator('.code-window-controls span')).toHaveCount(3)

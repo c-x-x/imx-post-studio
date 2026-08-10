@@ -10,7 +10,7 @@ const meta: ArticleMeta = {
 }
 
 describe('PreviewFrame', () => {
-  it('keeps accessible controls outside a fully sandboxed, script-free IMX iframe and changes preview geometry', () => {
+  it('keeps accessible controls outside a script-free Shadow DOM preview and changes preview geometry', () => {
     const onClose = vi.fn()
     const onThemeChange = vi.fn()
     render(<PreviewFrame meta={meta} rendered={{ html: '<h2 id="imx-heading-a">A</h2>', toc: [], wordCount: 120, readingMinutes: 1 }} css={'body { color: red; }'} theme="dark" onThemeChange={onThemeChange} onClose={onClose} />)
@@ -18,19 +18,18 @@ describe('PreviewFrame', () => {
     const close = screen.getByRole('button', { name: '返回编辑' })
     const mobile = screen.getByRole('button', { name: '移动预览' })
     const desktop = screen.getByRole('button', { name: '桌面预览' })
-    const iframe = screen.getByTitle('IMX 文章预览')
+    const preview = screen.getByTitle('IMX 文章预览')
     expect(screen.getByRole('button', { name: '浅色预览' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '深色预览' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByText('约 120 字，预计 1 分钟阅读')).toBeInTheDocument()
-    expect(iframe).toHaveAttribute('sandbox', 'allow-same-origin')
-    expect(iframe.getAttribute('sandbox')).not.toContain('allow-scripts')
-    expect(iframe).toHaveAttribute('referrerpolicy', 'no-referrer')
-    expect(iframe.getAttribute('srcdoc')).toContain('&lt;title&gt;')
-    expect(iframe.getAttribute('srcdoc')).toContain('data-theme="dark"')
-    expect(iframe.getAttribute('srcdoc')).not.toMatch(/<script/i)
+    expect(preview.tagName).toBe('DIV')
+    expect(preview).toHaveAttribute('role', 'document')
+    expect(preview.shadowRoot?.innerHTML).toContain('&lt;title&gt;')
+    expect(preview.shadowRoot?.querySelector('.preview-html')).toHaveAttribute('data-theme', 'dark')
+    expect(preview.shadowRoot?.querySelector('script')).toBeNull()
     expect(screen.getByLabelText('文章预览画布')).toHaveAttribute('tabindex', '0')
     expect(desktop).toHaveAttribute('aria-pressed', 'true')
-    expect(iframe).toHaveStyle({ width: 'min(1180px, 100%)' })
+    expect(preview).toHaveStyle({ width: 'min(1180px, 100%)' })
 
     fireEvent.click(close)
     expect(onClose).toHaveBeenCalledOnce()
@@ -41,7 +40,7 @@ describe('PreviewFrame', () => {
     fireEvent.click(mobile)
     expect(mobile).toHaveAttribute('aria-pressed', 'true')
     expect(desktop).toHaveAttribute('aria-pressed', 'false')
-    expect(iframe).toHaveStyle({ width: 'min(390px, 100%)' })
+    expect(preview).toHaveStyle({ width: 'min(390px, 100%)' })
   })
 
   it('builds sanitized Shadow DOM content with the Studio-owned TOC contract', () => {

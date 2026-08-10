@@ -47,6 +47,8 @@ function shadowCss(value: string): string {
     .replaceAll(':root', ':host')
     .replace(/\bhtml(?=\s*[{,:])/g, '.preview-html')
     .replace(/\bbody(?=\s*[.{,:])/g, '.preview-body')
+    .replace(/@media\s+([^{}]*(?:min|max)-width[^{}]*)\{/g, '@container preview $1{')
+    .replaceAll('100vw', '100cqi')
 }
 ```
 
