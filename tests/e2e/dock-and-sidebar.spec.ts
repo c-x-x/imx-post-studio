@@ -90,6 +90,22 @@ test('collapses the settings sidebar, expands the editor, and restores the prefe
   await expect(page.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-inspector-collapsed', 'false')
 })
 
+test('keeps inspector tabs at their intrinsic height when inspector content changes', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '文章', exact: true }).click()
+  const inspector = page.locator('.workspace-inspector')
+  const tabs = page.locator('.inspector-view-tabs')
+  const initialHeight = (await tabs.boundingBox())?.height ?? 0
+
+  expect(initialHeight).toBeGreaterThan(0)
+  expect(initialHeight).toBeLessThan(64)
+  await page.getByRole('tab', { name: '大纲', exact: true }).click()
+  await inspector.evaluate((element) => { element.style.height = '600px' })
+  expect((await tabs.boundingBox())?.height).toBe(initialHeight)
+  await page.getByRole('tab', { name: '文章设置', exact: true }).click()
+  expect((await tabs.boundingBox())?.height).toBe(initialHeight)
+})
+
 test('collapses the action rail, expands the editor, and restores it independently', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: '文章', exact: true }).click()
