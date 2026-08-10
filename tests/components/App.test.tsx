@@ -6,12 +6,16 @@ import { App } from '../../src/app/App'
 describe('App', () => {
   afterEach(cleanup)
 
-  it('opens on an IMX introduction and Markdown guide', () => {
+  it('opens on a standalone Markdown studio introduction and guide', () => {
     render(<App />)
     expect(screen.getByRole('heading', { name: 'IMX Post Studio' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /切换到.*主题/ })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'IMX Post Studio 介绍' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: '文字是时间里的不死鸟' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'I am no bird; and no net ensnares me.' })).toBeInTheDocument()
+    expect(screen.getByText('Charlotte Brontë · Jane Eyre')).toBeInTheDocument()
+    expect(screen.getByText(/本地优先的 Markdown 写作工作台/)).toBeInTheDocument()
+    expect(screen.queryByText('Hugo 输出')).not.toBeInTheDocument()
+    expect(screen.queryByText('IMX 预览')).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Markdown 语法速查' })).toBeInTheDocument()
   })
 

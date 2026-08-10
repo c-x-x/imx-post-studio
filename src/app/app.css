@@ -251,6 +251,7 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
 
 .home-hero h2 { max-width: 760px; font-size: clamp(2rem, 5vw, 4.2rem); line-height: 1.08; }
 .home-hero > p:not(.home-eyebrow) { max-width: 690px; margin: 20px 0 0; color: var(--imx-ink-secondary); line-height: 1.8; }
+.home-hero > .home-quote-source { margin-top: 14px; color: var(--imx-accent); font-size: .78rem; font-weight: 700; letter-spacing: .08em; }
 
 .home-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
 .home-actions button,

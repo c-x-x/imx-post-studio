@@ -170,6 +170,10 @@ test.describe('IMX visual regressions', () => {
     await expect(page.getByRole('heading', { name: 'IMX Post Studio' })).toBeVisible()
     await expect(page.locator('.vite-error-overlay, [data-nextjs-dialog], #webpack-dev-server-client-overlay')).toHaveCount(0)
     await expect(page.getByRole('button', { name: '文章', exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'I am no bird; and no net ensnares me.' })).toBeVisible()
+    await expect(page.getByText('Charlotte Brontë · Jane Eyre')).toBeVisible()
+    await expect(page.getByText('Hugo 输出')).toHaveCount(0)
+    await expect(page.getByText('IMX 预览')).toHaveCount(0)
     await expect(page.getByRole('heading', { name: 'Markdown 语法速查' })).toBeVisible()
     await expect(page.getByRole('button', { name: '草稿库' })).toBeVisible()
     const shellStyle = await page.locator('.imx-dock').evaluate((dock) => {
