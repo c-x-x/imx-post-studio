@@ -8,6 +8,10 @@ const sharedUse = {
   viewport: { width: 1440, height: 900 },
 }
 
+const previewCommand = process.env.CI
+  ? 'npm run preview -- --host 127.0.0.1'
+  : 'npm run build && npm run preview -- --host 127.0.0.1'
+
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: false,
@@ -29,7 +33,7 @@ export default defineConfig({
     { name: 'webkit', use: { ...devices['Desktop Safari'], ...sharedUse } },
   ],
   webServer: {
-    command: 'npm run build && npm run preview -- --host 127.0.0.1',
+    command: previewCommand,
     url: 'http://127.0.0.1:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
