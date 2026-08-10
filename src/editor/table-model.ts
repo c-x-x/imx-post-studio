@@ -11,6 +11,11 @@ export interface MarkdownTableModel {
   rows: string[][]
 }
 
+export interface TableMutation {
+  table: MarkdownTableModel
+  focus: TableCellPosition
+}
+
 function splitTableRow(line: string): string[] {
   const source = line.trim()
   const cells: string[] = []
@@ -116,4 +121,60 @@ export function replaceTableCell(
   const rows = table.rows.map((row) => [...row])
   rows[position.row - 1][position.column] = value
   return { ...table, rows }
+}
+
+function validPosition(table: MarkdownTableModel, position: TableCellPosition): boolean {
+  return position.row >= 0
+    && position.row <= table.rows.length
+    && position.column >= 0
+    && position.column < table.header.length
+}
+
+export function addTableRow(table: MarkdownTableModel, current: TableCellPosition): TableMutation | null {
+  if (!validPosition(table, current) || table.rows.length >= 20) return null
+  const rows = table.rows.map((row) => [...row])
+  rows.splice(current.row, 0, Array.from({ length: table.header.length }, () => '内容'))
+  return {
+    table: { ...table, rows },
+    focus: { row: current.row + 1, column: current.column },
+  }
+}
+
+export function deleteTableRow(table: MarkdownTableModel, current: TableCellPosition): TableMutation | null {
+  if (!validPosition(table, current) || current.row === 0 || table.rows.length <= 1) return null
+  const rows = table.rows.map((row) => [...row])
+  rows.splice(current.row - 1, 1)
+  return {
+    table: { ...table, rows },
+    focus: { row: Math.min(current.row, rows.length), column: current.column },
+  }
+}
+
+export function addTableColumn(table: MarkdownTableModel, current: TableCellPosition): TableMutation | null {
+  if (!validPosition(table, current) || table.header.length >= 8) return null
+  const column = current.column + 1
+  const header = [...table.header]
+  const alignments = [...table.alignments]
+  const rows = table.rows.map((row) => [...row])
+  header.splice(column, 0, `列 ${column + 1}`)
+  alignments.splice(column, 0, 'none')
+  for (const row of rows) row.splice(column, 0, '内容')
+  return {
+    table: { header, alignments, rows },
+    focus: { row: current.row, column },
+  }
+}
+
+export function deleteTableColumn(table: MarkdownTableModel, current: TableCellPosition): TableMutation | null {
+  if (!validPosition(table, current) || table.header.length <= 2) return null
+  const header = [...table.header]
+  const alignments = [...table.alignments]
+  const rows = table.rows.map((row) => [...row])
+  header.splice(current.column, 1)
+  alignments.splice(current.column, 1)
+  for (const row of rows) row.splice(current.column, 1)
+  return {
+    table: { header, alignments, rows },
+    focus: { row: current.row, column: Math.min(current.column, header.length - 1) },
+  }
 }

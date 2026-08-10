@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'vitest'
 import {
+  addTableColumn,
+  addTableRow,
+  deleteTableColumn,
+  deleteTableRow,
   parseMarkdownTable,
   replaceTableCell,
   serializeMarkdownTable,
@@ -52,5 +56,69 @@ describe('Markdown table model', () => {
     expect(serializeMarkdownTable(replaceTableCell(table, { row: 0, column: 1 }, '名称'))).toBe(
       '| A | 名称 |\n| :--- | ---: |\n| 1 | 2 |',
     )
+  })
+
+  test('adds a data row below the active row and after the header', () => {
+    const table = parseMarkdownTable('| A | B |\n| --- | --- |\n| 1 | 2 |')!
+
+    expect(addTableRow(table, { row: 0, column: 1 })).toEqual({
+      table: {
+        ...table,
+        rows: [['内容', '内容'], ['1', '2']],
+      },
+      focus: { row: 1, column: 1 },
+    })
+    expect(addTableRow(table, { row: 1, column: 0 })).toEqual({
+      table: {
+        ...table,
+        rows: [['1', '2'], ['内容', '内容']],
+      },
+      focus: { row: 2, column: 0 },
+    })
+    expect(table.rows).toEqual([['1', '2']])
+  })
+
+  test('deletes a data row and focuses the nearest surviving row', () => {
+    const table = parseMarkdownTable('| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |\n| 5 | 6 |')!
+
+    expect(deleteTableRow(table, { row: 2, column: 1 })).toEqual({
+      table: { ...table, rows: [['1', '2'], ['5', '6']] },
+      focus: { row: 2, column: 1 },
+    })
+    expect(deleteTableRow(table, { row: 3, column: 0 })?.focus).toEqual({ row: 2, column: 0 })
+  })
+
+  test('adds and deletes a column while preserving alignment and nearest focus', () => {
+    const table = parseMarkdownTable('| A | B |\n| :--- | ---: |\n| 1 | 2 |')!
+    const added = addTableColumn(table, { row: 1, column: 0 })!
+
+    expect(added).toEqual({
+      table: {
+        header: ['A', '列 2', 'B'],
+        alignments: ['left', 'none', 'right'],
+        rows: [['1', '内容', '2']],
+      },
+      focus: { row: 1, column: 1 },
+    })
+    expect(deleteTableColumn(added.table, added.focus)).toEqual({
+      table,
+      focus: { row: 1, column: 1 },
+    })
+  })
+
+  test('enforces header, row, column, and upper limits', () => {
+    const minimum = parseMarkdownTable('| A | B |\n| --- | --- |\n| 1 | 2 |')!
+    expect(deleteTableRow(minimum, { row: 0, column: 0 })).toBeNull()
+    expect(deleteTableRow(minimum, { row: 1, column: 0 })).toBeNull()
+    expect(deleteTableColumn(minimum, { row: 1, column: 0 })).toBeNull()
+
+    const maxRows = { ...minimum, rows: Array.from({ length: 20 }, () => ['内容', '内容']) }
+    const maxColumns = {
+      header: Array.from({ length: 8 }, (_, index) => `列 ${index + 1}`),
+      alignments: Array.from({ length: 8 }, () => 'none' as const),
+      rows: [Array.from({ length: 8 }, () => '内容')],
+    }
+    expect(addTableRow(maxRows, { row: 1, column: 0 })).toBeNull()
+    expect(addTableColumn(maxColumns, { row: 1, column: 0 })).toBeNull()
   })
 })
