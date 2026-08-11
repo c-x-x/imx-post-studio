@@ -6,6 +6,7 @@ import {
   deleteTableRow,
   parseMarkdownTable,
   replaceTableCell,
+  setTableColumnAlignment,
   serializeMarkdownTable,
 } from '../../src/editor/table-model'
 
@@ -56,6 +57,14 @@ describe('Markdown table model', () => {
     expect(serializeMarkdownTable(replaceTableCell(table, { row: 0, column: 1 }, '名称'))).toBe(
       '| A | 名称 |\n| :--- | ---: |\n| 1 | 2 |',
     )
+  })
+
+  test('changes one column alignment without mutating the original table', () => {
+    const table = parseMarkdownTable('| A | B |\n| --- | --- |\n| 1 | 2 |')!
+    const aligned = setTableColumnAlignment(table, 1, 'center')
+
+    expect(serializeMarkdownTable(aligned)).toContain('| --- | :---: |')
+    expect(table.alignments).toEqual(['none', 'none'])
   })
 
   test('recognizes a trailing outer pipe after an even backslash run', () => {

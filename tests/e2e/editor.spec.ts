@@ -335,6 +335,12 @@ test('creates and edits a Markdown table across source, preview, and mobile layo
     end: (input as HTMLInputElement).selectionEnd,
   }))).toEqual({ start: 0, end: 3 })
 
+  const tableBox = await page.locator('.cm-md-table').boundingBox()
+  if (!tableBox) throw new Error('Table geometry is unavailable')
+  await page.mouse.click(tableBox.x + tableBox.width - 2, tableBox.y + 4)
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('textbox', { name: '第 1 行第 1 列' })).toBeVisible()
+
   const firstLineAfterTable = page.locator('.cm-md-table').locator('xpath=following-sibling::*[contains(concat(" ", normalize-space(@class), " "), " cm-line ")][1]')
   await firstLineAfterTable.click({ position: { x: 8, y: 1 } })
   await page.keyboard.type('直接写作')
@@ -344,7 +350,12 @@ test('creates and edits a Markdown table across source, preview, and mobile layo
   await page.getByRole('textbox', { name: '第 1 行第 2 列' }).fill('值')
   await page.getByRole('textbox', { name: '第 2 行第 1 列' }).fill('格式')
   await page.getByRole('textbox', { name: '第 2 行第 2 列' }).fill('WebP')
+  await page.getByRole('button', { name: '当前列居中' }).click()
+  await expect(page.getByRole('textbox', { name: '第 2 行第 2 列' })).toHaveCSS('text-align', 'center')
 
+  await firstHeader.focus()
+  await firstHeader.press('Enter')
+  await expect(page.getByRole('textbox', { name: '第 2 行第 1 列' })).toBeFocused()
   await firstHeader.focus()
   await firstHeader.press('Tab')
   await expect(page.getByRole('textbox', { name: '第 1 行第 2 列' })).toBeFocused()
@@ -451,6 +462,7 @@ test('live writing formats Markdown, preserves source, and visually wraps at nar
   await expect(page.locator('.cm-md-code-line-numbers span')).toHaveCount(1)
   await expect(page.locator('.cm-md-code-line-numbers span')).toHaveText('1')
   await expect(page.getByRole('textbox', { name: '代码块语言' })).toHaveValue('ts')
+  await expect(page.locator('.cm-md-code-highlight .hljs-keyword')).toContainText('const')
   expect(await page.locator('.cm-md-hidden').count()).toBeGreaterThan(0)
   expect([...new Set(await page.locator('.cm-md-heading span').evaluateAll((elements) => elements.map((element) => getComputedStyle(element).textDecorationLine)))])
     .toEqual(['none'])
@@ -527,6 +539,12 @@ test('edits code content through the native code-block editor', async ({ page })
   await code.evaluate((textarea) => (textarea as HTMLTextAreaElement).setSelectionRange(14, 14))
   await page.keyboard.type('X')
   expect(await markdownSource(page)).toBe(['```java', 'git add .', 'git Xcommit -m ""', 'git push', '```'].join('\n'))
+
+  const blockBox = await page.locator('.cm-md-code-block').boundingBox()
+  if (!blockBox) throw new Error('Code block geometry is unavailable')
+  await page.mouse.click(blockBox.x + blockBox.width - 2, blockBox.y + 2)
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('textbox', { name: '代码块内容' })).toBeVisible()
 })
 
 test('keeps the code language control compact in the lower-right corner', async ({ page }) => {

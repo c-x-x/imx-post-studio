@@ -272,8 +272,40 @@ function buildDecorations(state: EditorState, options: LiveMarkdownOptions): Dec
   return Decoration.set(ranges, true)
 }
 
+function buildAtomicRanges(state: EditorState, options: LiveMarkdownOptions): DecorationSet {
+  if (options.mode === 'source') return Decoration.none
+  const ranges: Array<Range<Decoration>> = []
+  syntaxTree(state).iterate({
+    enter(reference) {
+      const node = reference.node
+      if (node.name === 'Table' && parseMarkdownTable(state.doc.sliceString(node.from, node.to))) {
+        ranges.push(Decoration.mark({}).range(node.from, node.to))
+        return false
+      }
+      if (node.name === 'TaskMarker') {
+        ranges.push(Decoration.mark({}).range(node.from, node.to))
+        return false
+      }
+      if (node.name === 'FencedCode' && parseEditableCodeBlock(state.doc.sliceString(node.from, node.to), node.from)) {
+        ranges.push(Decoration.mark({}).range(node.from, node.to))
+        return false
+      }
+      if (node.name === 'Image' && localImage(state, node, options)) {
+        ranges.push(Decoration.mark({}).range(node.from, node.to))
+        return false
+      }
+      if (node.name === 'HorizontalRule') {
+        ranges.push(Decoration.mark({}).range(node.from, node.to))
+        return false
+      }
+      return undefined
+    },
+  })
+  return Decoration.set(ranges, true)
+}
+
 export function liveMarkdown(options: LiveMarkdownOptions): Extension {
-  return StateField.define<DecorationSet>({
+  const decorations = StateField.define<DecorationSet>({
     create(state) {
       return buildDecorations(state, options)
     },
@@ -284,4 +316,16 @@ export function liveMarkdown(options: LiveMarkdownOptions): Extension {
     },
     provide: (field) => EditorView.decorations.from(field),
   })
+  const atomicRanges = StateField.define<DecorationSet>({
+    create(state) {
+      return buildAtomicRanges(state, options)
+    },
+    update(ranges, transaction) {
+      return transaction.docChanged
+        ? buildAtomicRanges(transaction.state, options)
+        : ranges
+    },
+    provide: (field) => EditorView.atomicRanges.from(field, (ranges) => () => ranges),
+  })
+  return [decorations, atomicRanges]
 }

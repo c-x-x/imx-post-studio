@@ -1,6 +1,7 @@
 import { Transaction } from '@codemirror/state'
 import { isolateHistory, redo, undo } from '@codemirror/commands'
 import { EditorView, WidgetType } from '@codemirror/view'
+import hljs from 'highlight.js/lib/common'
 
 export interface EditableCodeBlock {
   code: string
@@ -88,6 +89,20 @@ function syncLineNumbers(root: HTMLElement, code: string) {
   }))
 }
 
+function syncHighlight(root: HTMLElement, code: string, language: string) {
+  const highlighted = root.querySelector<HTMLElement>('.cm-md-code-highlight code')
+  if (!highlighted) return
+  if (!language || !hljs.getLanguage(language)) {
+    highlighted.textContent = code
+    return
+  }
+  try {
+    highlighted.innerHTML = hljs.highlight(code, { language, ignoreIllegals: true }).value
+  } catch {
+    highlighted.textContent = code
+  }
+}
+
 function syncCodeBlock(root: HTMLElement, binding: CodeBinding) {
   const textarea = codeEditor(root)
   const language = languageEditor(root)
@@ -102,6 +117,7 @@ function syncCodeBlock(root: HTMLElement, binding: CodeBinding) {
   language.disabled = binding.widget.disabled
   language.size = Math.max(4, Math.min(12, language.value.length || 4))
   syncLineNumbers(root, textarea.value)
+  syncHighlight(root, textarea.value, languageValue(language.value))
 }
 
 function commitCodeBlock(root: HTMLElement, userEvent = 'input.type') {
@@ -174,6 +190,12 @@ function createCodeEditor(root: HTMLElement, disabled: boolean): HTMLElement {
   textarea.spellcheck = false
   textarea.wrap = 'off'
   textarea.readOnly = disabled
+  const stack = document.createElement('div')
+  stack.className = 'cm-md-code-stack'
+  const highlight = document.createElement('pre')
+  highlight.className = 'cm-md-code-highlight'
+  highlight.setAttribute('aria-hidden', 'true')
+  highlight.append(document.createElement('code'))
   textarea.addEventListener('compositionstart', () => {
     const binding = bindings.get(root)
     if (binding) binding.composing = 'code'
@@ -187,6 +209,7 @@ function createCodeEditor(root: HTMLElement, disabled: boolean): HTMLElement {
     const binding = bindings.get(root)
     textarea.rows = Math.max(1, textarea.value.split('\n').length)
     syncLineNumbers(root, textarea.value)
+    syncHighlight(root, textarea.value, languageValue(languageEditor(root).value))
     if (!binding || binding.composing === 'code' || (event as InputEvent).isComposing) return
     commitCodeBlock(root)
   })
@@ -213,11 +236,18 @@ function createCodeEditor(root: HTMLElement, disabled: boolean): HTMLElement {
       textarea.setRangeText('  ', start, textarea.selectionEnd, 'end')
       textarea.rows = Math.max(1, textarea.value.split('\n').length)
       syncLineNumbers(root, textarea.value)
+      syncHighlight(root, textarea.value, languageValue(languageEditor(root).value))
       commitCodeBlock(root)
     }
   })
 
-  body.append(gutter, textarea)
+  textarea.addEventListener('scroll', () => {
+    highlight.scrollLeft = textarea.scrollLeft
+    highlight.scrollTop = textarea.scrollTop
+  })
+
+  stack.append(highlight, textarea)
+  body.append(gutter, stack)
   return body
 }
 
@@ -256,6 +286,7 @@ function createLanguageEditor(root: HTMLElement, disabled: boolean): HTMLElement
   language.addEventListener('input', (event) => {
     const binding = bindings.get(root)
     language.size = Math.max(4, Math.min(12, language.value.length || 4))
+    syncHighlight(root, codeEditor(root).value, languageValue(language.value))
     if (!binding || binding.composing === 'language' || (event as InputEvent).isComposing) return
     commitCodeBlock(root)
   })

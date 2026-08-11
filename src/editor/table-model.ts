@@ -157,6 +157,17 @@ export function replaceTableCell(
   return { ...table, rows }
 }
 
+export function setTableColumnAlignment(
+  table: MarkdownTableModel,
+  column: number,
+  alignment: TableAlignment,
+): MarkdownTableModel {
+  if (column < 0 || column >= table.header.length) return table
+  const alignments = [...table.alignments]
+  alignments[column] = alignment
+  return { ...table, alignments }
+}
+
 function validPosition(table: MarkdownTableModel, position: TableCellPosition): boolean {
   return position.row >= 0
     && position.row <= table.rows.length

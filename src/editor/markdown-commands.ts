@@ -47,6 +47,46 @@ function replaceSelection(value: string, selection: MarkdownSelection, replaceme
   }
 }
 
+function toggleInline(value: string, selection: MarkdownSelection, marker: string): MarkdownEdit {
+  const selected = value.slice(selection.from, selection.to)
+  if (selected.startsWith(marker) && selected.endsWith(marker) && selected.length >= marker.length * 2) {
+    const content = selected.slice(marker.length, -marker.length)
+    return replaceSelection(value, selection, content, 0, content.length)
+  }
+  if (selection.from >= marker.length
+    && value.slice(selection.from - marker.length, selection.from) === marker
+    && value.slice(selection.to, selection.to + marker.length) === marker) {
+    const from = selection.from - marker.length
+    const replacement = value.slice(selection.from, selection.to)
+    return {
+      value: `${value.slice(0, from)}${replacement}${value.slice(selection.to + marker.length)}`,
+      selection: { from, to: from + replacement.length },
+    }
+  }
+  return replaceSelection(value, selection, `${marker}${selected}${marker}`, marker.length, marker.length + selected.length)
+}
+
+function toggleLinePrefix(
+  value: string,
+  selection: MarkdownSelection,
+  matches: (line: string) => boolean,
+  remove: (line: string) => string,
+  add: (line: string) => string,
+): MarkdownEdit {
+  const from = value.lastIndexOf('\n', Math.max(0, selection.from - 1)) + 1
+  let to = value.indexOf('\n', selection.to)
+  if (to < 0) to = value.length
+  if (selection.to > selection.from && selection.to === from && from > 0) to = from - 1
+  const lines = value.slice(from, to).split('\n')
+  const shouldRemove = lines.every(matches)
+  const replacement = lines.map(shouldRemove ? remove : add).join('\n')
+  const addedPrefix = !shouldRemove && lines.length === 1 ? Math.max(0, replacement.length - lines[0].length) : 0
+  return {
+    value: `${value.slice(0, from)}${replacement}${value.slice(to)}`,
+    selection: { from: from + addedPrefix, to: from + replacement.length },
+  }
+}
+
 export function insertMarkdownImages(
   value: string,
   initialSelection: MarkdownSelection,
@@ -122,17 +162,17 @@ export function runMarkdownCommand(value: string, initialSelection: MarkdownSele
 
   switch (command.type) {
     case 'bold':
-      return replaceSelection(value, selection, `**${selected}**`, 2, 2 + selected.length)
+      return toggleInline(value, selection, '**')
     case 'italic':
-      return replaceSelection(value, selection, `*${selected}*`, 1, 1 + selected.length)
+      return toggleInline(value, selection, '*')
     case 'heading':
-      return replaceSelection(value, selection, `## ${selected}`, 3, 3 + selected.length)
+      return toggleLinePrefix(value, selection, (line) => /^##\s/.test(line), (line) => line.replace(/^##\s/, ''), (line) => `## ${line.replace(/^#{1,6}\s+/, '')}`)
     case 'list':
-      return replaceSelection(value, selection, `- ${selected}`, 2, 2 + selected.length)
+      return toggleLinePrefix(value, selection, (line) => /^[-+*]\s/.test(line), (line) => line.replace(/^[-+*]\s/, ''), (line) => `- ${line}`)
     case 'task':
-      return replaceSelection(value, selection, `- [ ] ${selected}`, 6, 6 + selected.length)
+      return toggleLinePrefix(value, selection, (line) => /^[-+*]\s+\[[ xX]\]\s/.test(line), (line) => line.replace(/^[-+*]\s+\[[ xX]\]\s/, ''), (line) => `- [ ] ${line.replace(/^[-+*]\s+/, '')}`)
     case 'quote':
-      return replaceSelection(value, selection, `> ${selected}`, 2, 2 + selected.length)
+      return toggleLinePrefix(value, selection, (line) => /^>\s?/.test(line), (line) => line.replace(/^>\s?/, ''), (line) => `> ${line}`)
     case 'code':
       return replaceSelection(value, selection, `\`\`\`\n${selected}\n\`\`\``, 4, 4 + selected.length)
     case 'link': {

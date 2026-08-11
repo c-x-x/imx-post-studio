@@ -167,6 +167,38 @@ describe('MarkdownEditor', () => {
     expect(onCommitPastedImages).not.toHaveBeenCalled()
   })
 
+  test('emits one change for a toolbar command', async () => {
+    const onChange = vi.fn()
+    render(<MarkdownEditor value="正文" onChange={onChange} media={[]} />)
+    const textbox = screen.getByRole('textbox', { name: 'Markdown 编辑器' })
+    const view = EditorView.findFromDOM(textbox)
+    if (!view) throw new Error('CodeMirror view not found')
+    view.dispatch({ selection: { anchor: 0, head: 2 } })
+
+    fireEvent.click(screen.getByRole('button', { name: '加粗' }))
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1))
+    expect(onChange).toHaveBeenCalledWith('**正文**')
+  })
+
+  test('keeps intervening typing when image preparation finishes later', async () => {
+    const file = new File(['png'], 'image.png', { type: 'image/png' })
+    const asset = imageAsset('one', 'image.png')
+    let finish!: (assets: MediaAsset[]) => void
+    const preparePastedImages = vi.fn(() => new Promise<MediaAsset[]>((resolve) => { finish = resolve }))
+    const onCommitPastedImages = vi.fn()
+    render(<MarkdownEditor value="正文" onChange={vi.fn()} media={[]} preparePastedImages={preparePastedImages} onCommitPastedImages={onCommitPastedImages} />)
+    const textbox = screen.getByRole('textbox', { name: 'Markdown 编辑器' })
+    const view = EditorView.findFromDOM(textbox)
+    if (!view) throw new Error('CodeMirror view not found')
+    view.dispatch({ selection: { anchor: view.state.doc.length } })
+    dispatchPaste(textbox, [clipboardItem(file)])
+    view.dispatch({ changes: { from: view.state.doc.length, insert: '继续写作' }, selection: { anchor: view.state.doc.length + 4 } })
+    finish([asset])
+
+    await waitFor(() => expect(onCommitPastedImages).toHaveBeenCalledWith([asset], '正文继续写作\n\n![image](images/image.png)'))
+  })
+
   test('prepares and commits one clipboard image with the complete next Markdown', async () => {
     const file = new File(['png'], 'image.png', { type: 'image/png' })
     const asset = imageAsset('one', 'image.png')

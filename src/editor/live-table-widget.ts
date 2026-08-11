@@ -7,6 +7,7 @@ import {
   deleteTableColumn,
   deleteTableRow,
   replaceTableCell,
+  setTableColumnAlignment,
   serializeMarkdownTable,
   type MarkdownTableModel,
   type TableCellPosition,
@@ -30,13 +31,17 @@ interface PreservedFocus {
 const bindings = new WeakMap<HTMLElement, TableBinding>()
 
 type StructureAction = 'add-row' | 'delete-row' | 'add-column' | 'delete-column'
-type TableAction = StructureAction | 'continue-writing' | 'delete-table'
+type AlignmentAction = 'align-left' | 'align-center' | 'align-right'
+type TableAction = StructureAction | AlignmentAction | 'continue-writing' | 'delete-table'
 
 const structureControls: Array<{ action: TableAction; label: string; text: string }> = [
   { action: 'add-row', label: '在当前行下方添加一行', text: '添加行' },
   { action: 'delete-row', label: '删除当前行', text: '删除行' },
   { action: 'add-column', label: '在当前列右侧添加一列', text: '添加列' },
   { action: 'delete-column', label: '删除当前列', text: '删除列' },
+  { action: 'align-left', label: '当前列左对齐', text: '左对齐' },
+  { action: 'align-center', label: '当前列居中', text: '居中' },
+  { action: 'align-right', label: '当前列右对齐', text: '右对齐' },
   { action: 'continue-writing', label: '在表格下方继续写作', text: '下方写作' },
   { action: 'delete-table', label: '删除整个表格', text: '删除表格' },
 ]
@@ -73,7 +78,7 @@ function updateControlStates(root: HTMLElement) {
   for (const button of root.querySelectorAll<HTMLButtonElement>('.cm-md-table-controls button')) {
     const action = button.dataset.action as TableAction
     button.disabled = binding.widget.disabled
-      || (action !== 'continue-writing' && action !== 'delete-table' && structureMutation(binding, action) === null)
+      || (['add-row', 'delete-row', 'add-column', 'delete-column'].includes(action) && structureMutation(binding, action as StructureAction) === null)
   }
 }
 
@@ -130,7 +135,20 @@ function applyStructure(root: HTMLElement, action: TableAction) {
     deleteTable(binding)
     return
   }
-  const mutation = structureMutation(binding, action)
+  if (action.startsWith('align-')) {
+    const alignment = action.slice('align-'.length) as 'left' | 'center' | 'right'
+    binding.view.dispatch({
+      changes: {
+        from: binding.widget.from,
+        to: binding.widget.to,
+        insert: serializeMarkdownTable(setTableColumnAlignment(binding.widget.table, binding.active.column, alignment)),
+      },
+      annotations: [Transaction.userEvent.of('input'), isolateHistory.of('full')],
+    })
+    focusCell(binding.view, root, binding.active)
+    return
+  }
+  const mutation = structureMutation(binding, action as StructureAction)
   if (!mutation) return
   binding.view.dispatch({
     changes: {
@@ -212,7 +230,37 @@ function createCellInput(
     }
     const key = event.key.toLowerCase()
     const modifier = event.ctrlKey || event.metaKey
-    if (modifier && key === 'z') {
+    if (modifier && event.key === 'Enter') {
+      event.preventDefault()
+      continueWriting(binding)
+    } else if (event.key === 'Enter' || event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      const direction = event.key === 'ArrowUp' ? -1 : 1
+      const target = inputAt(root, { row: position.row + direction, column: position.column })
+      if (target) {
+        event.preventDefault()
+        target.focus()
+        target.select()
+      } else if (event.key !== 'ArrowUp') {
+        event.preventDefault()
+        continueWriting(binding)
+      }
+    } else if (event.key === 'ArrowLeft' && input.selectionStart === 0 && input.selectionEnd === 0) {
+      const inputs = [...root.querySelectorAll<HTMLInputElement>('.cm-md-table-input')]
+      const target = inputs[inputs.indexOf(input) - 1]
+      if (target) {
+        event.preventDefault()
+        target.focus()
+        target.setSelectionRange(target.value.length, target.value.length)
+      }
+    } else if (event.key === 'ArrowRight' && input.selectionStart === input.value.length && input.selectionEnd === input.value.length) {
+      const inputs = [...root.querySelectorAll<HTMLInputElement>('.cm-md-table-input')]
+      const target = inputs[inputs.indexOf(input) + 1]
+      if (target) {
+        event.preventDefault()
+        target.focus()
+        target.setSelectionRange(0, 0)
+      }
+    } else if (modifier && key === 'z') {
       event.preventDefault()
       ;(event.shiftKey ? redo : undo)(binding.view)
     } else if (event.ctrlKey && key === 'y') {
@@ -256,6 +304,7 @@ function buildTable(root: HTMLElement, binding: TableBinding) {
   binding.widget.table.header.forEach((value, column) => {
     const cell = document.createElement('th')
     cell.scope = 'col'
+    cell.style.textAlign = binding.widget.table.alignments[column] === 'none' ? 'left' : binding.widget.table.alignments[column]
     cell.append(createCellInput(root, { row: 0, column }, value, binding.widget.disabled))
     headRow.append(cell)
   })
@@ -266,6 +315,7 @@ function buildTable(root: HTMLElement, binding: TableBinding) {
     const row = document.createElement('tr')
     values.forEach((value, column) => {
       const cell = document.createElement('td')
+      cell.style.textAlign = binding.widget.table.alignments[column] === 'none' ? 'left' : binding.widget.table.alignments[column]
       cell.append(createCellInput(root, { row: rowIndex + 1, column }, value, binding.widget.disabled))
       row.append(cell)
     })
@@ -298,6 +348,7 @@ function syncTable(root: HTMLElement, binding: TableBinding) {
       const composing = binding.composing === cellKey({ row, column })
       if (!composing) input.value = values[row][column]
       input.readOnly = binding.widget.disabled
+      input.parentElement!.style.textAlign = binding.widget.table.alignments[column] === 'none' ? 'left' : binding.widget.table.alignments[column]
     }
   }
   updateControlStates(root)

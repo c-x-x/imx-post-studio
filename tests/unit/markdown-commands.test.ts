@@ -28,6 +28,15 @@ describe('runMarkdownCommand', () => {
     })
   })
 
+  it('formats and unformats every selected line without nesting duplicate markers', () => {
+    const listed = runMarkdownCommand('第一行\n第二行', { from: 0, to: 7 }, { type: 'list' })
+    expect(listed.value).toBe('- 第一行\n- 第二行')
+    expect(runMarkdownCommand(listed.value, { from: 0, to: listed.value.length }, { type: 'list' }).value).toBe('第一行\n第二行')
+
+    const bold = runMarkdownCommand('**文字**', { from: 2, to: 4 }, { type: 'bold' })
+    expect(bold).toEqual({ value: '文字', selection: { from: 0, to: 2 } })
+  })
+
   it.each([
     ['heading', { type: 'heading' } as const, '## Article'],
     ['list', { type: 'list' } as const, '- Article'],

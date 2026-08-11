@@ -96,7 +96,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const tableButtonRef = useRef<HTMLButtonElement>(null)
   const [mode, setMode] = useState<EditorMode>('rich')
   const [tableDialogOpen, setTableDialogOpen] = useState(false)
-  const pastePending = useRef(false)
   const disabledRef = useRef(disabled)
   const onChangeRef = useRef(onChange)
   const preparePastedImagesRef = useRef(preparePastedImages)
@@ -156,7 +155,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       const files = clipboardImages(event.clipboardData)
       const prepare = preparePastedImagesRef.current
       const commit = onCommitPastedImagesRef.current
-      if (files.length === 0 || disabledRef.current || pastePending.current || !prepare || !commit) return false
+      if (files.length === 0 || disabledRef.current || !prepare || !commit) return false
 
       event.preventDefault()
       const currentSelection = view.state.selection.main
@@ -165,13 +164,12 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         selection: { from: currentSelection.from, to: currentSelection.to },
         value: view.state.doc.toString(),
       }
-      pastePending.current = true
       void prepare(request)
         .then((assets) => {
           if (assets.length === 0 || !view.dom.isConnected) return
           const selection = view.state.selection.main
-          if (view.state.doc.toString() !== request.value || selection.from !== request.selection.from || selection.to !== request.selection.to) return
-          const edit = insertMarkdownImages(request.value, request.selection, assets.map((asset) => ({ alt: mediaAlt(asset.name), name: asset.name })))
+          const currentValue = view.state.doc.toString()
+          const edit = insertMarkdownImages(currentValue, { from: selection.from, to: selection.to }, assets.map((asset) => ({ alt: mediaAlt(asset.name), name: asset.name })))
           view.dispatch({
             changes: { from: 0, to: view.state.doc.length, insert: edit.value },
             selection: { anchor: edit.selection.from, head: edit.selection.to },
@@ -181,7 +179,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         })
         .catch(() => undefined)
         .finally(() => {
-          pastePending.current = false
           if (view.dom.isConnected) view.focus()
         })
       return true
@@ -221,7 +218,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       changes: { from: 0, to: view.state.doc.length, insert: edit.value },
       selection: { anchor: edit.selection.from, head: edit.selection.to },
     })
-    onChange(edit.value)
     view.focus()
   }
 
@@ -239,7 +235,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       changes: { from: 0, to: view.state.doc.length, insert: edit.value },
       selection: { anchor: edit.selection.from, head: edit.selection.to },
     })
-    onChange(edit.value)
     const selector = `.cm-md-table[data-table-from="${edit.tableFrom}"] input[data-row="0"][data-column="0"]`
     view.requestMeasure({
       read() {
