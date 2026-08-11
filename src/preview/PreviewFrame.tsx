@@ -3,6 +3,7 @@ import type { ArticleMeta } from '../metadata/article'
 import type { AppTheme } from '../app/theme-preference'
 import type { RenderedMarkdown } from './markdown'
 import { buildPreviewDocument } from './build-preview-document'
+import { extractFontFaces } from './font-faces'
 import { SHARED_DOCK_SCROLL_EVENT, useSharedDock } from '../app/use-shared-dock'
 import '../app/shared-dock.css'
 import './preview-frame.css'
@@ -14,10 +15,6 @@ interface PreviewFrameProps {
   theme: AppTheme
   onThemeChange: (theme: AppTheme) => void
   onClose: () => void
-}
-
-function previewFontFaces(css: string): string {
-  return css.match(/@font-face\s*\{[^}]*\}/g)?.join('\n') ?? ''
 }
 
 function renderPreviewContent(host: HTMLElement, html: string): ShadowRoot {
@@ -190,7 +187,7 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
   )
 
   useEffect(() => {
-    const fontCss = previewFontFaces(css)
+    const fontCss = extractFontFaces(css)
     if (!fontCss) return
     const style = document.createElement('style')
     style.dataset.previewFonts = ''

@@ -82,23 +82,23 @@ test('sanitizes hostile preview HTML inside the script-free Shadow DOM contract'
   await expect(preview.locator('img')).not.toHaveAttribute('src')
   const fontProof = await preview.locator('.preview-body').evaluate(async (body) => {
     await document.fonts.ready
-    const [interFaces, notoFaces] = await Promise.all([
-      document.fonts.load('400 1em "IMX Inter"', 'IMX'),
+    const [regularFaces, boldFaces] = await Promise.all([
       document.fonts.load('400 1em "IMX Noto Serif SC"', '预览'),
+      document.fonts.load('700 1em "IMX Noto Serif SC"', '标题'),
     ])
     const heading = body.querySelector('.article-title')
     const content = body.querySelector('.article-content')
     return {
-      inter: interFaces.some((face) => face.family.replaceAll('"', '') === 'IMX Inter' && face.status === 'loaded')
-        && document.fonts.check('400 1em "IMX Inter"', 'IMX'),
-      noto: notoFaces.some((face) => face.family.replaceAll('"', '') === 'IMX Noto Serif SC' && face.status === 'loaded')
+      regular: regularFaces.some((face) => face.family.replaceAll('"', '') === 'IMX Noto Serif SC' && face.status === 'loaded')
         && document.fonts.check('400 1em "IMX Noto Serif SC"', '预览'),
+      bold: boldFaces.some((face) => face.family.replaceAll('"', '') === 'IMX Noto Serif SC' && face.status === 'loaded')
+        && document.fonts.check('700 1em "IMX Noto Serif SC"', '标题'),
       computed: Boolean(heading && content
-        && getComputedStyle(heading).fontFamily.includes('IMX Inter')
+        && getComputedStyle(heading).fontFamily.includes('IMX Noto Serif SC')
         && getComputedStyle(content).fontFamily.includes('IMX Noto Serif SC')),
     }
   })
-  expect(fontProof).toEqual({ inter: true, noto: true, computed: true })
+  expect(fontProof).toEqual({ regular: true, bold: true, computed: true })
 })
 
 test('rejects SVG and oversized media, blocks missing media export, and keeps current content after hostile ZIP imports', async ({ page }) => {

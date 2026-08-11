@@ -1,7 +1,7 @@
 /* Studio-owned application surfaces. The Dock keeps its liquid-glass rules in imx-dock.css. */
 :root {
-  --imx-font-ui: 'IMX Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
-  --imx-font-reading: 'IMX Noto Serif SC App', 'IMX Noto Serif SC', 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', STSong, SimSun, Georgia, serif;
+  --imx-font-ui: 'IMX Noto Serif SC', 'IMX Noto Serif SC Fallback', 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', STSong, SimSun, Georgia, serif;
+  --imx-font-reading: var(--imx-font-ui);
   --imx-font-mono: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', Consolas, Monaco, 'Courier New', monospace;
   --imx-accent: #7a5a32;
   --imx-accent-hover: #6a4b28;

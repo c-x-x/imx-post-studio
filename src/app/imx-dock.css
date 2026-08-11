@@ -88,7 +88,7 @@
 
 .imx-dock__brand-title {
   color: var(--imx-ink);
-  font-family: 'IMX Inter', sans-serif;
+  font-family: var(--imx-font-ui);
   font-size: 1.12rem;
   font-weight: 700;
   letter-spacing: -.01em;
@@ -227,7 +227,7 @@
   border-radius: 16px;
   color: var(--imx-ink);
   background: transparent;
-  font: 500 .92rem 'IMX Inter', sans-serif;
+  font: 500 .92rem var(--imx-font-ui);
   letter-spacing: .01em;
   white-space: nowrap;
   opacity: .7;

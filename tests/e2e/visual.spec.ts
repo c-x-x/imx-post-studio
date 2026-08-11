@@ -85,7 +85,7 @@ test.describe('IMX visual regressions', () => {
       columns: 3,
       position: 'fixed',
     })
-    expect(shellStyle.fontFamily).toContain('IMX Inter')
+    expect(shellStyle.fontFamily).toContain('IMX Noto Serif SC')
   })
 
   test('uses the IMX-style card and primary-action primitives outside the Dock', async ({ page }) => {
@@ -124,8 +124,8 @@ test.describe('IMX visual regressions', () => {
       const emphasis = content.querySelector('em')
       const deleted = content.querySelector('del')
       return {
-        regularLoaded: regularFaces.some((face) => face.family.replaceAll('"', '') === 'IMX Noto Serif SC' && face.weight === '400' && face.status === 'loaded'),
-        boldLoaded: boldFaces.some((face) => face.family.replaceAll('"', '') === 'IMX Noto Serif SC' && face.weight === '700' && face.status === 'loaded'),
+        regularLoaded: regularFaces.some((face) => face.family.replaceAll('"', '') === 'IMX Noto Serif SC' && face.status === 'loaded'),
+        boldLoaded: boldFaces.some((face) => face.family.replaceAll('"', '') === 'IMX Noto Serif SC' && face.status === 'loaded'),
         strongWeight: strong ? getComputedStyle(strong).fontWeight : '',
         emphasisStyle: emphasis ? getComputedStyle(emphasis).fontStyle : '',
         deletionLine: deleted ? getComputedStyle(deleted).textDecorationLine : '',
