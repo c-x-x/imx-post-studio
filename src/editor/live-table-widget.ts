@@ -1,4 +1,4 @@
-import { Transaction } from '@codemirror/state'
+import { EditorSelection, Transaction } from '@codemirror/state'
 import { EditorView, WidgetType } from '@codemirror/view'
 import { isolateHistory, redo, undo } from '@codemirror/commands'
 import {
@@ -30,12 +30,15 @@ interface PreservedFocus {
 const bindings = new WeakMap<HTMLElement, TableBinding>()
 
 type StructureAction = 'add-row' | 'delete-row' | 'add-column' | 'delete-column'
+type TableAction = StructureAction | 'continue-writing' | 'delete-table'
 
-const structureControls: Array<{ action: StructureAction; label: string; text: string }> = [
+const structureControls: Array<{ action: TableAction; label: string; text: string }> = [
   { action: 'add-row', label: '在当前行下方添加一行', text: '添加行' },
   { action: 'delete-row', label: '删除当前行', text: '删除行' },
   { action: 'add-column', label: '在当前列右侧添加一列', text: '添加列' },
   { action: 'delete-column', label: '删除当前列', text: '删除列' },
+  { action: 'continue-writing', label: '在表格下方继续写作', text: '下方写作' },
+  { action: 'delete-table', label: '删除整个表格', text: '删除表格' },
 ]
 
 function cellKey({ row, column }: TableCellPosition): string {
@@ -68,8 +71,9 @@ function updateControlStates(root: HTMLElement) {
   const binding = bindings.get(root)
   if (!binding) return
   for (const button of root.querySelectorAll<HTMLButtonElement>('.cm-md-table-controls button')) {
-    const action = button.dataset.action as StructureAction
-    button.disabled = binding.widget.disabled || structureMutation(binding, action) === null
+    const action = button.dataset.action as TableAction
+    button.disabled = binding.widget.disabled
+      || (action !== 'continue-writing' && action !== 'delete-table' && structureMutation(binding, action) === null)
   }
 }
 
@@ -85,9 +89,47 @@ function focusCell(view: EditorView, root: HTMLElement, position: TableCellPosit
   })
 }
 
-function applyStructure(root: HTMLElement, action: StructureAction) {
+function continueWriting(binding: TableBinding) {
+  const after = binding.view.state.doc.sliceString(binding.widget.to)
+  const separator = after.startsWith('\n\n') ? '' : after.startsWith('\n') ? '\n' : '\n\n'
+  const anchor = binding.widget.to + 2
+  binding.view.dispatch({
+    changes: separator ? { from: binding.widget.to, insert: separator } : undefined,
+    selection: EditorSelection.cursor(anchor),
+    annotations: Transaction.userEvent.of('input'),
+    scrollIntoView: true,
+  })
+  binding.view.focus()
+}
+
+function deleteTable(binding: TableBinding) {
+  const source = binding.view.state.doc.toString()
+  let from = binding.widget.from
+  let to = binding.widget.to
+  const after = source.slice(to)
+  if (after.startsWith('\n\n')) to += 2
+  else if (after.startsWith('\n')) to += 1
+  if (to === source.length && source.slice(0, from).endsWith('\n\n')) from -= 2
+  binding.view.dispatch({
+    changes: { from, to, insert: '' },
+    selection: EditorSelection.cursor(from),
+    annotations: [Transaction.userEvent.of('delete'), isolateHistory.of('full')],
+    scrollIntoView: true,
+  })
+  binding.view.focus()
+}
+
+function applyStructure(root: HTMLElement, action: TableAction) {
   const binding = bindings.get(root)
   if (!binding || binding.widget.disabled) return
+  if (action === 'continue-writing') {
+    continueWriting(binding)
+    return
+  }
+  if (action === 'delete-table') {
+    deleteTable(binding)
+    return
+  }
   const mutation = structureMutation(binding, action)
   if (!mutation) return
   binding.view.dispatch({
@@ -164,7 +206,8 @@ function createCellInput(
       const inputs = [...root.querySelectorAll<HTMLInputElement>('.cm-md-table-input')]
       const index = inputs.indexOf(input)
       const target = inputs[index + (event.shiftKey ? -1 : 1)]
-      target?.focus()
+      if (target) target.focus()
+      else if (!event.shiftKey) continueWriting(binding)
       return
     }
     const key = event.key.toLowerCase()

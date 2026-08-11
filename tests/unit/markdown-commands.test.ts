@@ -103,7 +103,7 @@ describe('Markdown tables', () => {
 
   it('adds only missing blank-line separators at document boundaries', () => {
     expect(insertMarkdownTable('', { from: 0, to: 0 }, { columns: 2, dataRows: 1 })).toEqual({
-      value: '| 列 1 | 列 2 |\n| --- | --- |\n| 内容 | 内容 |',
+      value: '| 列 1 | 列 2 |\n| --- | --- |\n| 内容 | 内容 |\n\n',
       selection: { from: 2, to: 5 },
       tableFrom: 0,
       tableTo: 39,

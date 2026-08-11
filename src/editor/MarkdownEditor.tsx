@@ -104,7 +104,26 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     () => liveMarkdown({ mode, images: liveImages, disabled }),
     [disabled, liveImages, mode],
   )
-  const pasteHandler = useMemo(() => EditorView.domEventHandlers({
+  const editorDomHandlers = useMemo(() => EditorView.domEventHandlers({
+    mousedown(event, view) {
+      if (event.button !== 0 || disabledRef.current) return false
+      const target = event.target
+      if (!(target instanceof HTMLElement)) return false
+      if (target.closest('.cm-line, .cm-md-table, button, input, textarea, a')) return false
+      const lastLine = view.coordsAtPos(view.state.doc.length)
+      if (!lastLine || event.clientY <= lastLine.bottom) return false
+
+      event.preventDefault()
+      const insert = view.state.doc.length > 0 && !view.state.doc.toString().endsWith('\n') ? '\n' : ''
+      const anchor = view.state.doc.length + insert.length
+      view.dispatch({
+        changes: insert ? { from: view.state.doc.length, insert } : undefined,
+        selection: { anchor },
+        scrollIntoView: true,
+      })
+      view.focus()
+      return true
+    },
     paste(event, view) {
       const files = clipboardImages(event.clipboardData)
       const prepare = preparePastedImagesRef.current
@@ -143,10 +162,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const extensions = useMemo(() => [
     markdownLanguage,
     liveMarkdownExtension,
-    pasteHandler,
+    editorDomHandlers,
     EditorView.lineWrapping,
     markdownAccessibility,
-  ], [liveMarkdownExtension, pasteHandler])
+  ], [editorDomHandlers, liveMarkdownExtension])
   const handleChange = useCallback((next: string, update: ViewUpdate) => {
     if (update.transactions.some((transaction) => transaction.annotation(pastedImageTransaction))) return
     onChangeRef.current(next)

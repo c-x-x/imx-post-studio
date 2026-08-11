@@ -175,6 +175,22 @@ describe('liveMarkdown', () => {
     expect(table?.querySelectorAll('tbody tr')).toHaveLength(1)
     expect(table?.querySelector<HTMLInputElement>('input[data-row="0"][data-column="0"]')).toHaveValue('名称')
     expect(table?.querySelector<HTMLInputElement>('input[data-row="1"][data-column="1"]')).toHaveAccessibleName('第 2 行第 2 列')
+    expect(view.dom.querySelector('.cm-md-table-separator')).not.toBeNull()
+    expect(table?.querySelector<HTMLButtonElement>('button[data-action="continue-writing"]')).toHaveTextContent('下方写作')
+    expect(table?.querySelector<HTMLButtonElement>('button[data-action="delete-table"]')).toHaveTextContent('删除表格')
+  })
+
+  test('continues below and deletes a table without breaking surrounding Markdown', () => {
+    const source = '正文\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n后文'
+    const view = createView(source, 0)
+    const table = view.dom.querySelector<HTMLDivElement>('.cm-md-table')!
+
+    table.querySelector<HTMLButtonElement>('button[data-action="continue-writing"]')!.click()
+    expect(view.state.selection.main.from).toBe(source.indexOf('\n\n后文') + 2)
+
+    table.querySelector<HTMLButtonElement>('button[data-action="delete-table"]')!.click()
+    expect(view.state.doc.toString()).toBe('正文\n\n后文')
+    expect(view.dom.querySelector('.cm-md-table')).toBeNull()
   })
 
   test('writes escaped cell Markdown while reusing DOM and preserving the caret', () => {
@@ -251,7 +267,7 @@ describe('liveMarkdown', () => {
     expect(inputs.every((input) => input.readOnly)).toBe(true)
   })
 
-  test('moves between cells with Tab without creating a row at the boundary', () => {
+  test('moves between cells with Tab and exits below the table at the boundary', () => {
     const source = '| A | B |\n| --- | --- |\n| 1 | 2 |'
     const view = createView(source, 0)
     const inputs = [...view.dom.querySelectorAll<HTMLInputElement>('.cm-md-table input')]
@@ -265,8 +281,8 @@ describe('liveMarkdown', () => {
 
     inputs[3].focus()
     inputs[3].dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }))
-    expect(document.activeElement).toBe(inputs[3])
-    expect(view.state.doc.toString()).toBe(source)
+    expect(view.state.doc.toString()).toBe(`${source}\n\n`)
+    expect(view.state.selection.main.from).toBe(view.state.doc.length)
   })
 
   test('delegates cell undo and redo shortcuts to CodeMirror history', () => {

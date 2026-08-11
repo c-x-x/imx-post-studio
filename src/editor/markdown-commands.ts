@@ -91,7 +91,8 @@ function blankLineBefore(value: string): string {
 }
 
 function blankLineAfter(value: string): string {
-  if (!value || value.startsWith('\n\n')) return ''
+  if (!value) return '\n\n'
+  if (value.startsWith('\n\n')) return ''
   return value.startsWith('\n') ? '\n' : '\n\n'
 }
 

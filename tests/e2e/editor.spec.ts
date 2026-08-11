@@ -315,6 +315,9 @@ test('creates and edits a Markdown table across source, preview, and mobile layo
   await beginArticle(page)
   await fillMetadata(page)
 
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await editor.fill('表格前的正文\n\n')
+  await editor.press('ControlOrMeta+End')
   await page.getByRole('button', { name: '表格' }).click()
   const dialog = page.getByRole('dialog', { name: '插入表格' })
   await expect(dialog.getByLabel('列数')).toHaveValue('3')
@@ -325,6 +328,8 @@ test('creates and edits a Markdown table across source, preview, and mobile layo
 
   const firstHeader = page.getByRole('textbox', { name: '第 1 行第 1 列' })
   await expect(firstHeader).toBeFocused()
+  await expect(page.locator('.cm-md-table-separator')).toHaveCSS('height', '0px')
+  await expect(page.getByRole('button', { name: '删除整个表格' })).toBeVisible()
   expect(await firstHeader.evaluate((input) => ({
     start: (input as HTMLInputElement).selectionStart,
     end: (input as HTMLInputElement).selectionEnd,
@@ -353,10 +358,21 @@ test('creates and edits a Markdown table across source, preview, and mobile layo
   await expect(page.getByRole('textbox', { name: '第 3 行第 3 列' })).toBeVisible()
   await expect(page.getByRole('status')).toContainText('已保存到本地草稿')
 
+  await page.getByRole('button', { name: '在表格下方继续写作' }).click()
+  await page.keyboard.type('表格后的正文')
+  await expect(page.getByRole('textbox', { name: '第 1 行第 1 列' })).toBeVisible()
+
+  await page.getByRole('button', { name: '删除整个表格' }).click()
+  await expect(page.getByRole('textbox', { name: '第 1 行第 1 列' })).toHaveCount(0)
+  expect(await markdownSource(page)).toContain('表格后的正文')
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect(page.getByRole('textbox', { name: '第 1 行第 1 列' })).toBeVisible()
+
   const source = await markdownSource(page)
   expect(source).toContain('| A\\|B | 列 2 | 值 |')
   expect(source).toContain('| 格式 | 内容 | WebP |')
   expect(source).toContain('| 内容 | 内容 | 内容 |')
+  expect(source).toContain('\n\n表格后的正文')
 
   await page.getByRole('button', { name: '预览文章' }).click()
   const preview = page.getByTitle('IMX 文章预览')
@@ -369,6 +385,20 @@ test('creates and edits a Markdown table across source, preview, and mobile layo
   await expect(page.getByRole('textbox', { name: '第 1 行第 1 列' })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   expect(await page.locator('.cm-md-table-scroll').evaluate((element) => element.scrollWidth >= element.clientWidth)).toBe(true)
+})
+
+test('clicking editor whitespace creates a writable line after the document', async ({ page }) => {
+  await beginArticle(page)
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await editor.fill('第一行')
+
+  const content = await page.locator('.markdown-editor .cm-content').boundingBox()
+  const lastLine = await page.locator('.markdown-editor .cm-line').last().boundingBox()
+  if (!content || !lastLine) throw new Error('Editor geometry is unavailable')
+  await page.mouse.click(content.x + 40, lastLine.y + lastLine.height + 36)
+  await page.keyboard.type('第二行')
+
+  expect(await markdownSource(page)).toBe('第一行\n第二行')
 })
 
 test('live writing formats Markdown, preserves source, and visually wraps at narrow widths', async ({ page }) => {

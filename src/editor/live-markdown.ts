@@ -186,6 +186,13 @@ function buildDecorations(state: EditorState, options: LiveMarkdownOptions): Dec
         case 'Table': {
           const table = parseMarkdownTable(state.doc.sliceString(node.from, node.to))
           if (table) {
+            const tableLine = state.doc.lineAt(node.from)
+            if (tableLine.number > 1) {
+              const separator = state.doc.line(tableLine.number - 1)
+              if (separator.length === 0) {
+                ranges.push(Decoration.line({ attributes: { class: 'cm-md-table-separator' } }).range(separator.from))
+              }
+            }
             ranges.push(Decoration.replace({
               block: true,
               widget: new EditableTableWidget(node.from, node.to, table, options.disabled),
