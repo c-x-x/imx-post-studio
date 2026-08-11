@@ -31,13 +31,13 @@ describe('article workspace', () => {
 
     await user.click(screen.getByRole('button', { name: '文章' }))
     await user.click(screen.getByRole('button', { name: '预览文章' }))
-    const iframe = screen.getByTitle('IMX 文章预览')
+    const preview = screen.getByTitle('IMX 文章预览')
     expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
-    expect(iframe.getAttribute('srcdoc')).toContain('data-theme="dark"')
+    expect(preview.shadowRoot?.querySelector('.preview-html')).toHaveAttribute('data-theme', 'dark')
 
     await user.click(screen.getByRole('button', { name: '浅色预览' }))
     await waitFor(() => expect(document.documentElement).toHaveAttribute('data-theme', 'light'))
-    expect(iframe.getAttribute('srcdoc')).toContain('data-theme="light"')
+    expect(preview.shadowRoot?.querySelector('.preview-html')).toHaveAttribute('data-theme', 'light')
     expect(localStorage.getItem('imx-post-studio-theme')).toBe('light')
   })
 
@@ -142,7 +142,7 @@ describe('article workspace', () => {
     expect(screen.queryByTitle('IMX 文章预览')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '预览文章' }))
     const preview = screen.getByTitle('IMX 文章预览')
-    expect(preview.getAttribute('srcdoc')).toContain('Hugo 图片处理指南 新版')
+    expect(preview.shadowRoot?.textContent).toContain('Hugo 图片处理指南 新版')
     expect(screen.getByLabelText('Slug')).toHaveValue('my-manual-slug')
   })
 

@@ -63,7 +63,7 @@ async function currentDraftFingerprint(page: Page): Promise<unknown> {
   }
 }
 
-test('sanitizes hostile preview HTML and preserves the sandboxed IMX document contract', async ({ page }) => {
+test('sanitizes hostile preview HTML inside the script-free Shadow DOM contract', async ({ page }) => {
   await beginArticle(page)
   await page.getByRole('textbox', { name: 'Markdown 编辑器' }).fill([
     '<script>window.__imx_xss = true</script>',
@@ -73,16 +73,14 @@ test('sanitizes hostile preview HTML and preserves the sandboxed IMX document co
 
   await expect(page.getByTitle('IMX 文章预览')).toHaveCount(0)
   await page.getByRole('button', { name: '预览文章' }).click()
-  const iframe = page.getByTitle('IMX 文章预览')
-  await expect(iframe).toHaveAttribute('sandbox', 'allow-same-origin')
-  await expect(iframe).not.toHaveAttribute('sandbox', /allow-scripts/)
-  const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
+  const preview = page.getByTitle('IMX 文章预览')
+  expect(await preview.evaluate((host) => host.shadowRoot?.mode)).toBe('open')
   await expect(preview.locator('script')).toHaveCount(0)
   await expect(preview.locator('a', { hasText: 'unsafe link' })).not.toHaveAttribute('href')
   await expect(preview.locator('[onclick], [onerror]')).toHaveCount(0)
   await expect(preview.locator('img')).toHaveCount(1)
   await expect(preview.locator('img')).not.toHaveAttribute('src')
-  const fontProof = await preview.locator('body').evaluate(async (body) => {
+  const fontProof = await preview.locator('.preview-body').evaluate(async (body) => {
     await document.fonts.ready
     const [interFaces, notoFaces] = await Promise.all([
       document.fonts.load('400 1em "IMX Inter"', 'IMX'),
@@ -248,14 +246,14 @@ test('keeps an in-memory draft recoverable when IndexedDB fails and restores foc
   }
 })
 
-test('renders a real Blob body image inside the script-free preview iframe', async ({ page }) => {
+test('renders a real Blob body image inside the script-free Shadow DOM preview', async ({ page }) => {
   await beginArticle(page)
   await page.getByLabel('添加正文图片').setInputFiles(pngFile('blob-proof.png', 64, 36, [64, 158, 112, 255]))
   const image = page.getByRole('listitem', { name: 'blob-proof.png' })
   await image.getByRole('button', { name: '插入' }).click()
   await expect(page.getByTitle('IMX 文章预览')).toHaveCount(0)
   await page.getByRole('button', { name: '预览文章' }).click()
-  const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
+  const preview = page.getByTitle('IMX 文章预览')
   await expect(preview.locator('img[src^="blob:"]')).toHaveCount(1)
   await expect(preview.locator('script')).toHaveCount(0)
   expect(await preview.locator('img[src^="blob:"]').evaluate((element) => ({

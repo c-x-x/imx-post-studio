@@ -50,14 +50,19 @@ body {
 
 .toc-toggle-input {
   position: fixed;
-  right: var(--floating-action-edge);
-  bottom: 2rem;
+  right: var(--preview-floating-right, var(--floating-action-edge));
+  bottom: var(--preview-floating-bottom, 2rem);
   z-index: 1000;
   width: var(--floating-action-toggle-size);
   height: var(--floating-action-toggle-size);
   margin: 0;
   cursor: pointer;
   opacity: 0;
+}
+
+.sidebar-toggle {
+  right: var(--preview-floating-right, var(--floating-action-edge));
+  bottom: var(--preview-floating-bottom, 2rem);
 }
 
 .toc-toggle-icon-close {

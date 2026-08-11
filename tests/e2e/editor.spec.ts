@@ -127,33 +127,10 @@ async function assertEditorState(page: Page, expected: {
 }
 
 async function scanPreviewDomWithAxe(page: Page) {
-  const iframe = page.getByTitle('IMX 文章预览')
-  const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
-  const srcDoc = await iframe.getAttribute('srcdoc')
-  if (!srcDoc) throw new Error('预览 iframe 缺少 srcDoc')
-
-  // This is static preview-DOM evidence only. Production keeps the exact
-  // script-free sandbox; the harness briefly reloads the identical srcDoc with
-  // scripts permitted so Axe can inspect it, then restores the original DOM.
-  await expect(iframe).toHaveAttribute('sandbox', 'allow-same-origin')
-  await expect(iframe).not.toHaveAttribute('sandbox', /allow-scripts/)
+  const preview = page.getByTitle('IMX 文章预览')
   await expect(preview.locator('script')).toHaveCount(0)
-  await iframe.evaluate((element, documentHtml) => {
-    element.setAttribute('sandbox', 'allow-same-origin allow-scripts')
-    ;(element as HTMLIFrameElement).srcdoc = documentHtml
-  }, srcDoc)
-
-  try {
-    await expect(preview.locator('body')).toBeVisible()
-    return await new AxeBuilder({ page }).analyze()
-  } finally {
-    await iframe.evaluate((element, documentHtml) => {
-      element.setAttribute('sandbox', 'allow-same-origin')
-      ;(element as HTMLIFrameElement).srcdoc = documentHtml
-    }, srcDoc)
-    await expect(iframe).toHaveAttribute('sandbox', 'allow-same-origin')
-    await expect(preview.locator('script')).toHaveCount(0)
-  }
+  await expect(preview.locator('.preview-body')).toBeVisible()
+  return new AxeBuilder({ page }).analyze()
 }
 
 test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle', async ({ page }) => {
@@ -177,7 +154,7 @@ test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle
   await expect(page.getByTitle('IMX 文章预览')).toHaveCount(0)
   await page.getByRole('button', { name: '预览文章' }).click()
   await expect(page.getByRole('dialog', { name: 'IMX 文章预览' })).toBeVisible()
-  const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
+  const preview = page.getByTitle('IMX 文章预览')
   await expect(preview.locator('h1.article-title')).toHaveText(ARTICLE_TITLE)
   await expect(preview.getByRole('heading', { name: '文章目录', level: 2 })).toBeVisible()
   await expect(preview.locator('.toc')).toContainText('文章目录')
@@ -382,7 +359,7 @@ test('creates and edits a Markdown table across source, preview, and mobile layo
   expect(source).toContain('| 内容 | 内容 | 内容 |')
 
   await page.getByRole('button', { name: '预览文章' }).click()
-  const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
+  const preview = page.getByTitle('IMX 文章预览')
   await expect(preview.locator('table')).toContainText('A|B')
   await expect(preview.locator('table')).toContainText('WebP')
   await page.getByRole('button', { name: '返回编辑' }).click()

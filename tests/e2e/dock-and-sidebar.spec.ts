@@ -126,10 +126,10 @@ test('synchronizes preview theme with the app and persists changes after closing
   await page.getByRole('button', { name: '预览文章' }).click()
 
   await expect(page.locator('.preview-surface')).toHaveAttribute('data-theme', 'dark')
-  await expect(page.frameLocator('iframe[title="IMX 文章预览"]').locator('html')).toHaveAttribute('data-theme', 'dark')
+  await expect(page.getByTitle('IMX 文章预览').locator('.preview-html')).toHaveAttribute('data-theme', 'dark')
   await page.getByRole('button', { name: '浅色预览' }).click()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
-  await expect(page.frameLocator('iframe[title="IMX 文章预览"]').locator('html')).toHaveAttribute('data-theme', 'light')
+  await expect(page.getByTitle('IMX 文章预览').locator('.preview-html')).toHaveAttribute('data-theme', 'light')
   await page.getByRole('button', { name: '返回编辑' }).click()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
 
@@ -142,16 +142,16 @@ test('attracts and merges the preview Dock as the article preview scrolls', asyn
   await page.getByRole('button', { name: '文章', exact: true }).click()
   await page.getByRole('button', { name: '预览文章' }).click()
 
-  const previewDocument = page.frameLocator('iframe[title="IMX 文章预览"]').locator('html')
+  const previewDocument = page.getByTitle('IMX 文章预览')
   const dock = page.locator('.preview-dock')
   await previewDocument.evaluate((element) => {
     const spacer = document.createElement('div')
     spacer.style.height = '200vh'
     spacer.setAttribute('aria-hidden', 'true')
-    document.body.append(spacer)
-    element.scrollTop = window.innerHeight
+    element.shadowRoot?.querySelector('.preview-body')?.append(spacer)
+    element.scrollTop = element.clientHeight
   })
-  await expect.poll(() => previewDocument.evaluate((element) => element.scrollTop / window.innerHeight)).toBeGreaterThanOrEqual(0.88)
+  await expect.poll(() => previewDocument.evaluate((element) => element.scrollTop / element.clientHeight)).toBeGreaterThanOrEqual(0.88)
 
   await expect(dock).toHaveClass(/is-dock-merged/)
   await expect.poll(() => dock.evaluate((element) => getComputedStyle(element).getPropertyValue('--home-dock-shell-opacity').trim())).toBe('1.000')
@@ -162,7 +162,7 @@ test('keeps preview Dock merging responsive and reduced-motion safe', async ({ p
   await page.goto('/')
   await page.getByRole('button', { name: '文章', exact: true }).click()
   await page.getByRole('button', { name: '预览文章' }).click()
-  const previewDocument = page.frameLocator('iframe[title="IMX 文章预览"]').locator('html')
+  const previewDocument = page.getByTitle('IMX 文章预览')
   const surface = page.locator('.preview-surface')
   const dock = page.locator('.preview-dock')
 
@@ -170,10 +170,10 @@ test('keeps preview Dock merging responsive and reduced-motion safe', async ({ p
     const spacer = document.createElement('div')
     spacer.style.height = '200vh'
     spacer.setAttribute('aria-hidden', 'true')
-    document.body.append(spacer)
-    element.scrollTop = window.innerHeight
+    element.shadowRoot?.querySelector('.preview-body')?.append(spacer)
+    element.scrollTop = element.clientHeight
   })
-  await expect.poll(() => previewDocument.evaluate((element) => element.scrollTop / window.innerHeight)).toBeGreaterThanOrEqual(0.88)
+  await expect.poll(() => previewDocument.evaluate((element) => element.scrollTop / element.clientHeight)).toBeGreaterThanOrEqual(0.88)
   await expect(dock).toHaveClass(/is-dock-merged/)
   await expect(dock).not.toHaveClass(/is-dock-attracting/)
 
@@ -243,7 +243,7 @@ test('keeps the preview table of contents controllable on desktop and mobile wit
   await page.getByRole('textbox', { name: 'Markdown 编辑器' }).fill('## 第一节\n\n正文。\n\n### 第二节\n\n更多正文。')
   await page.getByRole('button', { name: '预览文章' }).click()
 
-  const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
+  const preview = page.getByTitle('IMX 文章预览')
   const sidebar = preview.locator('#article-toc')
   const desktopToggle = preview.getByRole('checkbox', { name: '目录' })
   const titleAndBodyLefts = () => preview.locator('.article-page').evaluate((article) => {
@@ -263,7 +263,7 @@ test('keeps the preview table of contents controllable on desktop and mobile wit
   expect(await desktopToggle.evaluate((toggle) => {
     const bounds = toggle.getBoundingClientRect()
     return {
-      rightGap: window.innerWidth - bounds.right,
+      rightGap: ((toggle.getRootNode() as ShadowRoot).host as HTMLElement).getBoundingClientRect().right - bounds.right,
       width: bounds.width,
       height: bounds.height,
     }
@@ -276,17 +276,18 @@ test('keeps the preview table of contents controllable on desktop and mobile wit
   expect(Math.abs(collapsedLefts.title - collapsedLefts.body)).toBeLessThanOrEqual(1)
   expect(await preview.locator('.main-content').evaluate((content) => {
     const bounds = content.getBoundingClientRect()
-    return Math.abs(bounds.left + bounds.width / 2 - window.innerWidth / 2)
+    const hostBounds = ((content.getRootNode() as ShadowRoot).host as HTMLElement).getBoundingClientRect()
+    return Math.abs(bounds.left + bounds.width / 2 - (hostBounds.left + hostBounds.width / 2))
   })).toBeLessThan(2)
 
   await desktopToggle.click()
   await expect(desktopToggle).not.toBeChecked()
   await expect(sidebar).toBeVisible()
   await preview.getByRole('link', { name: '第一节', exact: true }).click()
-  const afterDirectoryLink = await preview.locator('body').evaluate((body) => ({
+  const afterDirectoryLink = await preview.locator('.preview-body').evaluate((body) => ({
     articleVisible: body.querySelector('.article-page')?.getBoundingClientRect().height ?? 0,
-    targetTop: body.querySelector('#imx-heading-第一节')?.getBoundingClientRect().top ?? -1,
-    viewportHeight: window.innerHeight,
+    targetTop: (body.querySelector('#imx-heading-第一节')?.getBoundingClientRect().top ?? -1) - ((body.getRootNode() as ShadowRoot).host as HTMLElement).getBoundingClientRect().top,
+    viewportHeight: ((body.getRootNode() as ShadowRoot).host as HTMLElement).clientHeight,
   }))
   expect(afterDirectoryLink.articleVisible).toBeGreaterThan(0)
   expect(afterDirectoryLink.targetTop).toBeGreaterThanOrEqual(0)
@@ -318,27 +319,30 @@ test('preserves the preview reading position, follows the active directory entry
   await page.getByRole('textbox', { name: 'Markdown 编辑器' }).fill(sections)
   await page.getByRole('button', { name: '预览文章' }).click()
 
-  const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
+  const preview = page.getByTitle('IMX 文章预览')
   const targetHeading = preview.getByRole('heading', { name: '第 28 节', exact: true })
   await targetHeading.evaluate((heading) => {
-    const top = (heading as HTMLElement).offsetTop
-    document.documentElement.style.scrollBehavior = 'auto'
-    document.documentElement.scrollTop = top
+    const host = (heading.getRootNode() as ShadowRoot).host as HTMLElement
+    host.scrollTop += heading.getBoundingClientRect().top - host.getBoundingClientRect().top
   })
-  await expect.poll(() => preview.locator('html').evaluate((html) => html.scrollTop)).toBeGreaterThan(0)
-  const scrollBeforeThemeChange = await preview.locator('html').evaluate((html) => html.scrollTop)
+  await expect.poll(() => preview.evaluate((host) => host.scrollTop)).toBeGreaterThan(0)
+  const scrollBeforeThemeChange = await preview.evaluate((host) => host.scrollTop)
 
   const activeLink = preview.getByRole('link', { name: '第 28 节', exact: true })
   await expect(activeLink).toHaveClass(/active/)
-  await expect.poll(() => preview.locator('.toc').evaluate((toc) => toc.scrollTop)).toBeGreaterThan(0)
+  await expect.poll(() => activeLink.evaluate((link) => {
+    const linkBounds = link.getBoundingClientRect()
+    const tocBounds = link.closest('.toc')?.getBoundingClientRect()
+    return Boolean(tocBounds && linkBounds.top >= tocBounds.top && linkBounds.bottom <= tocBounds.bottom)
+  })).toBe(true)
 
   await page.getByRole('button', { name: '深色预览' }).click()
-  await expect(preview.locator('html')).toHaveAttribute('data-theme', 'dark')
+  await expect(preview.locator('.preview-html')).toHaveAttribute('data-theme', 'dark')
   await page.waitForTimeout(500)
-  await expect.poll(() => preview.locator('html').evaluate((html) => html.scrollTop)).toBe(scrollBeforeThemeChange)
+  await expect.poll(() => preview.evaluate((host) => host.scrollTop)).toBe(scrollBeforeThemeChange)
 
-  expect(await preview.locator('html').evaluate((html) => ({
-    firefox: getComputedStyle(html).scrollbarWidth,
-    webkit: getComputedStyle(html, '::-webkit-scrollbar').display,
+  expect(await preview.evaluate((host) => ({
+    firefox: getComputedStyle(host).scrollbarWidth,
+    webkit: getComputedStyle(host, '::-webkit-scrollbar').display,
   }))).toEqual({ firefox: 'none', webkit: 'none' })
 })

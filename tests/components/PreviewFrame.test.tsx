@@ -53,7 +53,7 @@ describe('PreviewFrame', () => {
     expect(content).toContain('class="preview-html" data-theme="light"')
     expect(content).toContain('class="preview-body is-article-page"')
     expect(content).toContain('class="preview-symbols" style="display:none"')
-    expect(content).toContain(':host([data-theme="light"]) .article-page { --article-ink-muted: #746c62; }')
+    expect(content).toContain('.preview-html[data-theme="light"] .article-page { --article-ink-muted: #746c62; }')
     expect(content).toContain('<aside class="sidebar" id="article-toc" aria-label="文章目录">')
     expect(content).toContain('<div class="toc"><h3 class="toc-title">目录</h3><nav aria-label="文章目录"><ul>')
     expect(content).toContain('<div class="article-tools-actions"><label class="toc-toggle-control"><input class="toc-toggle-input" type="checkbox"')

@@ -16,8 +16,22 @@ interface PreviewFrameProps {
   onClose: () => void
 }
 
+function previewFontFaces(css: string): string {
+  return css.match(/@font-face\s*\{[^}]*\}/g)?.join('\n') ?? ''
+}
+
+function renderPreviewContent(host: HTMLElement, html: string): ShadowRoot {
+  const root = host.shadowRoot ?? host.attachShadow({ mode: 'open' })
+  const template = host.ownerDocument.createElement('template')
+  template.innerHTML = html
+  root.replaceChildren(template.content.cloneNode(true))
+  return root
+}
+
 function wirePreviewFrameScroll(host: HTMLElement, root: ShadowRoot, dock: HTMLElement | null, onScroll: (scrollTop: number) => void): () => void {
   const toc = root.querySelector<HTMLElement>('.article-page .toc')
+  const sidebar = root.querySelector<HTMLElement>('.article-page .sidebar')
+  const layout = root.querySelector<HTMLElement>('.article-page .layout-with-sidebar')
   const headings = [...root.querySelectorAll<HTMLElement>('.article-content h2, .article-content h3, .article-content h4, .article-content h5, .article-content h6')]
   const tocLinkById = new Map<string, HTMLAnchorElement>()
   root.querySelectorAll<HTMLAnchorElement>('.toc a').forEach((link) => {
@@ -34,6 +48,22 @@ function wirePreviewFrameScroll(host: HTMLElement, root: ShadowRoot, dock: HTMLE
       viewportHeight: host.clientHeight,
     },
   }))
+  const syncSidebar = (scrollTop: number) => {
+    if (!sidebar || !layout) return
+    if (host.clientWidth <= 768) {
+      sidebar.style.removeProperty('position')
+      sidebar.style.removeProperty('top')
+      sidebar.style.removeProperty('transform')
+      return
+    }
+    const stickyOffset = Number.parseFloat(getComputedStyle(sidebar).top) || 0
+    sidebar.style.position = 'relative'
+    sidebar.style.top = 'auto'
+    const hostTop = host.getBoundingClientRect().top
+    const layoutTop = scrollTop + layout.getBoundingClientRect().top - hostTop
+    const stickyStart = layoutTop + sidebar.offsetTop - stickyOffset
+    sidebar.style.transform = `translateY(${Math.max(scrollTop - stickyStart, 0)}px)`
+  }
   const syncToc = (scrollTop: number) => {
     if (!toc || headings.length === 0) return
     const probeTop = scrollTop + Math.min(Math.max(host.clientHeight * 0.22, 112), 168)
@@ -61,6 +91,7 @@ function wirePreviewFrameScroll(host: HTMLElement, root: ShadowRoot, dock: HTMLE
   const sync = () => {
     animationFrame = 0
     const scrollTop = host.scrollTop
+    syncSidebar(scrollTop)
     if (scrollTop !== lastScrollTop) {
       lastScrollTop = scrollTop
       onScroll(scrollTop)
@@ -71,10 +102,27 @@ function wirePreviewFrameScroll(host: HTMLElement, root: ShadowRoot, dock: HTMLE
   const scheduleSync = () => {
     if (!animationFrame) animationFrame = requestAnimationFrame(sync)
   }
+  const followDirectoryLink = (event: Event) => {
+    const link = (event.target as Element | null)?.closest<HTMLAnchorElement>('.toc a[href^="#"]')
+    if (!link || !root.contains(link)) return
+    const id = decodeURIComponent((link.getAttribute('href') ?? '').slice(1))
+    const heading = root.getElementById(id)
+    if (!heading) return
+    event.preventDefault()
+    host.scrollTo({
+      top: host.scrollTop + heading.getBoundingClientRect().top - host.getBoundingClientRect().top,
+      behavior: 'smooth',
+    })
+  }
   host.addEventListener('scroll', scheduleSync, { passive: true })
+  root.addEventListener('click', followDirectoryLink)
+  const resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(scheduleSync) : null
+  resizeObserver?.observe(host)
   scheduleSync()
   return () => {
     host.removeEventListener('scroll', scheduleSync)
+    root.removeEventListener('click', followDirectoryLink)
+    resizeObserver?.disconnect()
     cancelAnimationFrame(animationFrame)
   }
 }
@@ -142,6 +190,16 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
   )
 
   useEffect(() => {
+    const fontCss = previewFontFaces(css)
+    if (!fontCss) return
+    const style = document.createElement('style')
+    style.dataset.previewFonts = ''
+    style.textContent = fontCss
+    document.head.append(style)
+    return () => style.remove()
+  }, [css])
+
+  useEffect(() => {
     const frame = frameRef.current
     if (!frame) return
     frame.dataset.theme = theme
@@ -152,10 +210,19 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
   useEffect(() => {
     const frame = frameRef.current
     if (!frame) return
-    const root = frame.shadowRoot ?? frame.attachShadow({ mode: 'open' })
-    root.innerHTML = documentHtml
+    const root = renderPreviewContent(frame, documentHtml)
     const previewHtml = root.querySelector<HTMLElement>('.preview-html')
     if (previewHtml) previewHtml.dataset.theme = frame.dataset.theme ?? documentTheme
+    const syncFloatingEdges = () => {
+      if (!previewHtml) return
+      const bounds = frame.getBoundingClientRect()
+      previewHtml.style.setProperty('--preview-floating-right', `${Math.max(window.innerWidth - bounds.right, 0) + 32}px`)
+      previewHtml.style.setProperty('--preview-floating-bottom', `${Math.max(window.innerHeight - bounds.bottom, 0) + 32}px`)
+    }
+    syncFloatingEdges()
+    const resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(syncFloatingEdges) : null
+    resizeObserver?.observe(frame)
+    window.addEventListener('resize', syncFloatingEdges)
     const savedScrollTop = frameScrollTop.current
     let restoringScroll = savedScrollTop > 0
     const disconnectCodeCopy = wirePreviewCodeCopy(root)
@@ -179,6 +246,8 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
     }
     return () => {
       cancelAnimationFrame(restoreFrame)
+      resizeObserver?.disconnect()
+      window.removeEventListener('resize', syncFloatingEdges)
       disconnectCodeCopy()
       disconnectScroll()
     }

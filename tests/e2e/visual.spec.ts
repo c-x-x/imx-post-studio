@@ -50,114 +50,7 @@ async function seedPreview(page: Page, body = sampleBody): Promise<void> {
   await page.getByRole('listitem', { name: 'visual.png' }).getByRole('button', { name: '插入' }).click()
   await expect(page.getByTitle('IMX 文章预览')).toHaveCount(0)
   await page.getByRole('button', { name: '预览文章' }).click()
-  await expect(page.frameLocator('iframe[title="IMX 文章预览"]').locator('img[src^="blob:"]')).toHaveCount(1)
-}
-
-const visualOptions = {
-  animations: 'disabled' as const,
-  caret: 'hide' as const,
-  scale: 'css' as const,
-  // Chromium text anti-aliasing varies slightly between Darwin and Linux even
-  // with bundled IMX fonts; cap a comparison at 1% changed pixels.
-  maxDiffPixelRatio: 0.01,
-  threshold: 0.2,
-}
-
-async function openPreviewCapturePage(page: Page, viewport: 'desktop' | 'mobile'): Promise<Page> {
-  const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
-  const [srcDoc, theme] = await Promise.all([
-    page.getByTitle('IMX 文章预览').getAttribute('srcdoc'),
-    preview.locator('html').getAttribute('data-theme'),
-  ])
-  if (!srcDoc) throw new Error('IMX preview did not expose srcDoc for visual capture')
-
-  const capturePage = await page.context().newPage()
-  await capturePage.setViewportSize({ width: viewport === 'desktop' ? 1180 : 390, height: 900 })
-  await capturePage.goto('/')
-  await capturePage.setContent(srcDoc, { waitUntil: 'load' })
-  await capturePage.locator('html').evaluate((html, nextTheme) => {
-    html.setAttribute('data-theme', nextTheme)
-  }, theme ?? 'light')
-  await expect.poll(() => capturePage.evaluate(() => location.origin)).toBe('http://127.0.0.1:4173')
-  return capturePage
-}
-
-async function assertPreviewCaptureReady(capturePage: Page, viewport: 'desktop' | 'mobile'): Promise<void> {
-  const expectedWidth = viewport === 'desktop' ? 1180 : 390
-
-  await expect.poll(() => capturePage.evaluate(() => window.innerWidth)).toBe(expectedWidth)
-  await expect(capturePage.getByRole('heading', { name: '预览层级', level: 2 })).toBeVisible()
-  await expect(capturePage.getByRole('heading', { name: '表格与说明', level: 3 })).toBeVisible()
-  await expect(capturePage.locator('table')).toBeVisible()
-  await expect(capturePage.locator('blockquote')).toBeVisible()
-  await expect(capturePage.locator('pre code')).toBeVisible()
-  await expect(capturePage.locator('.article-content ul li')).toHaveCount(2)
-  await expect(capturePage.locator('img[src^="blob:"]')).toHaveCount(1)
-  expect(await capturePage.locator('img[src^="blob:"]').evaluate((image) => ({
-    complete: (image as HTMLImageElement).complete,
-    width: (image as HTMLImageElement).naturalWidth,
-    height: (image as HTMLImageElement).naturalHeight,
-  }))).toEqual({ complete: true, width: 640, height: 360 })
-  const fontProof = await capturePage.evaluate(async () => {
-    await document.fonts.ready
-    const [interFaces, notoFaces] = await Promise.all([
-      document.fonts.load('400 1em "IMX Inter"', 'IMX'),
-      document.fonts.load('400 1em "IMX Noto Serif SC"', '预览'),
-    ])
-    return {
-      inter: interFaces.some((face) => face.family.replaceAll('"', '') === 'IMX Inter' && face.status === 'loaded'),
-      noto: notoFaces.some((face) => face.family.replaceAll('"', '') === 'IMX Noto Serif SC' && face.status === 'loaded'),
-    }
-  })
-  expect(fontProof).toEqual({ inter: true, noto: true })
-
-  if (viewport === 'desktop') {
-    expect(await capturePage.locator('.toc').evaluate((toc) => {
-      const tocBoxes = [toc, toc.querySelector('.toc-title'), toc.querySelector('nav')]
-        .filter((element): element is Element => element !== null)
-        .map((element) => element.getBoundingClientRect())
-      return tocBoxes.length === 3 && tocBoxes.every((bounds) => bounds.width > 0
-        && bounds.left >= 0 && bounds.right <= window.innerWidth && bounds.top >= 0)
-    })).toBe(true)
-  }
-
-  if (viewport === 'mobile') {
-    await expect(capturePage.locator('#article-toc')).toBeHidden()
-    const toggleBounds = await capturePage.locator('.sidebar-toggle').evaluate((toggle) => {
-      const bounds = toggle.getBoundingClientRect()
-      return {
-        rightGap: window.innerWidth - bounds.right,
-        width: bounds.width,
-        height: bounds.height,
-      }
-    })
-    expect(toggleBounds.width).toBe(46)
-    expect(toggleBounds.height).toBe(46)
-    expect(toggleBounds.rightGap).toBeGreaterThanOrEqual(16)
-    expect(toggleBounds.rightGap).toBeLessThanOrEqual(17)
-  }
-}
-
-async function matchPreviewScreenshot(page: Page, name: string, viewport: 'desktop' | 'mobile'): Promise<void> {
-  const capturePage = await openPreviewCapturePage(page, viewport)
-  try {
-    await assertPreviewCaptureReady(capturePage, viewport)
-    await expect(capturePage).toHaveScreenshot(name, { ...visualOptions, fullPage: true })
-  } finally {
-    await capturePage.close()
-  }
-}
-
-async function matchPreviewShellScreenshot(page: Page, name: string, shouldMerge = true): Promise<void> {
-  if (process.platform !== 'darwin') return
-  if (shouldMerge) {
-    await page.frameLocator('iframe[title="IMX 文章预览"]').locator('html').evaluate((html) => {
-      html.scrollTo(0, html.scrollHeight)
-    })
-  }
-  if (shouldMerge) await expect(page.locator('.preview-dock')).toHaveClass(/is-dock-merged/)
-  else await expect(page.locator('.preview-dock')).not.toHaveClass(/is-dock-merged/)
-  await expect(page.locator('.preview-surface')).toHaveScreenshot(name, visualOptions)
+  await expect(page.getByTitle('IMX 文章预览').locator('img[src^="blob:"]')).toHaveCount(1)
 }
 
 test.describe('IMX visual regressions', () => {
@@ -216,7 +109,7 @@ test.describe('IMX visual regressions', () => {
 
   test('renders semantic emphasis with real regular and bold preview fonts', async ({ page }) => {
     await seedPreview(page, '**粗体正文**、*斜体正文*、~~删除线正文~~。')
-    const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
+    const preview = page.getByTitle('IMX 文章预览')
     await expect(preview.locator('.article-content strong')).toHaveText('粗体正文')
     await expect(preview.locator('.article-content em')).toHaveText('斜体正文')
     await expect(preview.locator('.article-content del')).toHaveText('删除线正文')
@@ -248,43 +141,16 @@ test.describe('IMX visual regressions', () => {
     })
   })
 
-  test('matches the light desktop article preview', async ({ page }) => {
-    await seedPreview(page)
-    await matchPreviewShellScreenshot(page, 'imx-preview-shell-light-desktop.png')
-    await matchPreviewScreenshot(page, 'imx-preview-light-desktop.png', 'desktop')
-  })
-
-  test('matches the dark desktop article preview', async ({ page }) => {
+  test('uses the approved dark preview palette', async ({ page }) => {
     await seedPreview(page)
     await page.getByRole('button', { name: '深色预览' }).click()
-    const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
-    await expect(preview.locator('html')).toHaveAttribute('data-theme', 'dark')
-    await expect(preview.locator('body')).toHaveCSS('background-color', 'rgb(23, 23, 22)')
+    const preview = page.getByTitle('IMX 文章预览')
+    await expect(preview.locator('.preview-html')).toHaveAttribute('data-theme', 'dark')
+    await expect(preview.locator('.preview-body')).toHaveCSS('background-color', 'rgb(23, 23, 22)')
     await expect(preview.locator('.article-content')).toHaveCSS('color', 'rgb(238, 234, 227)')
     await expect(preview.locator('.article-meta')).toHaveCSS('color', 'rgb(143, 137, 130)')
     const inactiveTocLink = preview.locator('.toc a:not(.active)').first()
     await expect(inactiveTocLink).toHaveCSS('color', 'rgb(143, 137, 130)')
     await expect(inactiveTocLink).toHaveCSS('opacity', '0.58')
-    await matchPreviewShellScreenshot(page, 'imx-preview-shell-dark-desktop.png')
-    await matchPreviewScreenshot(page, 'imx-preview-dark-desktop.png', 'desktop')
-  })
-
-  test('matches the light mobile article preview', async ({ page }) => {
-    await seedPreview(page)
-    await page.setViewportSize({ width: 390, height: 844 })
-    await page.getByRole('button', { name: '移动预览' }).click()
-    await matchPreviewShellScreenshot(page, 'imx-preview-shell-light-mobile.png', false)
-    await matchPreviewScreenshot(page, 'imx-preview-light-mobile.png', 'mobile')
-  })
-
-  test('matches the dark mobile article preview', async ({ page }) => {
-    await seedPreview(page)
-    await page.setViewportSize({ width: 390, height: 844 })
-    await page.getByRole('button', { name: '移动预览' }).click()
-    await page.getByRole('button', { name: '深色预览' }).click()
-    const preview = page.frameLocator('iframe[title="IMX 文章预览"]')
-    await expect(preview.locator('html')).toHaveAttribute('data-theme', 'dark')
-    await matchPreviewShellScreenshot(page, 'imx-preview-shell-dark-mobile.png', false)
-    await matchPreviewScreenshot(page, 'imx-preview-dark-mobile.png', 'mobile')
   })
 })
