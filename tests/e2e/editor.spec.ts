@@ -447,9 +447,9 @@ test('live writing formats Markdown, preserves source, and visually wraps at nar
   for (const className of ['heading-1', 'strong', 'emphasis', 'strikethrough', 'inline-code', 'link', 'quote', 'list', 'horizontal-rule']) {
     await expect(page.locator(`.cm-md-${className}`).first()).toBeVisible()
   }
-  await expect(page.locator('.cm-md-fenced-code').filter({ hasText: 'const answer = 42' })).toBeVisible()
-  await expect(page.locator('.cm-md-code-line')).toHaveCount(1)
-  await expect(page.locator('.cm-md-code-line')).toHaveAttribute('data-code-line', '1')
+  await expect(page.getByRole('textbox', { name: '代码块内容' })).toHaveValue('const answer = 42')
+  await expect(page.locator('.cm-md-code-line-numbers span')).toHaveCount(1)
+  await expect(page.locator('.cm-md-code-line-numbers span')).toHaveText('1')
   await expect(page.getByRole('textbox', { name: '代码块语言' })).toHaveValue('ts')
   expect(await page.locator('.cm-md-hidden').count()).toBeGreaterThan(0)
   expect([...new Set(await page.locator('.cm-md-heading span').evaluateAll((elements) => elements.map((element) => getComputedStyle(element).textDecorationLine)))])
@@ -514,7 +514,7 @@ test('live writing formats Markdown, preserves source, and visually wraps at nar
   expect((await editor.locator('.cm-line').allTextContents()).join('\n')).toBe(beforeResize)
 })
 
-test('places the code caret exactly where a visible character is clicked', async ({ page }) => {
+test('edits code content through the native code-block editor', async ({ page }) => {
   await beginArticle(page)
   const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
   const source = ['```java', 'git add .', 'git commit -m ""', 'git push', '```'].join('\n')
@@ -522,35 +522,9 @@ test('places the code caret exactly where a visible character is clicked', async
   await editor.fill(source)
   await page.getByRole('button', { name: '即时排版' }).click()
 
-  const target = await page.locator('.cm-md-code-line').nth(1).evaluate((line, characterOffset) => {
-    const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT, {
-      acceptNode(node) {
-        return node.textContent?.length ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
-      },
-    })
-    let remaining = characterOffset
-    let node = walker.nextNode()
-    while (node) {
-      const text = node.textContent ?? ''
-      if (remaining < text.length) {
-        const range = document.createRange()
-        range.setStart(node, remaining)
-        range.setEnd(node, remaining + 1)
-        const rect = range.getBoundingClientRect()
-        return { x: rect.left + 1, y: rect.top + rect.height / 2 }
-      }
-      remaining -= text.length
-      node = walker.nextNode()
-    }
-    throw new Error('Target code character was not found')
-  }, 4)
-
-  await page.mouse.click(target.x, target.y)
-  const caret = page.locator('.cm-cursor-primary')
-  await expect(caret).toBeVisible()
-  const caretBox = await caret.boundingBox()
-  if (!caretBox) throw new Error('CodeMirror caret geometry is unavailable')
-  expect(Math.abs(caretBox.x - target.x)).toBeLessThanOrEqual(3)
+  const code = page.getByRole('textbox', { name: '代码块内容' })
+  await code.focus()
+  await code.evaluate((textarea) => (textarea as HTMLTextAreaElement).setSelectionRange(14, 14))
   await page.keyboard.type('X')
   expect(await markdownSource(page)).toBe(['```java', 'git add .', 'git Xcommit -m ""', 'git push', '```'].join('\n'))
 })
@@ -563,7 +537,7 @@ test('keeps the code language control compact in the lower-right corner', async 
   await page.getByRole('button', { name: '即时排版' }).click()
 
   const language = page.getByRole('textbox', { name: '代码块语言' })
-  const footer = page.locator('.cm-md-code-fence-closing')
+  const footer = page.locator('.cm-md-code-footer')
   const [languageBox, footerBox] = await Promise.all([language.boundingBox(), footer.boundingBox()])
   if (!languageBox || !footerBox) throw new Error('Code language control geometry is unavailable')
 

@@ -130,7 +130,7 @@ describe('liveMarkdown', () => {
     const view = createView(doc, 0)
 
     expect(view.dom.querySelector('.cm-md-list')).toBeTruthy()
-    expect(view.dom.querySelector('.cm-md-fenced-code')).toBeTruthy()
+    expect(view.dom.querySelector('.cm-md-code-block')).toBeTruthy()
     expect(view.dom.querySelector('.cm-md-horizontal-rule')).toBeTruthy()
   })
 

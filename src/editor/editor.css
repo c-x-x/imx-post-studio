@@ -131,60 +131,68 @@
 
 .markdown-editor .cm-md-task-checkbox:disabled { cursor: not-allowed; }
 
-.markdown-editor .cm-md-code-fence-opening {
-  height: 0;
-  min-height: 0;
+.markdown-editor .cm-md-code-block {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin-block: .45rem 1.1rem;
   overflow: hidden;
-  line-height: 0;
-}
-
-.markdown-editor .cm-md-fenced-code {
-  position: relative;
-  min-height: 2.2rem;
-  border-inline: 1px solid var(--imx-line);
-  padding: .22rem .9rem .22rem 3.6rem !important;
+  border: 1px solid var(--imx-line);
+  border-radius: 7px;
   color: var(--imx-ink);
   background: var(--imx-gutter);
   font-family: var(--imx-font-mono);
   font-size: .92em;
-  line-height: 1.65;
 }
 
-.markdown-editor .cm-md-code-line::before {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 2.7rem;
+.markdown-editor .cm-md-code-body {
+  display: grid;
+  grid-template-columns: 2.7rem minmax(0, 1fr);
+  min-width: 0;
+}
+
+.markdown-editor .cm-md-code-line-numbers {
+  display: flex;
+  flex-direction: column;
+  padding: .62rem 0;
   border-right: 1px solid var(--imx-line);
   color: var(--imx-ink-muted);
-  content: attr(data-code-line);
+  line-height: 1.65;
   text-align: center;
   user-select: none;
 }
 
-.markdown-editor .cm-md-code-line-first {
-  border-top: 1px solid var(--imx-line);
-  border-radius: 7px 7px 0 0;
-  padding-top: .7rem !important;
+.markdown-editor .cm-md-code-editor {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: calc(1.65em + 1.24rem);
+  overflow-x: auto;
+  overflow-y: hidden;
+  resize: none;
+  border: 0;
+  border-radius: 0;
+  padding: .62rem .9rem;
+  color: var(--imx-ink);
+  background: transparent;
+  font: inherit;
+  line-height: 1.65;
+  outline: 0;
+  tab-size: 2;
 }
 
-.markdown-editor .cm-md-code-fence-closing {
+.markdown-editor .cm-md-code-editor:focus {
+  background: color-mix(in srgb, var(--imx-paper) 24%, transparent);
+}
+
+.markdown-editor .cm-md-code-footer {
   display: flex;
   justify-content: flex-end;
-  border: 1px solid var(--imx-line);
-  border-top: 0;
-  border-radius: 0 0 7px 7px;
-  padding: .22rem .45rem !important;
-  background: var(--imx-gutter);
+  border-top: 1px solid var(--imx-line);
+  padding: .22rem .45rem;
 }
 
-.markdown-editor .cm-md-code-language {
-  display: inline-flex;
-  max-width: 100%;
-}
-
-.markdown-editor .cm-md-code-language input {
+.markdown-editor .cm-md-code-language-input {
   width: auto;
   min-width: 4.25rem;
   max-width: 9rem;
@@ -201,7 +209,7 @@
   outline: 0;
 }
 
-.markdown-editor .cm-md-code-language input:focus {
+.markdown-editor .cm-md-code-language-input:focus {
   border-color: var(--imx-accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--imx-accent) 16%, transparent);
 }
