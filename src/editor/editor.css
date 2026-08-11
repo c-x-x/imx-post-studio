@@ -332,9 +332,11 @@
 }
 
 .markdown-editor .cm-content {
-  max-width: 920px;
-  margin: 0 auto;
-  padding: clamp(25px, 4vw, 58px) clamp(18px, 5vw, 72px) 110px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding-block: clamp(25px, 4vw, 58px) 110px;
+  padding-inline: max(clamp(18px, 5vw, 72px), calc((100% - 920px) / 2 + clamp(18px, 5vw, 72px)));
   caret-color: var(--imx-accent);
   overflow-wrap: anywhere;
 }

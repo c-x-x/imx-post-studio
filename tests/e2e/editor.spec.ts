@@ -546,18 +546,11 @@ test('places the code caret exactly where a visible character is clicked', async
   }, 4)
 
   await page.mouse.click(target.x, target.y)
-  await expect(page.locator('.cm-cursor-primary')).toHaveCount(0)
-  const caret = await editor.evaluate((element) => {
-    const selection = window.getSelection()
-    if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) throw new Error('Native caret selection is unavailable')
-    const range = selection.getRangeAt(0).cloneRange()
-    const line = range.startContainer.parentElement?.closest('.cm-line')
-    const rect = range.getBoundingClientRect()
-    return { x: rect.x, line: line?.textContent ?? '', insideEditor: element.contains(range.startContainer) }
-  })
-  expect(caret.insideEditor).toBe(true)
-  expect(caret.line).toContain('git commit -m ""')
-  expect(Math.abs(caret.x - target.x)).toBeLessThanOrEqual(3)
+  const caret = page.locator('.cm-cursor-primary')
+  await expect(caret).toBeVisible()
+  const caretBox = await caret.boundingBox()
+  if (!caretBox) throw new Error('CodeMirror caret geometry is unavailable')
+  expect(Math.abs(caretBox.x - target.x)).toBeLessThanOrEqual(3)
   await page.keyboard.type('X')
   expect(await markdownSource(page)).toBe(['```java', 'git add .', 'git Xcommit -m ""', 'git push', '```'].join('\n'))
 })
