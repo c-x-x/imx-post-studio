@@ -345,9 +345,11 @@
   white-space: normal;
 }
 
-.markdown-editor .cm-line.cm-md-table-separator {
+.markdown-editor .cm-line.cm-md-table-separator,
+.markdown-editor .cm-line.cm-md-block-separator {
   height: 0;
   min-height: 0;
+  padding-block: 0;
   overflow: hidden;
   line-height: 0;
 }

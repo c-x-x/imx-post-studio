@@ -1,4 +1,4 @@
-import { EditorState, StateField, type Extension, type Range, type Transaction } from '@codemirror/state'
+import { EditorState, StateField, Transaction, type Extension, type Range } from '@codemirror/state'
 import { syntaxTree } from '@codemirror/language'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
 import { safeMediaName } from '../media/names'
@@ -80,6 +80,14 @@ function addLineClasses(state: EditorState, ranges: Array<Range<Decoration>>, fr
     ranges.push(Decoration.line({ attributes: { class: className } }).range(line.from))
     if (line.to >= to || line.number >= state.doc.lines) break
     line = state.doc.line(line.number + 1)
+  }
+}
+
+function hideBlockSeparatorAfter(state: EditorState, ranges: Array<Range<Decoration>>, blockEnd: number) {
+  if (state.doc.sliceString(blockEnd, blockEnd + 2) !== '\n\n') return
+  const separator = state.doc.lineAt(blockEnd + 1)
+  if (separator.length === 0) {
+    ranges.push(Decoration.line({ attributes: { class: 'cm-md-block-separator' } }).range(separator.from))
   }
 }
 
@@ -187,6 +195,7 @@ function buildDecorations(state: EditorState, options: LiveMarkdownOptions): Dec
         case 'Table': {
           const table = parseMarkdownTable(state.doc.sliceString(node.from, node.to))
           if (table) {
+            hideBlockSeparatorAfter(state, ranges, node.to)
             const tableLine = state.doc.lineAt(node.from)
             if (tableLine.number > 1) {
               const separator = state.doc.line(tableLine.number - 1)
@@ -225,6 +234,7 @@ function buildDecorations(state: EditorState, options: LiveMarkdownOptions): Dec
           {
             const block = parseEditableCodeBlock(state.doc.sliceString(node.from, node.to), node.from)
             if (block) {
+              hideBlockSeparatorAfter(state, ranges, node.to)
               ranges.push(Decoration.replace({
                 block: true,
                 widget: new EditableCodeBlockWidget(node.from, node.to, block, options.disabled),
@@ -308,10 +318,21 @@ function protectTableSeparators(transaction: Transaction) {
   if (!transaction.docChanged) return transaction
   const fixes: Array<{ from: number; insert: string }> = []
   const nextDoc = transaction.newDoc
+  let redirectedInput: { from: number; insert: string; prefix: string } | null = null
   syntaxTree(transaction.startState).iterate({
     enter(reference) {
       const node = reference.node
       if (node.name !== 'Table' || !parseMarkdownTable(transaction.startState.doc.sliceString(node.from, node.to))) return undefined
+      transaction.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
+        if (redirectedInput || fromA < node.from || toA > node.to || inserted.toString() !== '\n') return
+        const after = transaction.startState.doc.sliceString(node.to, node.to + 2)
+        redirectedInput = {
+          from: node.to + (after.startsWith('\n\n') ? 2 : after.startsWith('\n') ? 1 : 0),
+          insert: inserted.toString(),
+          prefix: after.startsWith('\n\n') ? '' : after.startsWith('\n') ? '\n' : '\n\n',
+        }
+      })
+      if (redirectedInput) return false
       const tableStart = transaction.changes.mapPos(node.from, -1)
       let tableStillExists = false
       syntaxTree(transaction.state).iterate({
@@ -330,6 +351,16 @@ function protectTableSeparators(transaction: Transaction) {
       return false
     },
   })
+  if (redirectedInput) {
+    const redirect = redirectedInput as { from: number; insert: string; prefix: string }
+    const insert = redirect.prefix + redirect.insert
+    return {
+      changes: { from: redirect.from, insert },
+      selection: { anchor: redirect.from + insert.length },
+      annotations: Transaction.userEvent.of('input'),
+      scrollIntoView: true,
+    }
+  }
   return fixes.length === 0 ? transaction : [transaction, { changes: fixes, sequential: true }]
 }
 

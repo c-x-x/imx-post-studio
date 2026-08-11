@@ -192,6 +192,14 @@ describe('liveMarkdown', () => {
     expect(table?.querySelector<HTMLButtonElement>('button[data-action="delete-table"]')).toHaveTextContent('删除表格')
   })
 
+  test('visually collapses required blank separators after tables and code blocks', () => {
+    const source = '| A | B |\n| --- | --- |\n| 1 | 2 |\n\n正文\n\n```bash\necho ok\n```\n\n后文'
+    const view = createView(source, 0)
+
+    expect(view.dom.querySelectorAll('.cm-md-block-separator')).toHaveLength(2)
+    expect(view.state.doc.toString()).toBe(source)
+  })
+
   test('continues below and deletes a table without breaking surrounding Markdown', () => {
     const source = '正文\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n后文'
     const view = createView(source, 0)
@@ -217,6 +225,19 @@ describe('liveMarkdown', () => {
     })
 
     expect(view.state.doc.toString()).toBe(`${table}\n\nq\n`)
+    expect(view.dom.querySelector('.cm-md-table')).not.toBeNull()
+  })
+
+  test('redirects browser input that lands inside rendered table source', () => {
+    const table = '| A | B |\n| --- | --- |\n| 1 | 2 |'
+    const view = createView(`${table}\n\n`, 0)
+
+    view.dispatch({
+      changes: { from: table.length - 1, insert: '\n' },
+      annotations: Transaction.userEvent.of('input'),
+    })
+
+    expect(view.state.doc.toString()).toBe(`${table}\n\n\n`)
     expect(view.dom.querySelector('.cm-md-table')).not.toBeNull()
   })
 
