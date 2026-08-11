@@ -187,10 +187,45 @@
 
 .markdown-editor .cm-md-code-footer {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
+  gap: .35rem;
   border-top: 1px solid var(--imx-line);
   padding: .22rem .45rem;
 }
+
+.markdown-editor .cm-md-code-hint {
+  margin-right: auto;
+  color: var(--imx-ink-muted);
+  font-family: var(--imx-font-reading);
+  font-size: .68rem;
+  line-height: 1.25;
+}
+
+.markdown-editor .cm-md-code-delete {
+  min-height: 24px;
+  border: 0;
+  border-radius: 5px;
+  padding: .1rem .38rem;
+  color: var(--imx-danger);
+  background: transparent;
+  font-family: var(--imx-font-reading);
+  font-size: .7rem;
+  line-height: 1.25;
+  cursor: pointer;
+}
+
+.markdown-editor .cm-md-code-delete:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--imx-danger) 9%, transparent);
+}
+
+.markdown-editor .cm-md-code-delete:focus-visible {
+  outline: 2px solid var(--imx-accent);
+  outline-offset: 1px;
+}
+
+.markdown-editor .cm-md-code-delete:disabled { cursor: not-allowed; }
 
 .markdown-editor .cm-md-code-language-input {
   width: auto;

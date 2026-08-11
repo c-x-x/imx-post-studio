@@ -1,5 +1,5 @@
 import { Transaction } from '@codemirror/state'
-import { redo, undo } from '@codemirror/commands'
+import { isolateHistory, redo, undo } from '@codemirror/commands'
 import { EditorView, WidgetType } from '@codemirror/view'
 
 export interface EditableCodeBlock {
@@ -120,16 +120,41 @@ function commitCodeBlock(root: HTMLElement, userEvent = 'input.type') {
 function continueWriting(root: HTMLElement) {
   const binding = bindings.get(root)
   if (!binding || binding.widget.disabled) return
-  const insert = `${serializeCodeBlock(
+  const block = serializeCodeBlock(
     binding.widget,
     languageValue(languageEditor(root).value),
     codeEditor(root).value,
-  )}\n\n`
-  const anchor = binding.widget.from + insert.length
+  )
+  const after = binding.view.state.doc.sliceString(binding.widget.to)
+  const separator = after.startsWith('\n\n') ? '' : after.startsWith('\n') ? '\n' : '\n\n'
+  const anchor = binding.widget.from + block.length + 2
   binding.view.dispatch({
-    changes: { from: binding.widget.from, to: binding.widget.to, insert },
+    changes: { from: binding.widget.from, to: binding.widget.to, insert: block + separator },
     selection: { anchor },
     annotations: Transaction.userEvent.of('input'),
+    scrollIntoView: true,
+  })
+  binding.view.focus()
+}
+
+function deleteCodeBlock(root: HTMLElement) {
+  const binding = bindings.get(root)
+  if (!binding || binding.widget.disabled) return
+  const source = binding.view.state.doc.toString()
+  let from = binding.widget.from
+  let to = binding.widget.to
+  const before = source.slice(0, from)
+  const after = source.slice(to)
+
+  if (after.startsWith('\n\n')) to += 2
+  else if (after.startsWith('\n')) to += 1
+  else if (before.endsWith('\n\n')) from -= 2
+  else if (before.endsWith('\n')) from -= 1
+
+  binding.view.dispatch({
+    changes: { from, to, insert: '' },
+    selection: { anchor: from },
+    annotations: [Transaction.userEvent.of('delete'), isolateHistory.of('full')],
     scrollIntoView: true,
   })
   binding.view.focus()
@@ -179,6 +204,9 @@ function createCodeEditor(root: HTMLElement, disabled: boolean): HTMLElement {
     } else if (event.ctrlKey && key === 'y') {
       event.preventDefault()
       redo(binding.view)
+    } else if ((event.key === 'Backspace' || event.key === 'Delete') && textarea.value.length === 0) {
+      event.preventDefault()
+      deleteCodeBlock(root)
     } else if (event.key === 'Tab') {
       event.preventDefault()
       const start = textarea.selectionStart
@@ -196,6 +224,20 @@ function createCodeEditor(root: HTMLElement, disabled: boolean): HTMLElement {
 function createLanguageEditor(root: HTMLElement, disabled: boolean): HTMLElement {
   const footer = document.createElement('div')
   footer.className = 'cm-md-code-footer'
+
+  const hint = document.createElement('span')
+  hint.className = 'cm-md-code-hint'
+  hint.textContent = '语言栏回车退出 · 空代码块退格删除'
+
+  const remove = document.createElement('button')
+  remove.type = 'button'
+  remove.className = 'cm-md-code-delete'
+  remove.textContent = '删除'
+  remove.disabled = disabled
+  remove.setAttribute('aria-label', '删除整个代码块')
+  remove.addEventListener('mousedown', (event) => event.preventDefault())
+  remove.addEventListener('click', () => deleteCodeBlock(root))
+
   const language = document.createElement('input')
   language.type = 'text'
   language.className = 'cm-md-code-language-input'
@@ -218,11 +260,11 @@ function createLanguageEditor(root: HTMLElement, disabled: boolean): HTMLElement
     commitCodeBlock(root)
   })
   language.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter') return
+    if (event.key !== 'Enter' || event.isComposing) return
     event.preventDefault()
-    codeEditor(root).focus()
+    continueWriting(root)
   })
-  footer.append(language)
+  footer.append(hint, remove, language)
   return footer
 }
 
