@@ -335,6 +335,11 @@ test('creates and edits a Markdown table across source, preview, and mobile layo
     end: (input as HTMLInputElement).selectionEnd,
   }))).toEqual({ start: 0, end: 3 })
 
+  const firstLineAfterTable = page.locator('.cm-md-table').locator('xpath=following-sibling::*[contains(concat(" ", normalize-space(@class), " "), " cm-line ")][1]')
+  await firstLineAfterTable.click({ position: { x: 8, y: 1 } })
+  await page.keyboard.type('直接写作')
+  await expect(page.getByRole('textbox', { name: '第 1 行第 1 列' })).toBeVisible()
+
   await firstHeader.fill('A|B')
   await page.getByRole('textbox', { name: '第 1 行第 2 列' }).fill('值')
   await page.getByRole('textbox', { name: '第 2 行第 1 列' }).fill('格式')
@@ -372,7 +377,7 @@ test('creates and edits a Markdown table across source, preview, and mobile layo
   expect(source).toContain('| A\\|B | 列 2 | 值 |')
   expect(source).toContain('| 格式 | 内容 | WebP |')
   expect(source).toContain('| 内容 | 内容 | 内容 |')
-  expect(source).toContain('\n\n表格后的正文')
+  expect(source).toContain('\n\n表格后的正文直接写作')
 
   await page.getByRole('button', { name: '预览文章' }).click()
   const preview = page.getByTitle('IMX 文章预览')
@@ -443,6 +448,9 @@ test('live writing formats Markdown, preserves source, and visually wraps at nar
     await expect(page.locator(`.cm-md-${className}`).first()).toBeVisible()
   }
   await expect(page.locator('.cm-md-fenced-code').filter({ hasText: 'const answer = 42' })).toBeVisible()
+  await expect(page.locator('.cm-md-code-line')).toHaveCount(1)
+  await expect(page.locator('.cm-md-code-line')).toHaveAttribute('data-code-line', '1')
+  await expect(page.getByRole('textbox', { name: '代码块语言' })).toHaveValue('ts')
   expect(await page.locator('.cm-md-hidden').count()).toBeGreaterThan(0)
   expect([...new Set(await page.locator('.cm-md-heading span').evaluateAll((elements) => elements.map((element) => getComputedStyle(element).textDecorationLine)))])
     .toEqual(['none'])

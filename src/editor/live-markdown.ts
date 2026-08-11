@@ -159,6 +159,80 @@ class TaskCheckboxWidget extends WidgetType {
   }
 }
 
+class CodeLanguageWidget extends WidgetType {
+  constructor(
+    private readonly from: number,
+    private readonly to: number,
+    private readonly language: string,
+    private readonly disabled: boolean,
+  ) {
+    super()
+  }
+
+  eq(other: CodeLanguageWidget) {
+    return this.from === other.from
+      && this.to === other.to
+      && this.language === other.language
+      && this.disabled === other.disabled
+  }
+
+  toDOM(view: EditorView) {
+    const wrapper = document.createElement('span')
+    wrapper.className = 'cm-md-code-language'
+    const input = document.createElement('input')
+    input.type = 'text'
+    input.value = this.language
+    input.placeholder = '语言'
+    input.disabled = this.disabled
+    input.setAttribute('aria-label', '代码块语言')
+    input.addEventListener('change', () => {
+      const language = input.value.trim().toLowerCase().replace(/[^a-z0-9_+-]/g, '')
+      if (language === this.language || this.disabled) return
+      view.dispatch({ changes: { from: this.from, to: this.to, insert: language } })
+    })
+    input.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return
+      event.preventDefault()
+      input.blur()
+      view.focus()
+    })
+    wrapper.append(input)
+    return wrapper
+  }
+
+  ignoreEvent() {
+    return true
+  }
+}
+
+function decorateFencedCode(state: EditorState, ranges: Array<Range<Decoration>>, node: SyntaxNode, disabled: boolean) {
+  const opening = state.doc.lineAt(node.from)
+  const closing = state.doc.lineAt(Math.max(node.from, node.to - 1))
+  const match = /^(?:`{3,}|~{3,})([^\s`]*)/.exec(opening.text)
+  const language = match?.[1] ?? ''
+  const languageFrom = opening.from + (match?.[0].length ?? opening.length) - language.length
+
+  ranges.push(Decoration.line({ attributes: { class: 'cm-md-code-fence cm-md-code-fence-opening' } }).range(opening.from))
+  if (opening.length > 0) ranges.push(Decoration.mark({ class: 'cm-md-hidden' }).range(opening.from, opening.to))
+
+  let codeLine = 1
+  for (let lineNumber = opening.number + 1; lineNumber < closing.number; lineNumber += 1) {
+    const line = state.doc.line(lineNumber)
+    const edge = lineNumber === opening.number + 1 ? ' cm-md-code-line-first' : ''
+    ranges.push(Decoration.line({
+      attributes: { class: `cm-md-fenced-code cm-md-code-line${edge}`, 'data-code-line': String(codeLine) },
+    }).range(line.from))
+    codeLine += 1
+  }
+
+  ranges.push(Decoration.line({ attributes: { class: 'cm-md-code-fence cm-md-code-fence-closing' } }).range(closing.from))
+  if (closing.length > 0) {
+    ranges.push(Decoration.replace({
+      widget: new CodeLanguageWidget(languageFrom, opening.to, language, disabled),
+    }).range(closing.from, closing.to))
+  }
+}
+
 function localImage(state: EditorState, node: SyntaxNode, options: LiveMarkdownOptions): LiveMarkdownImage | undefined {
   const urlNode = node.getChild('URL')
   if (!urlNode) return undefined
@@ -221,7 +295,7 @@ function buildDecorations(state: EditorState, options: LiveMarkdownOptions): Dec
           ranges.push(Decoration.mark({ class: 'cm-md-inline-code' }).range(node.from, node.to))
           break
         case 'FencedCode':
-          addLineClasses(state, ranges, node.from, node.to, 'cm-md-fenced-code')
+          decorateFencedCode(state, ranges, node, options.disabled)
           break
         case 'Blockquote':
           addLineClasses(state, ranges, node.from, node.to, 'cm-md-quote')

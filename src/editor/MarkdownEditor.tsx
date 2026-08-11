@@ -2,6 +2,8 @@ import { forwardRef, useCallback, useImperativeHandle, useLayoutEffect, useMemo,
 import CodeMirror, { EditorView, type ReactCodeMirrorRef } from '@uiw/react-codemirror'
 import { Annotation } from '@codemirror/state'
 import { markdown } from '@codemirror/lang-markdown'
+import { defaultHighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/language'
+import { languages } from '@codemirror/language-data'
 import { GFM } from '@lezer/markdown'
 import type { ViewUpdate } from '@codemirror/view'
 import type { MediaAsset } from '../metadata/article'
@@ -41,7 +43,7 @@ interface MarkdownEditorProps {
 }
 
 const pastedImageTransaction = Annotation.define<boolean>()
-const markdownLanguage = markdown({ extensions: GFM })
+const markdownLanguage = markdown({ extensions: GFM, codeLanguages: languages })
 const markdownAccessibility = EditorView.contentAttributes.of({ 'aria-label': 'Markdown 编辑器' })
 
 const toolbar: Array<{ label: string; command: Exclude<MarkdownCommand, { type: 'image' }> }> = [
@@ -64,6 +66,21 @@ function clipboardImages(data: DataTransfer | null): File[] {
   return itemFiles.length > 0
     ? itemFiles
     : Array.from(data.files ?? []).filter((file) => file.type.startsWith('image/'))
+}
+
+function safePositionAfterTable(view: EditorView, position: number): number {
+  let tableEnd = -1
+  syntaxTree(view.state).iterate({
+    to: position,
+    enter(node) {
+      if (node.name === 'Table' && node.to <= position) tableEnd = Math.max(tableEnd, node.to)
+    },
+  })
+  return tableEnd >= 0
+    && position === tableEnd + 1
+    && view.state.doc.sliceString(tableEnd, tableEnd + 2) === '\n\n'
+    ? tableEnd + 2
+    : position
 }
 
 export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(function MarkdownEditor({
@@ -109,7 +126,18 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       if (event.button !== 0 || disabledRef.current) return false
       const target = event.target
       if (!(target instanceof HTMLElement)) return false
-      if (target.closest('.cm-line, .cm-md-table, button, input, textarea, a')) return false
+      if (target.closest('.cm-md-table, button, input, textarea, a')) return false
+      const clickedPosition = view.posAtCoords({ x: event.clientX, y: event.clientY })
+      if (clickedPosition !== null) {
+        const safePosition = safePositionAfterTable(view, clickedPosition)
+        if (safePosition !== clickedPosition) {
+          event.preventDefault()
+          view.dispatch({ selection: { anchor: safePosition }, scrollIntoView: true })
+          view.focus()
+          return true
+        }
+      }
+      if (target.closest('.cm-line')) return false
       const lastLine = view.coordsAtPos(view.state.doc.length)
       if (!lastLine || event.clientY <= lastLine.bottom) return false
 
@@ -159,13 +187,25 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       return true
     },
   }), [])
+  const safeTableInput = useMemo(() => EditorView.inputHandler.of((view, from, to, text) => {
+    if (from !== to || text.length === 0) return false
+    const safePosition = safePositionAfterTable(view, from)
+    if (safePosition === from) return false
+    view.dispatch({
+      changes: { from: safePosition, insert: text },
+      selection: { anchor: safePosition + text.length },
+    })
+    return true
+  }), [])
   const extensions = useMemo(() => [
     markdownLanguage,
+    syntaxHighlighting(defaultHighlightStyle),
     liveMarkdownExtension,
     editorDomHandlers,
+    safeTableInput,
     EditorView.lineWrapping,
     markdownAccessibility,
-  ], [editorDomHandlers, liveMarkdownExtension])
+  ], [editorDomHandlers, liveMarkdownExtension, safeTableInput])
   const handleChange = useCallback((next: string, update: ViewUpdate) => {
     if (update.transactions.some((transaction) => transaction.annotation(pastedImageTransaction))) return
     onChangeRef.current(next)
