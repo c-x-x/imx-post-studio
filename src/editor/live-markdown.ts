@@ -1,4 +1,4 @@
-import { StateField, type EditorState, type Extension, type Range } from '@codemirror/state'
+import { EditorState, StateField, type Extension, type Range, type Transaction } from '@codemirror/state'
 import { syntaxTree } from '@codemirror/language'
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view'
 import { safeMediaName } from '../media/names'
@@ -304,6 +304,35 @@ function buildAtomicRanges(state: EditorState, options: LiveMarkdownOptions): De
   return Decoration.set(ranges, true)
 }
 
+function protectTableSeparators(transaction: Transaction) {
+  if (!transaction.docChanged) return transaction
+  const fixes: Array<{ from: number; insert: string }> = []
+  const nextDoc = transaction.newDoc
+  syntaxTree(transaction.startState).iterate({
+    enter(reference) {
+      const node = reference.node
+      if (node.name !== 'Table' || !parseMarkdownTable(transaction.startState.doc.sliceString(node.from, node.to))) return undefined
+      const tableStart = transaction.changes.mapPos(node.from, -1)
+      let tableStillExists = false
+      syntaxTree(transaction.state).iterate({
+        from: tableStart,
+        to: Math.min(transaction.newDoc.length, tableStart + Math.max(1, node.to - node.from + 2)),
+        enter(nextReference) {
+          if (nextReference.name === 'Table' && nextReference.from === tableStart) tableStillExists = true
+        },
+      })
+      if (!tableStillExists) return false
+      const tableEnd = transaction.changes.mapPos(node.to, -1)
+      const first = nextDoc.sliceString(tableEnd, tableEnd + 1)
+      const second = nextDoc.sliceString(tableEnd + 1, tableEnd + 2)
+      if (first === '\n' && second !== '\n') fixes.push({ from: tableEnd + 1, insert: '\n' })
+      else if (first !== '\n') fixes.push({ from: tableEnd, insert: '\n\n' })
+      return false
+    },
+  })
+  return fixes.length === 0 ? transaction : [transaction, { changes: fixes, sequential: true }]
+}
+
 export function liveMarkdown(options: LiveMarkdownOptions): Extension {
   const decorations = StateField.define<DecorationSet>({
     create(state) {
@@ -327,5 +356,8 @@ export function liveMarkdown(options: LiveMarkdownOptions): Extension {
     },
     provide: (field) => EditorView.atomicRanges.from(field, (ranges) => () => ranges),
   })
-  return [decorations, atomicRanges]
+  const tableSeparatorProtection = options.mode === 'source'
+    ? []
+    : EditorState.transactionFilter.of(protectTableSeparators)
+  return [decorations, atomicRanges, tableSeparatorProtection]
 }

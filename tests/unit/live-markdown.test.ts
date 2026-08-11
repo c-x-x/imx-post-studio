@@ -205,6 +205,21 @@ describe('liveMarkdown', () => {
     expect(view.dom.querySelector('.cm-md-table')).toBeNull()
   })
 
+  test('repairs direct typing into the protected separator below a table', () => {
+    const table = '| A | B |\n| --- | --- |\n| 1 | 2 |'
+    const view = createView(`${table}\n\n`, 0)
+    const unsafePosition = table.length + 1
+
+    view.dispatch({
+      changes: { from: unsafePosition, insert: 'q' },
+      selection: { anchor: unsafePosition + 1 },
+      annotations: Transaction.userEvent.of('input.type'),
+    })
+
+    expect(view.state.doc.toString()).toBe(`${table}\n\nq\n`)
+    expect(view.dom.querySelector('.cm-md-table')).not.toBeNull()
+  })
+
   test('writes escaped cell Markdown while reusing DOM and preserving the caret', () => {
     const source = '| 名称 | 值 |\n| --- | --- |\n| 格式 | WebP |'
     const view = createView(`正文\n\n${source}`, 0)
@@ -279,17 +294,17 @@ describe('liveMarkdown', () => {
     expect(inputs.every((input) => input.readOnly)).toBe(true)
   })
 
-  test('moves between cells with Tab and exits below the table at the boundary', () => {
+  test('moves between cells with Tab and exits below the table at the boundary', async () => {
     const source = '| A | B |\n| --- | --- |\n| 1 | 2 |'
     const view = createView(source, 0)
     const inputs = [...view.dom.querySelectorAll<HTMLInputElement>('.cm-md-table input')]
 
     inputs[0].focus()
     inputs[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }))
-    expect(document.activeElement).toBe(inputs[1])
+    await vi.waitFor(() => expect(document.activeElement).toBe(inputs[1]))
 
     inputs[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }))
-    expect(document.activeElement).toBe(inputs[0])
+    await vi.waitFor(() => expect(document.activeElement).toBe(inputs[0]))
 
     inputs[3].focus()
     inputs[3].dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }))
@@ -325,14 +340,14 @@ describe('liveMarkdown', () => {
 
     view.dom.querySelector<HTMLButtonElement>('button[aria-label="在当前行下方添加一行"]')!.click()
     expect(view.state.doc.toString()).toBe(
-      '| A | B |\n| --- | --- |\n| 1 | 2 |\n| 内容 | 内容 |\n| 3 | 4 |',
+      '| A | B |\n| --- | --- |\n| 1 | 2 |\n| 内容 | 内容 |\n| 3 | 4 |\n\n',
     )
     await vi.waitFor(() => expect(document.activeElement).toHaveAccessibleName('第 3 行第 1 列'))
 
     const active = document.activeElement as HTMLInputElement
     view.dom.querySelector<HTMLButtonElement>('button[aria-label="在当前列右侧添加一列"]')!.click()
     expect(view.state.doc.toString()).toBe(
-      '| A | 列 2 | B |\n| --- | --- | --- |\n| 1 | 内容 | 2 |\n| 内容 | 内容 | 内容 |\n| 3 | 内容 | 4 |',
+      '| A | 列 2 | B |\n| --- | --- | --- |\n| 1 | 内容 | 2 |\n| 内容 | 内容 | 内容 |\n| 3 | 内容 | 4 |\n\n',
     )
     expect(active.isConnected).toBe(false)
     await vi.waitFor(() => expect(document.activeElement).toHaveAccessibleName('第 3 行第 2 列'))
@@ -341,7 +356,7 @@ describe('liveMarkdown', () => {
       key: 'z', ctrlKey: true, bubbles: true, cancelable: true,
     }))
     expect(view.state.doc.toString()).toBe(
-      '| A | B |\n| --- | --- |\n| 1 | 2 |\n| 内容 | 内容 |\n| 3 | 4 |',
+      '| A | B |\n| --- | --- |\n| 1 | 2 |\n| 内容 | 内容 |\n| 3 | 4 |\n\n',
     )
   })
 
@@ -352,11 +367,11 @@ describe('liveMarkdown', () => {
     last.focus()
 
     view.dom.querySelector<HTMLButtonElement>('button[aria-label="删除当前行"]')!.click()
-    expect(view.state.doc.toString()).toBe('| A | B | C |\n| --- | --- | --- |\n| 1 | 2 | 3 |')
+    expect(view.state.doc.toString()).toBe('| A | B | C |\n| --- | --- | --- |\n| 1 | 2 | 3 |\n\n')
     await vi.waitFor(() => expect(document.activeElement).toHaveAccessibleName('第 2 行第 3 列'))
 
     view.dom.querySelector<HTMLButtonElement>('button[aria-label="删除当前列"]')!.click()
-    expect(view.state.doc.toString()).toBe('| A | B |\n| --- | --- |\n| 1 | 2 |')
+    expect(view.state.doc.toString()).toBe('| A | B |\n| --- | --- |\n| 1 | 2 |\n\n')
     await vi.waitFor(() => expect(document.activeElement).toHaveAccessibleName('第 2 行第 2 列'))
 
     expect(view.dom.querySelector<HTMLButtonElement>('button[aria-label="删除当前行"]')).toBeDisabled()

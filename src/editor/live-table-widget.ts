@@ -224,7 +224,7 @@ function createCellInput(
       const inputs = [...root.querySelectorAll<HTMLInputElement>('.cm-md-table-input')]
       const index = inputs.indexOf(input)
       const target = inputs[index + (event.shiftKey ? -1 : 1)]
-      if (target) target.focus()
+      if (target) focusCell(binding.view, root, positionFromInput(target))
       else if (!event.shiftKey) continueWriting(binding)
       return
     }
@@ -238,8 +238,7 @@ function createCellInput(
       const target = inputAt(root, { row: position.row + direction, column: position.column })
       if (target) {
         event.preventDefault()
-        target.focus()
-        target.select()
+        focusCell(binding.view, root, positionFromInput(target))
       } else if (event.key !== 'ArrowUp') {
         event.preventDefault()
         continueWriting(binding)

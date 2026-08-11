@@ -125,7 +125,18 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       if (event.button !== 0 || disabledRef.current) return false
       const target = event.target
       if (!(target instanceof HTMLElement)) return false
-      if (target.closest('.cm-md-table, button, input, textarea, a')) return false
+      if (target.closest('button, input, textarea, a')) return false
+      const table = target.closest<HTMLElement>('.cm-md-table')
+      if (table) {
+        const tableEnd = Number(table.dataset.tableTo)
+        if (Number.isFinite(tableEnd)) {
+          event.preventDefault()
+          const anchor = safePositionAfterTable(view, tableEnd + 1)
+          view.dispatch({ selection: { anchor }, scrollIntoView: true })
+          view.focus()
+          return true
+        }
+      }
       const clickedPosition = view.posAtCoords({ x: event.clientX, y: event.clientY })
       if (clickedPosition !== null) {
         const safePosition = safePositionAfterTable(view, clickedPosition)

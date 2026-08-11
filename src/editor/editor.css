@@ -232,7 +232,6 @@
   padding: .62rem .9rem;
   color: transparent;
   caret-color: var(--imx-ink);
-  -webkit-text-fill-color: transparent;
   background: transparent;
   font: inherit;
   line-height: 1.65;
@@ -241,6 +240,7 @@
 }
 
 .markdown-editor .cm-md-code-editor:focus {
+  caret-color: var(--imx-ink) !important;
   background: color-mix(in srgb, var(--imx-paper) 7%, transparent);
 }
 

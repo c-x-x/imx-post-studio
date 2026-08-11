@@ -536,6 +536,7 @@ test('edits code content through the native code-block editor', async ({ page })
 
   const code = page.getByRole('textbox', { name: '代码块内容' })
   await code.focus()
+  expect(await code.evaluate((textarea) => getComputedStyle(textarea).caretColor)).not.toBe('rgba(0, 0, 0, 0)')
   await code.evaluate((textarea) => (textarea as HTMLTextAreaElement).setSelectionRange(14, 14))
   await page.keyboard.type('X')
   expect(await markdownSource(page)).toBe(['```java', 'git add .', 'git Xcommit -m ""', 'git push', '```'].join('\n'))
