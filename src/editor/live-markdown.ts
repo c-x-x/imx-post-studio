@@ -182,6 +182,7 @@ class CodeLanguageWidget extends WidgetType {
     const input = document.createElement('input')
     input.type = 'text'
     input.value = this.language
+    input.size = Math.max(4, Math.min(12, this.language.length || 4))
     input.placeholder = '语言'
     input.disabled = this.disabled
     input.setAttribute('aria-label', '代码块语言')

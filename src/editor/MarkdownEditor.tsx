@@ -302,7 +302,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         {mode === 'rich' ? '源代码' : '即时排版'}
       </button>
     </div>
-    <CodeMirror ref={editorRef} value={value} height="calc(100dvh - 190px)" extensions={extensions} editable={!disabled} onChange={handleChange} placeholder="从这里开始写 Markdown…" />
+    <CodeMirror ref={editorRef} value={value} height="calc(100dvh - 190px)" basicSetup={{ drawSelection: false }} extensions={extensions} editable={!disabled} onChange={handleChange} placeholder="从这里开始写 Markdown…" />
   </section>
   {tableDialogOpen && <TableDialog
     onClose={() => setTableDialogOpen(false)}

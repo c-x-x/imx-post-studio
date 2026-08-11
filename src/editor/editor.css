@@ -175,24 +175,28 @@
   border: 1px solid var(--imx-line);
   border-top: 0;
   border-radius: 0 0 7px 7px;
-  padding: .42rem .65rem !important;
+  padding: .22rem .45rem !important;
   background: var(--imx-gutter);
 }
 
 .markdown-editor .cm-md-code-language {
-  display: block;
-  width: min(18rem, 100%);
+  display: inline-flex;
+  max-width: 100%;
 }
 
 .markdown-editor .cm-md-code-language input {
-  width: 100%;
-  min-height: 30px;
+  width: auto;
+  min-width: 4.25rem;
+  max-width: 9rem;
+  min-height: 24px;
   border: 1px solid var(--imx-line);
   border-radius: 5px;
-  padding: .25rem .6rem;
+  padding: .1rem .42rem;
   color: var(--imx-ink);
   background: var(--imx-paper);
   font-family: var(--imx-font-mono);
+  font-size: .75rem;
+  line-height: 1.25;
   text-align: center;
   outline: 0;
 }

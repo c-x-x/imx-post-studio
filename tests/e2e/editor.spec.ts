@@ -514,6 +514,72 @@ test('live writing formats Markdown, preserves source, and visually wraps at nar
   expect((await editor.locator('.cm-line').allTextContents()).join('\n')).toBe(beforeResize)
 })
 
+test('places the code caret exactly where a visible character is clicked', async ({ page }) => {
+  await beginArticle(page)
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  const source = ['```java', 'git add .', 'git commit -m ""', 'git push', '```'].join('\n')
+  await page.getByRole('button', { name: '源代码' }).click()
+  await editor.fill(source)
+  await page.getByRole('button', { name: '即时排版' }).click()
+
+  const target = await page.locator('.cm-md-code-line').nth(1).evaluate((line, characterOffset) => {
+    const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        return node.textContent?.length ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+      },
+    })
+    let remaining = characterOffset
+    let node = walker.nextNode()
+    while (node) {
+      const text = node.textContent ?? ''
+      if (remaining < text.length) {
+        const range = document.createRange()
+        range.setStart(node, remaining)
+        range.setEnd(node, remaining + 1)
+        const rect = range.getBoundingClientRect()
+        return { x: rect.left + 1, y: rect.top + rect.height / 2 }
+      }
+      remaining -= text.length
+      node = walker.nextNode()
+    }
+    throw new Error('Target code character was not found')
+  }, 4)
+
+  await page.mouse.click(target.x, target.y)
+  await expect(page.locator('.cm-cursor-primary')).toHaveCount(0)
+  const caret = await editor.evaluate((element) => {
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) throw new Error('Native caret selection is unavailable')
+    const range = selection.getRangeAt(0).cloneRange()
+    const line = range.startContainer.parentElement?.closest('.cm-line')
+    const rect = range.getBoundingClientRect()
+    return { x: rect.x, line: line?.textContent ?? '', insideEditor: element.contains(range.startContainer) }
+  })
+  expect(caret.insideEditor).toBe(true)
+  expect(caret.line).toContain('git commit -m ""')
+  expect(Math.abs(caret.x - target.x)).toBeLessThanOrEqual(3)
+  await page.keyboard.type('X')
+  expect(await markdownSource(page)).toBe(['```java', 'git add .', 'git Xcommit -m ""', 'git push', '```'].join('\n'))
+})
+
+test('keeps the code language control compact in the lower-right corner', async ({ page }) => {
+  await beginArticle(page)
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await page.getByRole('button', { name: '源代码' }).click()
+  await editor.fill(['```java', 'git add .', '```'].join('\n'))
+  await page.getByRole('button', { name: '即时排版' }).click()
+
+  const language = page.getByRole('textbox', { name: '代码块语言' })
+  const footer = page.locator('.cm-md-code-fence-closing')
+  const [languageBox, footerBox] = await Promise.all([language.boundingBox(), footer.boundingBox()])
+  if (!languageBox || !footerBox) throw new Error('Code language control geometry is unavailable')
+
+  expect(languageBox.width).toBeLessThanOrEqual(90)
+  expect(languageBox.height).toBeLessThanOrEqual(26)
+  expect(footerBox.height).toBeLessThanOrEqual(36)
+  expect(Math.abs(footerBox.x + footerBox.width - languageBox.x - languageBox.width)).toBeLessThanOrEqual(12)
+})
+
 test('clicking a distant outline heading scrolls it into the editor viewport', async ({ page }) => {
   await beginArticle(page)
   const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })

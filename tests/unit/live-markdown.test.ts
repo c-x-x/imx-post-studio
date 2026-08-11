@@ -134,6 +134,18 @@ describe('liveMarkdown', () => {
     expect(view.dom.querySelector('.cm-md-horizontal-rule')).toBeTruthy()
   })
 
+  test.each([
+    ['java', 4],
+    ['typescript', 10],
+    ['extraordinarylanguage', 12],
+  ])('sizes the fenced code language input for %s', (languageName, expectedSize) => {
+    const view = createView(['```' + languageName, 'git add .', '```'].join('\n'), 0)
+    const language = view.dom.querySelector<HTMLInputElement>('[aria-label="代码块语言"]')
+
+    expect(language?.value).toBe(languageName)
+    expect(language?.size).toBe(expectedSize)
+  })
+
   test('renders GFM tasks as checkboxes and writes exact marker changes', () => {
     const view = createView('- [ ] 未完成\n- [x] 已完成', 0)
     const checkboxes = [...view.dom.querySelectorAll<HTMLInputElement>('.cm-md-task-checkbox')]
