@@ -330,43 +330,45 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         <span className="editor-toolbar-spacer" aria-hidden="true" />
         <button className="editor-mode-toggle" type="button" aria-pressed={mode === 'source'} disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={switchMode}>{mode === 'rich' ? '源代码' : '即时排版'}</button>
       </div>
-      {mode === 'rich'
-        ? <>
-          <BlockContextMenu
-            editor={editor}
-            nodeName="table"
-            label="表格操作"
-          >
-            <>
-              <button type="button" onClick={() => editor?.chain().focus().addRowAfter().run()}>添加行</button>
-              <button type="button" onClick={() => editor?.chain().focus().deleteRow().run()}>删除行</button>
-              <button type="button" onClick={() => editor?.chain().focus().addColumnAfter().run()}>添加列</button>
-              <button type="button" onClick={() => editor?.chain().focus().deleteColumn().run()}>删除列</button>
-              <button type="button" onClick={() => editor?.chain().focus().goToNextCell().run()}>下一单元格</button>
-              <button className="danger" type="button" onClick={() => editor?.chain().focus().deleteTable().run()}>删除表格</button>
-            </>
-          </BlockContextMenu>
-          <BlockContextMenu
-            editor={editor}
-            nodeName="codeBlock"
-            label="代码块操作"
-            placement="below-end"
-          >
-            <input
-              className="editor-code-language"
-              aria-label="代码语言"
-              defaultValue={String(editor?.getAttributes('codeBlock').language ?? '')}
-              placeholder="语言"
-              spellCheck={false}
-              onChange={(event) => editor?.commands.updateAttributes('codeBlock', { language: event.currentTarget.value.trim().toLowerCase() || null })}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === 'Escape') event.currentTarget.blur()
-              }}
-            />
-          </BlockContextMenu>
-          <EditorContent editor={editor} />
-        </>
-        : <Suspense fallback={<div className="editor-loading" role="status">正在加载源代码编辑器…</div>}><SourceMarkdownEditor ref={sourceRef} value={value} disabled={disabled} onChange={handleSourceChange} /></Suspense>}
+      <div className="editor-scroll-region">
+        {mode === 'rich'
+          ? <>
+            <BlockContextMenu
+              editor={editor}
+              nodeName="table"
+              label="表格操作"
+            >
+              <>
+                <button type="button" onClick={() => editor?.chain().focus().addRowAfter().run()}>添加行</button>
+                <button type="button" onClick={() => editor?.chain().focus().deleteRow().run()}>删除行</button>
+                <button type="button" onClick={() => editor?.chain().focus().addColumnAfter().run()}>添加列</button>
+                <button type="button" onClick={() => editor?.chain().focus().deleteColumn().run()}>删除列</button>
+                <button type="button" onClick={() => editor?.chain().focus().goToNextCell().run()}>下一单元格</button>
+                <button className="danger" type="button" onClick={() => editor?.chain().focus().deleteTable().run()}>删除表格</button>
+              </>
+            </BlockContextMenu>
+            <BlockContextMenu
+              editor={editor}
+              nodeName="codeBlock"
+              label="代码块操作"
+              placement="below-end"
+            >
+              <input
+                className="editor-code-language"
+                aria-label="代码语言"
+                defaultValue={String(editor?.getAttributes('codeBlock').language ?? '')}
+                placeholder="语言"
+                spellCheck={false}
+                onChange={(event) => editor?.commands.updateAttributes('codeBlock', { language: event.currentTarget.value.trim().toLowerCase() || null })}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === 'Escape') event.currentTarget.blur()
+                }}
+              />
+            </BlockContextMenu>
+            <EditorContent editor={editor} />
+          </>
+          : <Suspense fallback={<div className="editor-loading" role="status">正在加载源代码编辑器…</div>}><SourceMarkdownEditor ref={sourceRef} value={value} disabled={disabled} onChange={handleSourceChange} /></Suspense>}
+      </div>
     </section>
     {tableDialogOpen && <TableDialog onClose={() => setTableDialogOpen(false)} onInsert={insertTable} returnFocus={() => tableButtonRef.current} />}
   </>

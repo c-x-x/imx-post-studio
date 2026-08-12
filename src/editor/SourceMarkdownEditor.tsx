@@ -31,7 +31,7 @@ export const SourceMarkdownEditor = forwardRef<SourceMarkdownEditorHandle, Sourc
     },
   }), [])
 
-  return <CodeMirror ref={editorRef} value={value} height="calc(100dvh - 190px)" extensions={extensions} editable={!disabled} onChange={onChange} placeholder="从这里开始写 Markdown…" />
+  return <CodeMirror ref={editorRef} value={value} height="100%" extensions={extensions} editable={!disabled} onChange={onChange} placeholder="从这里开始写 Markdown…" />
 })
 
 export default SourceMarkdownEditor
