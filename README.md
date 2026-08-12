@@ -1,8 +1,8 @@
 # IMX Post Studio
 
-IMX Post Studio 是一个浏览器内运行、本地优先的 Hugo 文章编辑器。它把文章、元数据
-和图片整理为 Hugo leaf bundle ZIP，并以 Studio 自有的 IMX 风格提供桌面与移动
-预览。生产产物是独立的静态 Vite 应用，不包含 API 路由或服务端数据库。
+IMX Post Studio 是一个浏览器内运行、本地优先的 Markdown 写作工具。它提供结构化
+写作、源码编辑、本地草稿、图片管理和整屏预览，并可把文章、元数据与图片整理为
+Hugo leaf bundle ZIP。生产产物是独立的静态 Vite 应用，不包含 API 路由或服务端数据库。
 
 ## 隐私与浏览器支持
 
@@ -38,9 +38,10 @@ npx playwright install --with-deps chromium firefox webkit
 
 1. 从首页点击“文章”进入编辑器，在“设置”填写标题、Slug、日期、分类、标签、
    摘要和草稿状态。
-2. 在“写作”使用默认的“即时排版”模式；当前 Markdown 逻辑块保留标记便于编辑，
-   其他内容即时显示标题、强调、引用、列表、代码和本地图片等基础排版。点击右侧
-   “源代码”可查看和编辑完整 Markdown，切换模式不会重建编辑器或清空撤销历史。
+2. 在“写作”使用默认的“即时排版”模式；它基于 TipTap/ProseMirror，直接编辑标题、
+   强调、引用、列表、任务、表格、代码块和本地图片等结构化内容。点击右侧“源代码”
+   可使用 CodeMirror 查看和编辑完整 Markdown；切换回来时会按最新 Markdown 重建
+   结构化内容。
 3. 编辑内容会自动保存，也可点击“保存到草稿库”立即保存；草稿库支持打开、复制、
    重命名、导出和删除。
 4. 点击“预览文章”打开整屏 IMX 文章预览，并切换浅色/深色和桌面/移动画布。
@@ -56,10 +57,13 @@ npx playwright install --with-deps chromium firefox webkit
 整篇文章的最终 IMX 风格、目录和响应式效果仍以“预览文章”整屏页面为准。
 
 工具栏中的“表格”可创建 2–8 列、1–20 条数据行的 GFM 表格。即时排版模式支持直接
-编辑单元格，并可在当前行列旁添加或删除行列；表头不可删除，且始终至少保留一条
-数据行和两列。表格输入、行列操作与普通正文共用 CodeMirror 撤销和自动保存，切换到
-源代码模式仍是标准 GFM Markdown。窄窗口中的宽表格只在表格区域内横向滚动，不会
-撑宽整个页面。
+编辑单元格；光标进入表格后，附近会显示添加或删除行列、切换单元格和删除表格操作。
+表头不可删除，且始终至少保留一条数据行和两列。切换到源代码模式后内容仍是标准
+GFM Markdown；窄窗口中的宽表格只在表格区域内横向滚动，不会撑宽整个页面。
+
+代码块支持常用语言语法着色。光标进入代码块后，右下方会显示语言输入框；`Tab`
+插入两个空格，`Shift+Tab` 删除当前行最多两个前导空格。表格和代码块的上下文操作
+会跟随当前编辑位置显示，不需要返回文章顶部。
 
 从剪贴板复制图片后，可直接在 Markdown 光标处粘贴。Studio 会先按与媒体面板相同的
 MIME、文件签名、大小和安全文件名规则验证整个批次，再一次性加入媒体并写入
@@ -83,8 +87,8 @@ content/posts/<slug>/images/<image-name>
 - 正文接受 JPEG、PNG、WebP 和 GIF；SVG 被拒绝。
 - 封面接受 JPEG、PNG 和 WebP，会转换为不放大的 WebP，最大 1600×900、16:9。
 - 单个源图片上限为 25 MiB。
-- 导入器保留 Markdown 正文；只有在生成预览 HTML 时才会净化内容。预览放在无
-  脚本权限的 sandbox iframe 中，桌面预览为 1180px，移动预览为 390px。
+- 导入器保留 Markdown 正文；只有在生成预览 HTML 时才会净化内容。预览渲染在隔离
+  样式的 Shadow DOM 中，不执行文章脚本；桌面预览为 1180px，移动预览为 390px。
 - 外部 HTTPS 图片 URL 可保留在预览 HTML 中，因此在 `npm run dev`、`vite
   preview` 或未设置等效策略的静态主机上可能被请求。Vercel 生产配置的
   `img-src 'self' blob: data:` 会阻止这类外部图片；`'self'`、`blob:` 和 `data:`
@@ -122,7 +126,8 @@ npm run test:e2e
 ```
 
 GitHub Actions 会在 `main` 推送和 pull request 上执行同一组检查，并在失败时保留
-7 天 Playwright HTML 报告。
+7 天 Playwright HTML 报告。CI 的 `npm run build` 已包含 TypeScript 项目检查，因此
+不再重复单独运行 `npm run typecheck`；Playwright 仍覆盖 Chromium、Firefox 和 WebKit。
 
 ## Vercel 静态部署
 
@@ -141,5 +146,5 @@ GitHub Actions 会在 `main` 推送和 pull request 上执行同一组检查，�
 
 本项目根目录的 [MIT License](LICENSE) 适用于 IMX Post Studio 自有代码。预览视觉
 历史资产的 MIT 许可文本保留在 [docs/licenses](docs/licenses/IMX-PREVIEW-ORIGIN-MIT.txt)；
-自托管 Inter 与 Noto Serif SC 字体继续适用 `public/studio/fonts/` 中保留的 SIL Open
-Font License。
+自托管 Noto Serif SC 字体继续适用 `public/studio/fonts/` 中保留的 SIL Open Font
+License；源码编辑器和代码块仅使用系统等宽字体栈。
