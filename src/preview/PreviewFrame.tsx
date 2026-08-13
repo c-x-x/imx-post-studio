@@ -124,6 +124,35 @@ function wirePreviewFrameScroll(host: HTMLElement, root: ShadowRoot, dock: HTMLE
   }
 }
 
+function wirePreviewTocToggle(root: ShadowRoot): () => void {
+  const input = root.querySelector<HTMLInputElement>('.toc-toggle-input')
+  const tools = root.querySelector<HTMLElement>('.article-page .article-tools')
+  const sidebar = root.querySelector<HTMLElement>('.article-page .sidebar')
+  const toggle = root.querySelector<HTMLElement>('.article-page .sidebar-toggle')
+  if (!input || !tools || !sidebar) return () => undefined
+  const sync = () => {
+    const open = input.checked
+    input.setAttribute('aria-expanded', String(open))
+    tools.classList.toggle('is-toc-open', open)
+    sidebar.classList.toggle('active', open)
+    toggle?.classList.toggle('active', open)
+  }
+  const handleToggleClick = (event: Event) => {
+    const target = (event.target as Element | null)?.closest('.sidebar-toggle')
+    if (!target || !root.contains(target)) return
+    event.preventDefault()
+    input.checked = !input.checked
+    sync()
+  }
+  input.addEventListener('change', sync)
+  root.addEventListener('click', handleToggleClick)
+  sync()
+  return () => {
+    input.removeEventListener('change', sync)
+    root.removeEventListener('click', handleToggleClick)
+  }
+}
+
 function wirePreviewCodeCopy(root: ShadowRoot): () => void {
   const timers = new Set<ReturnType<typeof setTimeout>>()
   const copyText = async (text: string): Promise<void> => {
@@ -229,6 +258,7 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
     const savedScrollTop = frameScrollTop.current
     let restoringScroll = savedScrollTop > 0
     const disconnectCodeCopy = wirePreviewCodeCopy(root)
+    const disconnectTocToggle = wirePreviewTocToggle(root)
     const disconnectScroll = wirePreviewFrameScroll(frame, root, dockRef.current, (scrollTop) => {
       if (!restoringScroll) frameScrollTop.current = scrollTop
     })
@@ -252,6 +282,7 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
       resizeObserver?.disconnect()
       window.removeEventListener('resize', syncFloatingEdges)
       disconnectCodeCopy()
+      disconnectTocToggle()
       disconnectScroll()
     }
   }, [documentHtml, documentTheme, viewport])

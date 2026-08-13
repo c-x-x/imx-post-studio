@@ -34,6 +34,14 @@ describe('MarkdownEditor', () => {
     expect(screen.getAllByRole('columnheader')).toHaveLength(2)
   })
 
+  it('renders and round-trips centered table columns', async () => {
+    const user = userEvent.setup()
+    render(<ControlledEditor initial={'| 名称 | 状态 |\n| :---: | --- |\n| A | B |'} />)
+    expect(screen.getAllByRole('columnheader')[0]).toHaveStyle({ textAlign: 'center' })
+    await user.click(screen.getByRole('button', { name: '源代码' }))
+    expect(await screen.findByRole('textbox', { name: 'Markdown 编辑器' })).toHaveTextContent('| :---: |')
+  })
+
   it('round-trips tables, tasks and fenced code through source mode', async () => {
     const user = userEvent.setup()
     const markdown = '- [x] 完成\n\n| 名称 | 状态 |\n| --- | --- |\n| 表格 | 可编辑 |\n\n```bash\necho ok\n```'

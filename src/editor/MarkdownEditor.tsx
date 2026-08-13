@@ -196,6 +196,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const preparePastedImagesRef = useRef(preparePastedImages)
   const onCommitPastedImagesRef = useRef(onCommitPastedImages)
   const richComposingRef = useRef(false)
+  const richCompositionPendingRef = useRef(false)
   const [mode, setMode] = useState<EditorMode>('rich')
   const [tableDialogOpen, setTableDialogOpen] = useState(false)
 
@@ -269,10 +270,12 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       handleDOMEvents: {
         compositionstart() {
           richComposingRef.current = true
+          richCompositionPendingRef.current = true
           return false
         },
         compositionend() {
           richComposingRef.current = false
+          richCompositionPendingRef.current = true
           window.requestAnimationFrame(() => {
             if (!editor || editor.isDestroyed) return
             const next = editor.getMarkdown()
@@ -288,7 +291,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       const next = currentEditor.getMarkdown()
       emittedValueRef.current = next
       latestValueRef.current = next
-      if (richComposingRef.current) return
+      if (richComposingRef.current || (currentEditor.view as { composing?: boolean }).composing) return
       onChangeRef.current(next)
     },
   })
@@ -299,7 +302,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   }, [disabled, editor])
 
   useEffect(() => {
-    if (!editor || mode !== 'rich' || richComposingRef.current || value === emittedValueRef.current) return
+    if (!editor || mode !== 'rich') return
+    if (richComposingRef.current || (editor.view as { composing?: boolean }).composing) return
+    if (richCompositionPendingRef.current) {
+      if (value === emittedValueRef.current) richCompositionPendingRef.current = false
+      return
+    }
+    if (value === emittedValueRef.current) return
     const current = editor.getMarkdown()
     if (current === value) return
     editor.commands.setContent(value, { contentType: 'markdown', emitUpdate: false })
@@ -403,6 +412,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                 <button type="button" onClick={() => editor?.chain().focus().deleteRow().run()}>删除行</button>
                 <button type="button" onClick={() => editor?.chain().focus().addColumnAfter().run()}>添加列</button>
                 <button type="button" onClick={() => editor?.chain().focus().deleteColumn().run()}>删除列</button>
+                <button type="button" onClick={() => editor?.chain().focus().setCellAttribute('align', 'left').run()}>左对齐</button>
+                <button type="button" onClick={() => editor?.chain().focus().setCellAttribute('align', 'center').run()}>居中</button>
+                <button type="button" onClick={() => editor?.chain().focus().setCellAttribute('align', 'right').run()}>右对齐</button>
                 <button type="button" onClick={() => editor?.chain().focus().goToNextCell().run()}>下一单元格</button>
                 <button className="danger" type="button" onClick={() => editor?.chain().focus().deleteTable().run()}>删除表格</button>
               </>

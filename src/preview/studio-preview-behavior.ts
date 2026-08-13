@@ -187,7 +187,8 @@ body {
   z-index: 998;
 }
 
-.preview-html[data-preview-viewport='mobile'] .article-page .article-tools:has(.toc-toggle-input:checked) {
+.preview-html[data-preview-viewport='mobile'] .article-page .article-tools:has(.toc-toggle-input:checked),
+.preview-html[data-preview-viewport='mobile'] .article-page .article-tools.is-toc-open {
   border-color: var(--article-soft-line);
   background: rgba(251, 250, 247, 0.92);
   backdrop-filter: blur(18px) saturate(150%);
@@ -195,7 +196,8 @@ body {
   box-shadow: 0 18px 44px rgba(75, 64, 52, 0.14);
 }
 
-.preview-html[data-theme='dark'][data-preview-viewport='mobile'] .article-page .article-tools:has(.toc-toggle-input:checked) {
+.preview-html[data-theme='dark'][data-preview-viewport='mobile'] .article-page .article-tools:has(.toc-toggle-input:checked),
+.preview-html[data-theme='dark'][data-preview-viewport='mobile'] .article-page .article-tools.is-toc-open {
   background: rgba(23, 23, 22, 0.94);
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.32);
 }
@@ -255,7 +257,9 @@ body {
   pointer-events: none;
 }
 
-.preview-html[data-preview-viewport='mobile'] .article-page .article-tools:has(.toc-toggle-input:checked) .sidebar {
+.preview-html[data-preview-viewport='mobile'] .article-page .article-tools:has(.toc-toggle-input:checked) .sidebar,
+.preview-html[data-preview-viewport='mobile'] .article-page .article-tools.is-toc-open .sidebar,
+.preview-html[data-preview-viewport='mobile'] .article-page .sidebar.active {
   transform: translateX(0);
   opacity: 1;
   visibility: visible;
@@ -276,6 +280,15 @@ body {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   box-shadow: none;
+}
+
+.preview-html[data-preview-viewport='mobile'] .article-page .article-tools.is-toc-open .toc,
+.preview-html[data-preview-viewport='mobile'] .article-page .article-tools.is-toc-open .toc nav,
+.preview-html[data-preview-viewport='mobile'] .article-page .article-tools.is-toc-open .toc ul,
+.preview-html[data-preview-viewport='mobile'] .article-page .article-tools.is-toc-open .toc li,
+.preview-html[data-preview-viewport='mobile'] .article-page .article-tools.is-toc-open .toc a {
+  opacity: 1;
+  visibility: visible;
 }
 
 .article-page {

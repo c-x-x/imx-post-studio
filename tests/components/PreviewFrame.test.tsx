@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PreviewFrame } from '../../src/preview/PreviewFrame'
 import { buildPreviewDocument } from '../../src/preview/build-preview-document'
 import type { ArticleMeta } from '../../src/metadata/article'
@@ -8,6 +8,8 @@ const meta: ArticleMeta = {
   title: 'A <title>', slug: 'a-title', date: '2026-08-04T16:00:00+08:00', draft: true,
   categories: ['Notes'], tags: ['Safe'], description: '', toc: true,
 }
+
+afterEach(cleanup)
 
 describe('PreviewFrame', () => {
   it('keeps accessible controls outside a script-free Shadow DOM preview and changes preview geometry', () => {
@@ -61,6 +63,33 @@ describe('PreviewFrame', () => {
     expect(content).toContain('aria-label="目录" aria-controls="article-toc"')
     expect(content).toContain('href="#imx-heading-a"')
     expect(content).not.toMatch(/<(?:html|body|script)\b/i)
+  })
+
+  it('keeps the mobile preview table of contents populated when opened', () => {
+    render(<PreviewFrame
+      meta={meta}
+      rendered={{ html: '<h2 id="imx-heading-a">A</h2>', toc: [{ id: 'imx-heading-a', depth: 2, text: 'A', children: [] }], wordCount: 1, readingMinutes: 1 }}
+      css="body {}"
+      theme="light"
+      onThemeChange={vi.fn()}
+      onClose={vi.fn()}
+    />)
+
+    fireEvent.click(screen.getByRole('button', { name: '移动预览' }))
+    const preview = screen.getByTitle('IMX 文章预览')
+    const root = preview.shadowRoot
+    const input = root?.querySelector<HTMLInputElement>('.toc-toggle-input')
+    const tools = root?.querySelector<HTMLElement>('.article-tools')
+    const sidebar = root?.querySelector<HTMLElement>('.sidebar')
+    expect(root?.querySelector('.preview-html')).toHaveAttribute('data-preview-viewport', 'mobile')
+    expect(root?.querySelector('.toc nav')).toHaveTextContent('A')
+
+    expect(input).not.toBeNull()
+    fireEvent.click(root!.querySelector<HTMLElement>('.sidebar-toggle')!)
+    expect(input).toHaveAttribute('aria-expanded', 'true')
+    expect(tools).toHaveClass('is-toc-open')
+    expect(sidebar).toHaveClass('active')
+    expect(sidebar).toHaveTextContent('A')
   })
 
 })
