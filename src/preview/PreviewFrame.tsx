@@ -201,15 +201,21 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
     if (!frame) return
     frame.dataset.theme = theme
     const previewHtml = frame.shadowRoot?.querySelector<HTMLElement>('.preview-html')
-    if (previewHtml) previewHtml.dataset.theme = theme
-  }, [theme])
+    if (previewHtml) {
+      previewHtml.dataset.theme = theme
+      previewHtml.dataset.previewViewport = viewport
+    }
+  }, [theme, viewport])
 
   useEffect(() => {
     const frame = frameRef.current
     if (!frame) return
     const root = renderPreviewContent(frame, documentHtml)
     const previewHtml = root.querySelector<HTMLElement>('.preview-html')
-    if (previewHtml) previewHtml.dataset.theme = frame.dataset.theme ?? documentTheme
+    if (previewHtml) {
+      previewHtml.dataset.theme = frame.dataset.theme ?? documentTheme
+      previewHtml.dataset.previewViewport = viewport
+    }
     const syncFloatingEdges = () => {
       if (!previewHtml) return
       const bounds = frame.getBoundingClientRect()
@@ -248,7 +254,7 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
       disconnectCodeCopy()
       disconnectScroll()
     }
-  }, [documentHtml, documentTheme])
+  }, [documentHtml, documentTheme, viewport])
 
   const frameWidth = viewport === 'desktop' ? 'min(1180px, 100%)' : 'min(390px, 100%)'
   return <section className="preview-surface" data-theme={theme} data-viewport={viewport} data-shared-dock-scroll aria-label="IMX 文章预览内容">

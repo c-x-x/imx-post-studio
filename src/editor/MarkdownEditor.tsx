@@ -138,6 +138,47 @@ function BlockContextMenu({ editor, nodeName, label, children, placement = 'adap
   )
 }
 
+function CodeLanguageControl({ editor, disabled }: { editor: Editor | null; disabled: boolean }) {
+  const [language, setLanguage] = useState('')
+
+  const syncLanguage = useCallback(() => {
+    if (!editor || editor.isDestroyed || !editor.isActive('codeBlock')) {
+      setLanguage('')
+      return
+    }
+    setLanguage(String(editor.getAttributes('codeBlock').language ?? ''))
+  }, [editor])
+
+  useEffect(() => {
+    if (!editor) return
+    editor.on('selectionUpdate', syncLanguage)
+    editor.on('transaction', syncLanguage)
+    const initialFrame = window.requestAnimationFrame(syncLanguage)
+    return () => {
+      window.cancelAnimationFrame(initialFrame)
+      editor.off('selectionUpdate', syncLanguage)
+      editor.off('transaction', syncLanguage)
+    }
+  }, [editor, syncLanguage])
+
+  return <input
+    className="editor-code-language"
+    aria-label="代码语言"
+    value={language}
+    placeholder="语言"
+    spellCheck={false}
+    disabled={disabled}
+    onChange={(event) => {
+      const next = event.currentTarget.value.trim().toLowerCase()
+      setLanguage(next)
+      editor?.commands.updateAttributes('codeBlock', { language: next || null })
+    }}
+    onKeyDown={(event) => {
+      if (event.key === 'Enter' || event.key === 'Escape') event.currentTarget.blur()
+    }}
+  />
+}
+
 export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(function MarkdownEditor({
   value,
   onChange,
@@ -154,6 +195,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const onChangeRef = useRef(onChange)
   const preparePastedImagesRef = useRef(preparePastedImages)
   const onCommitPastedImagesRef = useRef(onCommitPastedImages)
+  const richComposingRef = useRef(false)
   const [mode, setMode] = useState<EditorMode>('rich')
   const [tableDialogOpen, setTableDialogOpen] = useState(false)
 
@@ -224,11 +266,29 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         }
         return true
       },
+      handleDOMEvents: {
+        compositionstart() {
+          richComposingRef.current = true
+          return false
+        },
+        compositionend() {
+          richComposingRef.current = false
+          window.requestAnimationFrame(() => {
+            if (!editor || editor.isDestroyed) return
+            const next = editor.getMarkdown()
+            emittedValueRef.current = next
+            latestValueRef.current = next
+            onChangeRef.current(next)
+          })
+          return false
+        },
+      },
     },
     onUpdate({ editor: currentEditor }) {
       const next = currentEditor.getMarkdown()
       emittedValueRef.current = next
       latestValueRef.current = next
+      if (richComposingRef.current) return
       onChangeRef.current(next)
     },
   })
@@ -239,7 +299,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   }, [disabled, editor])
 
   useEffect(() => {
-    if (!editor || mode !== 'rich' || value === emittedValueRef.current) return
+    if (!editor || mode !== 'rich' || richComposingRef.current || value === emittedValueRef.current) return
     const current = editor.getMarkdown()
     if (current === value) return
     editor.commands.setContent(value, { contentType: 'markdown', emitUpdate: false })
@@ -353,17 +413,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               label="代码块操作"
               placement="below-end"
             >
-              <input
-                className="editor-code-language"
-                aria-label="代码语言"
-                defaultValue={String(editor?.getAttributes('codeBlock').language ?? '')}
-                placeholder="语言"
-                spellCheck={false}
-                onChange={(event) => editor?.commands.updateAttributes('codeBlock', { language: event.currentTarget.value.trim().toLowerCase() || null })}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === 'Escape') event.currentTarget.blur()
-                }}
-              />
+              <CodeLanguageControl editor={editor} disabled={disabled} />
             </BlockContextMenu>
             <EditorContent editor={editor} />
           </>

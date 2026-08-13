@@ -41,6 +41,7 @@ describe('PreviewFrame', () => {
     expect(mobile).toHaveAttribute('aria-pressed', 'true')
     expect(desktop).toHaveAttribute('aria-pressed', 'false')
     expect(preview).toHaveStyle({ width: 'min(390px, 100%)' })
+    expect(preview.shadowRoot?.querySelector('.preview-html')).toHaveAttribute('data-preview-viewport', 'mobile')
   })
 
   it('builds sanitized Shadow DOM content with the Studio-owned TOC contract', () => {
