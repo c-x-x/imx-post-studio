@@ -201,7 +201,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const [tableDialogOpen, setTableDialogOpen] = useState(false)
 
   useLayoutEffect(() => {
-    latestValueRef.current = value
+    if (!richComposingRef.current && !richCompositionPendingRef.current) latestValueRef.current = value
     onChangeRef.current = onChange
     preparePastedImagesRef.current = preparePastedImages
     onCommitPastedImagesRef.current = onCommitPastedImages
@@ -268,6 +268,14 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         return true
       },
       handleDOMEvents: {
+        beforeinput(_view, event) {
+          const inputEvent = event as InputEvent
+          if (inputEvent.isComposing || inputEvent.inputType === 'insertCompositionText') {
+            richComposingRef.current = true
+            richCompositionPendingRef.current = true
+          }
+          return false
+        },
         compositionstart() {
           richComposingRef.current = true
           richCompositionPendingRef.current = true
@@ -288,10 +296,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       },
     },
     onUpdate({ editor: currentEditor }) {
+      if (richComposingRef.current || (currentEditor.view as { composing?: boolean }).composing) return
       const next = currentEditor.getMarkdown()
       emittedValueRef.current = next
       latestValueRef.current = next
-      if (richComposingRef.current || (currentEditor.view as { composing?: boolean }).composing) return
       onChangeRef.current(next)
     },
   })
