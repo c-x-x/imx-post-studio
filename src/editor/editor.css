@@ -54,6 +54,17 @@
   flex: 1 1 auto;
 }
 
+.editor-save-status {
+  flex: 0 1 auto;
+  margin: 0;
+  align-self: center;
+  color: var(--imx-success);
+  font-size: .78rem;
+  line-height: 1.3;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .editor-mode-toggle {
   flex: 0 0 auto;
 }
@@ -765,9 +776,19 @@
 }
 
 @media (max-width: 620px) {
-  .editor-toolbar { overflow-x: auto; flex-wrap: nowrap; }
+  .editor-toolbar {
+    overflow-x: visible;
+    flex-wrap: wrap;
+    align-content: flex-start;
+  }
   .editor-toolbar button { flex: 0 0 auto; }
   .editor-toolbar-spacer { min-width: 12px; }
+  .editor-save-status {
+    order: 2;
+    flex: 1 0 100%;
+    text-align: left;
+    white-space: normal;
+  }
   .markdown-editor .cm-editor { min-height: 100%; }
   .markdown-editor .cm-content { padding: 24px 18px 90px; }
   .markdown-editor .tiptap { min-height: 100%; padding: 24px 18px 90px; }

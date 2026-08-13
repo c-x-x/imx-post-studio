@@ -2,6 +2,7 @@ import { forwardRef, lazy, Suspense, useCallback, useEffect, useImperativeHandle
 import { createPortal } from 'react-dom'
 import { EditorContent, useEditor } from '@tiptap/react'
 import type { Editor } from '@tiptap/core'
+import { TextSelection } from '@tiptap/pm/state'
 import StarterKit from '@tiptap/starter-kit'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { Markdown } from '@tiptap/markdown'
@@ -36,6 +37,7 @@ interface MarkdownEditorProps {
   value: string
   onChange: (value: string) => void
   media: MediaAsset[]
+  status?: string
   preparePastedImages?: (request: PastedImageRequest) => Promise<MediaAsset[]>
   onCommitPastedImages?: (assets: MediaAsset[], body: string) => void
   resolveMediaUrl?: (asset: MediaAsset) => string
@@ -183,6 +185,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   value,
   onChange,
   media,
+  status,
   preparePastedImages,
   onCommitPastedImages,
   resolveMediaUrl,
@@ -197,6 +200,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const onCommitPastedImagesRef = useRef(onCommitPastedImages)
   const richComposingRef = useRef(false)
   const richCompositionPendingRef = useRef(false)
+  const richCompositionStartRef = useRef<number | null>(null)
+  const richCompositionTextRef = useRef('')
   const [mode, setMode] = useState<EditorMode>('rich')
   const [tableDialogOpen, setTableDialogOpen] = useState(false)
 
@@ -273,23 +278,40 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           if (inputEvent.isComposing || inputEvent.inputType === 'insertCompositionText') {
             richComposingRef.current = true
             richCompositionPendingRef.current = true
+            if (richCompositionStartRef.current === null) richCompositionStartRef.current = editor?.state.selection.from ?? null
+            if (inputEvent.data) richCompositionTextRef.current = inputEvent.data
           }
           return false
         },
         compositionstart() {
           richComposingRef.current = true
           richCompositionPendingRef.current = true
+          richCompositionStartRef.current = editor?.state.selection.from ?? null
+          richCompositionTextRef.current = ''
           return false
         },
-        compositionend() {
+        compositionend(_view, event) {
           richComposingRef.current = false
           richCompositionPendingRef.current = true
+          const committedText = (event as CompositionEvent).data || richCompositionTextRef.current
+          const compositionStart = richCompositionStartRef.current
+          if (committedText) richCompositionTextRef.current = committedText
           window.requestAnimationFrame(() => {
             if (!editor || editor.isDestroyed) return
             const next = editor.getMarkdown()
             emittedValueRef.current = next
             latestValueRef.current = next
             onChangeRef.current(next)
+            if (compositionStart !== null && committedText) {
+              const target = Math.min(compositionStart + committedText.length, editor.state.doc.content.size)
+              try {
+                editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, target)).scrollIntoView())
+              } catch {
+                // Some complex IME replacements can invalidate the saved position; ignore and keep the document stable.
+              }
+            }
+            richCompositionStartRef.current = null
+            richCompositionTextRef.current = ''
           })
           return false
         },
@@ -405,6 +427,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         }}>链接</button>
         <button ref={tableButtonRef} type="button" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => setTableDialogOpen(true)}>表格</button>
         <span className="editor-toolbar-spacer" aria-hidden="true" />
+        {status ? <p className="editor-save-status" role="status">{status}</p> : null}
         <button className="editor-mode-toggle" type="button" aria-pressed={mode === 'source'} disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={switchMode}>{mode === 'rich' ? '源代码' : '即时排版'}</button>
       </div>
       <div className="editor-scroll-region">

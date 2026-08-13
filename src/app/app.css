@@ -126,6 +126,7 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
   min-height: 100vh;
   margin: 0 auto;
   padding: 92px clamp(14px, 2.2vw, 34px) 42px;
+  overflow-x: clip;
 }
 
 .dashboard-heading h2 {
@@ -513,8 +514,8 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
   position: sticky;
   top: 96px;
   display: flex;
-  min-height: calc(100dvh - 116px);
-  height: calc(100dvh - 112px);
+  min-height: min(680px, calc(100dvh - 168px));
+  height: calc(100dvh - 168px);
   overflow: hidden;
   padding: clamp(12px, 1.3vw, 20px);
   border-radius: 32px;
@@ -966,8 +967,8 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
   }
   .workspace-editor {
     position: static;
-    min-height: 70dvh;
-    height: calc(100dvh - 150px);
+    min-height: 66dvh;
+    height: calc(100dvh - 176px);
   }
 }
 
