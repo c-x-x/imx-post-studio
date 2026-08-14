@@ -146,6 +146,26 @@ describe('draftRepository', () => {
     ])
   })
 
+  it('does not expose historical empty records in the draft library', async () => {
+    await draftRepository.put(draft({
+      id: 'historical-empty',
+      body: '   ',
+      media: [],
+      meta: {
+        title: '',
+        slug: '',
+        date: '2026-08-04T09:00:00+08:00',
+        draft: true,
+        categories: [],
+        tags: [],
+        description: '',
+        toc: true,
+      },
+    }))
+
+    expect((await draftRepository.list()).map((item) => item.id)).not.toContain('historical-empty')
+  })
+
   it('duplicates a draft with a new ID and fresh timestamps while preserving image bytes', async () => {
     await draftRepository.put(draft({ id: 'duplicate-source' }))
 

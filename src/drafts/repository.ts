@@ -1,4 +1,4 @@
-import type { ArticleDraft, MediaAsset, MediaKind, MediaMime } from '../metadata/article'
+import { hasDraftContent, type ArticleDraft, type MediaAsset, type MediaKind, type MediaMime } from '../metadata/article'
 import { assertSafeImageName } from '../bundles/media-validation'
 import { getDraftDatabase, type StoredArticleDraft, type StoredMediaAsset } from './database'
 
@@ -206,11 +206,12 @@ export const draftRepository = {
     try {
       const database = await getDraftDatabase()
       const drafts = await database.getAllFromIndex('drafts', 'updatedAt')
-      return await Promise.all(
+      const hydrated = await Promise.all(
         drafts
           .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt) || right.id.localeCompare(left.id))
           .map(hydrateDraft),
       )
+      return hydrated.filter(hasDraftContent)
     } catch (error) {
       throw storageError('列出草稿', error)
     }

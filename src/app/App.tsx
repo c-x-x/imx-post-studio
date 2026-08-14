@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import type { ArticleDraft, MediaAsset } from '../metadata/article'
-import { createArticleDraft } from '../metadata/article'
+import { createArticleDraft, hasDraftContent } from '../metadata/article'
 import { MarkdownEditor, type MarkdownEditorHandle, type PastedImageRequest } from '../editor/MarkdownEditor'
 import { OutlinePanel } from '../editor/OutlinePanel'
 import { MetadataPanel } from '../metadata/MetadataPanel'
@@ -178,12 +178,18 @@ export function App() {
   }
 
   const persistLatestDraft = async () => {
+    if (!hasDraftContent(draftRef.current)) {
+      setDraftStarted(false)
+      setHasUnsavedChanges(false)
+      return false
+    }
     let savedRevision: number
     do {
       savedRevision = draftRevision.current
       await draftRepository.put(draftRef.current)
     } while (savedRevision !== draftRevision.current)
     setHasUnsavedChanges(false)
+    return true
   }
 
   const requestTransition = async (continueTransition: () => void, label: string): Promise<boolean> => {
@@ -291,7 +297,11 @@ export function App() {
     setTransitioning(true)
     setRecoveryError(undefined)
     try {
-      await persistLatestDraft()
+      const saved = await persistLatestDraft()
+      if (!saved) {
+        setNotice('文章内容为空，未生成草稿')
+        return
+      }
       setDraftStarted(true)
       setNotice('已保存到草稿库')
     } catch (cause) {
@@ -470,7 +480,10 @@ export function App() {
             : <OutlinePanel markdown={draft.body} onSelect={focusOutlineHeading} />}
         </aside>
         <button className="inspector-toggle" type="button" aria-controls="panel-settings" aria-expanded={!settingsCollapsed} aria-label={settingsCollapsed ? '展开文章设置' : '折叠文章设置'} title={settingsCollapsed ? '展开文章设置' : '折叠文章设置'} onClick={toggleSettings}><span aria-hidden="true">{settingsCollapsed ? '›' : '‹'}</span></button>
-        <section id="panel-write" className="workspace-panel workspace-editor" role="tabpanel" aria-labelledby="tab-write"><h2 className="visually-hidden">写作</h2><MarkdownEditor disabled={workspaceLocked} ref={editorRef} value={draft.body} media={draft.media} status={status} preparePastedImages={preparePastedImages} onCommitPastedImages={(assets, body) => dispatchDraft({ type: 'paste-body-media', assets, body })} resolveMediaUrl={resolveEditorMediaUrl} onChange={(body) => dispatchDraft({ type: 'set-body', body })} /></section>
+        <section id="panel-write" className="workspace-panel workspace-editor" role="tabpanel" aria-labelledby="tab-write"><h2 className="visually-hidden">写作</h2><MarkdownEditor disabled={workspaceLocked} ref={editorRef} value={draft.body} media={draft.media} status={status} preparePastedImages={preparePastedImages} onCommitPastedImages={(assets, body) => dispatchDraft({ type: 'paste-body-media', assets, body })} resolveMediaUrl={resolveEditorMediaUrl} onChange={(body) => {
+          if (body === draftRef.current.body) return
+          dispatchDraft({ type: 'set-body', body })
+        }} /></section>
         <button className="actions-toggle" type="button" aria-controls="panel-actions" aria-expanded={!actionsCollapsed} aria-label={actionsCollapsed ? '展开文章操作' : '折叠文章操作'} title={actionsCollapsed ? '展开文章操作' : '折叠文章操作'} onClick={toggleActions}><span aria-hidden="true">{actionsCollapsed ? '‹' : '›'}</span></button>
         <aside id="panel-actions" className="workspace-actions" aria-label="文章工具">
           <ArticleActions disabled={workspaceLocked} onNew={() => void startNew()} onSave={() => void saveCurrentDraft()} />

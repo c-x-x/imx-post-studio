@@ -45,6 +45,24 @@ describe('useAutosave', () => {
 
   afterEach(() => vi.useRealTimers())
 
+  it('does not persist a draft without article content', async () => {
+    const empty = draft('   ')
+    empty.meta = {
+      ...empty.meta,
+      title: '',
+      slug: '',
+      categories: [],
+      tags: [],
+      description: '',
+    }
+    const { result } = renderHook(() => useAutosave(empty))
+
+    await act(async () => vi.advanceTimersByTimeAsync(800))
+
+    expect(put).not.toHaveBeenCalled()
+    expect(result.current).toEqual({ state: 'idle' })
+  })
+
   it('waits exactly 800 ms after the last content change before saving once', async () => {
     const { rerender } = renderHook(({ current }) => useAutosave(current), {
       initialProps: { current: draft() },

@@ -443,10 +443,10 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
   z-index: 3;
   display: grid;
   place-items: center;
-  align-self: start;
+  align-self: center;
   width: 32px;
   height: 48px;
-  margin-top: calc((100dvh - 160px) / 2);
+  margin-top: 0;
   padding: 0;
   border: 1px solid var(--imx-line);
   border-radius: 999px;
@@ -468,9 +468,18 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
 
 .inspector-toggle span,
 .actions-toggle span {
-  font-size: 1.55rem;
-  font-weight: 350;
-  line-height: 1;
+  display: block;
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  font-size: 0;
+  transform: rotate(-45deg);
+}
+
+.inspector-toggle[aria-expanded='true'] span,
+.actions-toggle[aria-expanded='false'] span {
+  transform: rotate(135deg);
 }
 
 .workspace-actions {

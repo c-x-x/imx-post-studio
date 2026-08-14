@@ -33,6 +33,18 @@ export interface ArticleDraft {
   media: MediaAsset[]
 }
 
+export function hasDraftContent(draft: ArticleDraft): boolean {
+  return Boolean(
+    draft.body.trim()
+    || draft.meta.title.trim()
+    || draft.meta.slug.trim()
+    || draft.meta.description.trim()
+    || draft.meta.categories.some((value) => value.trim())
+    || draft.meta.tags.some((value) => value.trim())
+    || draft.media.length,
+  )
+}
+
 const CANONICAL_BEIJING_DATE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?\+08:00$/
 
 /**
