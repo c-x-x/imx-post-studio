@@ -201,6 +201,24 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
   font-size: .82rem;
 }
 
+.notifications:empty { display: none; }
+
+.app-shell[data-view='workspace'] {
+  display: grid;
+  height: 100dvh;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+  padding-bottom: clamp(12px, 1.5vw, 20px);
+  overflow: hidden;
+}
+
+.app-shell[data-view='workspace'] .notifications { grid-row: 1; }
+
+.app-shell[data-view='workspace'] .workspace {
+  min-height: 0;
+  grid-row: 2;
+}
+
 .home-page {
   display: grid;
   gap: clamp(18px, 3vw, 32px);
@@ -300,6 +318,12 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
   transition: grid-template-columns .38s cubic-bezier(.16, 1, .3, 1);
 }
 
+.app-shell[data-view='workspace'] .workspace-grid {
+  height: 100%;
+  min-height: 0;
+  align-items: stretch;
+}
+
 .workspace[data-inspector-collapsed='true'] .workspace-grid {
   --inspector-width: 0px;
 }
@@ -331,6 +355,13 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
   overflow: auto;
   scrollbar-width: none;
   transition: opacity .2s ease, padding-inline .38s cubic-bezier(.16, 1, .3, 1), transform .38s cubic-bezier(.16, 1, .3, 1), visibility 0s linear 0s;
+}
+
+.app-shell[data-view='workspace'] .workspace-inspector,
+.app-shell[data-view='workspace'] .workspace-actions {
+  position: relative;
+  top: auto;
+  max-height: 100%;
 }
 
 .workspace-inspector::-webkit-scrollbar {
@@ -530,6 +561,13 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
   border-radius: 32px;
   background: var(--imx-editor);
   box-shadow: var(--imx-shadow-md);
+}
+
+.app-shell[data-view='workspace'] .workspace-editor {
+  position: relative;
+  top: auto;
+  height: 100%;
+  min-height: 0;
 }
 
 .metadata-panel h2,
@@ -915,6 +953,28 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
 }
 
 @media (max-width: 1023px) {
+  .app-shell[data-view='workspace'] {
+    display: block;
+    height: auto;
+    min-height: 100vh;
+    padding-bottom: 42px;
+    overflow-x: clip;
+    overflow-y: visible;
+  }
+
+  .app-shell[data-view='workspace'] .workspace { min-height: auto; }
+  .app-shell[data-view='workspace'] .workspace-grid { height: auto; }
+  .app-shell[data-view='workspace'] .workspace-inspector,
+  .app-shell[data-view='workspace'] .workspace-actions {
+    position: static;
+    max-height: none;
+  }
+  .app-shell[data-view='workspace'] .workspace-editor {
+    position: static;
+    height: calc(100dvh - 176px);
+    min-height: 66dvh;
+  }
+
   .workspace-tabs {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
