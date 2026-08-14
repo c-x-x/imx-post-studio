@@ -520,7 +520,7 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
   padding: clamp(12px, 1.3vw, 20px);
   border-radius: 32px;
   background: var(--imx-editor);
-  box-shadow: var(--imx-shadow-md), inset 0 1px 0 var(--imx-inset-highlight);
+  box-shadow: var(--imx-shadow-md);
 }
 
 .metadata-panel h2,

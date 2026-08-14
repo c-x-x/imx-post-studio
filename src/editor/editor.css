@@ -1,4 +1,5 @@
 .markdown-editor {
+  isolation: isolate;
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
@@ -7,6 +8,7 @@
   overflow: hidden;
   border: 1px solid var(--imx-line);
   border-radius: 22px;
+  clip-path: inset(0 round 22px);
   background: var(--imx-paper);
 }
 
