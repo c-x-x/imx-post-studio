@@ -96,7 +96,8 @@ async function pasteImages(page: Page, files: TestFilePayload[]): Promise<{ defa
     for (const payload of payloads) {
       transfer.items.add(new File([new Uint8Array(payload.bytes)], payload.name, { type: payload.mimeType }))
     }
-    const event = new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: transfer })
+    const event = new Event('paste', { bubbles: true, cancelable: true })
+    Object.defineProperty(event, 'clipboardData', { configurable: true, value: transfer })
     editor.dispatchEvent(event)
     return { defaultPrevented: event.defaultPrevented, itemCount: transfer.items.length, itemTypes: Array.from(transfer.items, (item) => `${item.kind}:${item.type}`) }
   }, files.map((file) => ({ name: file.name, mimeType: file.mimeType, bytes: [...file.buffer] })))
