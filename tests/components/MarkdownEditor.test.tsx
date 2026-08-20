@@ -19,6 +19,15 @@ describe('MarkdownEditor', () => {
     expect(within(editor).getByText('正文').tagName).toBe('P')
   })
 
+  it('exposes the active format as a pressed toolbar control', async () => {
+    const user = userEvent.setup()
+    render(<ControlledEditor initial={'## 标题\n\n正文'} />)
+    const heading = screen.getByRole('button', { name: '标题' })
+    expect(heading).toHaveAttribute('aria-pressed', 'true')
+    await user.click(heading)
+    expect(heading).toHaveAttribute('aria-pressed', 'false')
+  })
+
   it('creates an editable table and exposes structural actions', async () => {
     const user = userEvent.setup()
     render(<ControlledEditor />)

@@ -482,14 +482,14 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   return <>
     <section className="markdown-editor" data-mode={mode} aria-label="Markdown 编辑">
       <div className="editor-toolbar" role="toolbar" aria-label="Markdown 格式">
-        <button type="button" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleBold().run()}>加粗</button>
-        <button type="button" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleItalic().run()}>斜体</button>
-        <button type="button" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>标题</button>
-        <button type="button" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleBulletList().run()}>列表</button>
-        <button type="button" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleTaskList().run()}>任务</button>
-        <button type="button" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleBlockquote().run()}>引用</button>
-        <button type="button" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleCodeBlock().run()}>代码</button>
-        <button type="button" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => {
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(editor?.isActive('bold'))} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleBold().run()}>加粗</button>
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(editor?.isActive('italic'))} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleItalic().run()}>斜体</button>
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(editor?.isActive('heading', { level: 2 }))} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>标题</button>
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(editor?.isActive('bulletList'))} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleBulletList().run()}>列表</button>
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(editor?.isActive('taskList'))} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleTaskList().run()}>任务</button>
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(editor?.isActive('blockquote'))} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleBlockquote().run()}>引用</button>
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(editor?.isActive('codeBlock'))} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleCodeBlock().run()}>代码</button>
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(editor?.isActive('link'))} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => {
           const href = window.prompt('请输入链接地址')
           if (href) editor?.chain().focus().extendMarkRange('link').setLink({ href }).run()
         }}>链接</button>

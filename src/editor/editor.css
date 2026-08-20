@@ -52,6 +52,23 @@
   transform: none;
 }
 
+.editor-toolbar button[aria-pressed='true']:not(:disabled) {
+  border-color: var(--imx-line-strong);
+  color: var(--imx-accent-hover);
+  background: var(--imx-accent-soft);
+  box-shadow: inset 0 2px 5px rgba(75, 64, 52, .18);
+  transform: translateY(1px);
+}
+
+.editor-toolbar button:active:not(:disabled) {
+  border-color: var(--imx-line-strong);
+  color: var(--imx-accent-hover);
+  background: var(--imx-accent-soft);
+  box-shadow: inset 0 2px 6px rgba(75, 64, 52, .22);
+  transform: translateY(1px) scale(.97);
+  transition-duration: .06s;
+}
+
 .editor-toolbar-spacer {
   flex: 1 1 auto;
 }
