@@ -712,6 +712,24 @@
 }
 .markdown-editor .tiptap pre code { border: 0; padding: 0; background: transparent; font-size: inherit; }
 
+.markdown-editor .tiptap [data-raw-markdown] {
+  color: var(--imx-ink-secondary);
+  background: color-mix(in srgb, var(--imx-accent-soft) 70%, var(--imx-gutter));
+  font-family: var(--imx-font-mono);
+  font-size: .84em;
+  cursor: default;
+}
+
+.markdown-editor .tiptap pre[data-raw-markdown='block'] {
+  border-style: dashed;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.markdown-editor .tiptap code[data-raw-markdown='inline'] {
+  white-space: pre-wrap;
+}
+
 .markdown-editor .tiptap pre .hljs-comment,
 .markdown-editor .tiptap pre .hljs-quote { color: #6e7781; }
 .markdown-editor .tiptap pre .hljs-keyword,

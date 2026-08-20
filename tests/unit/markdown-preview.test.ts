@@ -85,4 +85,23 @@ describe('renderMarkdown', () => {
     expect(rendered.wordCount).toBe(2)
     expect(rendered.readingMinutes).toBe(1)
   })
+
+  it('keeps footnote links valid and excludes the generated footnote label from the TOC', async () => {
+    const rendered = await renderMarkdown('## Article\n\nText[^1]\n\n[^1]: Note', () => undefined)
+
+    expect(rendered.html).toContain('href="#user-content-fn-1"')
+    expect(rendered.html).toContain('id="user-content-fn-1"')
+    expect(rendered.html).toContain('href="#user-content-fnref-1"')
+    expect(rendered.html).toContain('id="footnote-label"')
+    expect(rendered.toc).toEqual([{ id: 'imx-heading-article', depth: 2, text: 'Article', children: [] }])
+  })
+
+  it('preserves GFM table column alignment in preview HTML', async () => {
+    const rendered = await renderMarkdown('| A | B |\n| :---: | ---: |\n| x | y |', () => undefined)
+
+    expect(rendered.html).toContain('<th align="center">A</th>')
+    expect(rendered.html).toContain('<th align="right">B</th>')
+    expect(rendered.html).toContain('<td align="center">x</td>')
+    expect(rendered.html).toContain('<td align="right">y</td>')
+  })
 })

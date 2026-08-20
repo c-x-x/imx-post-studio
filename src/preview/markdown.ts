@@ -1,7 +1,7 @@
 import GithubSlugger from 'github-slugger'
 import rehypeHighlight from 'rehype-highlight'
 import rehypeRaw from 'rehype-raw'
-import rehypeSanitize from 'rehype-sanitize'
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import rehypeStringify from 'rehype-stringify'
 import remarkGfm from 'remark-gfm'
 import remarkParse from 'remark-parse'
@@ -71,6 +71,8 @@ const codeLanguages: Record<string, { key: string; label: string }> = {
   c: { key: 'c', label: 'C' },
   cpp: { key: 'cpp', label: 'C++' },
 }
+
+const previewSanitizeSchema = { ...defaultSchema, clobberPrefix: '' }
 
 function codeLanguage(code: Element): { key: string; label: string } {
   const classes = Array.isArray(code.properties.className) ? code.properties.className : []
@@ -143,6 +145,8 @@ function collectHeadingsRewriteImagesAndMeasure(resolveLocalImage: (path: string
     const slugger = new GithubSlugger()
     visit(tree, 'element', (node: Element) => {
       if (/^h[2-5]$/.test(node.tagName)) {
+        const existingId = typeof node.properties.id === 'string' ? node.properties.id : ''
+        if (existingId === 'footnote-label' || existingId.endsWith('footnote-label')) return
         const text = elementText(node).trim()
         const id = `imx-heading-${slugger.slug(text)}`
         node.properties.id = id
@@ -177,7 +181,7 @@ export async function renderMarkdown(
     .use(remarkGfm)
     .use(remarkRehype, { allowDangerousHtml: true })
     .use(rehypeRaw)
-    .use(rehypeSanitize)
+    .use(rehypeSanitize, previewSanitizeSchema)
     .use(rehypeHighlight, { detect: false })
     .use(decorateCodeBlocks)
     .use(() => collectHeadingsRewriteImagesAndMeasure(resolveLocalImage, headings, metrics))

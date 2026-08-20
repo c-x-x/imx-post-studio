@@ -2,11 +2,9 @@ import { forwardRef, lazy, Suspense, useCallback, useEffect, useImperativeHandle
 import { createPortal } from 'react-dom'
 import { EditorContent, useEditor } from '@tiptap/react'
 import type { Editor } from '@tiptap/core'
-import { TextSelection } from '@tiptap/pm/state'
 import StarterKit from '@tiptap/starter-kit'
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { Markdown } from '@tiptap/markdown'
-import { TableKit } from '@tiptap/extension-table'
+import { TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import Image from '@tiptap/extension-image'
@@ -14,7 +12,10 @@ import { common, createLowlight } from 'lowlight'
 import type { MediaAsset } from '../metadata/article'
 import { mediaAlt } from '../media/names'
 import type { EditorMode } from './editor-mode'
-import type { MarkdownSelection, MarkdownTableDimensions } from './markdown-commands'
+import type { MarkdownTableDimensions } from './markdown-commands'
+import { extractEditorOutline } from './outline'
+import { clipboardImages, type PastedImageRequest } from './paste'
+import { RawMarkdownBlock, RawMarkdownInline, SafeCodeBlock, SafeTable } from './markdown-extensions'
 import { TableDialog } from './TableDialog'
 import type { SourceMarkdownEditorHandle } from './SourceMarkdownEditor'
 import './editor.css'
@@ -27,11 +28,7 @@ export interface MarkdownEditorHandle {
   insertImage(name: string, alt: string): void
 }
 
-export interface PastedImageRequest {
-  files: File[]
-  selection: MarkdownSelection
-  value: string
-}
+export type { PastedImageRequest } from './paste'
 
 interface MarkdownEditorProps {
   value: string
@@ -44,19 +41,15 @@ interface MarkdownEditorProps {
   disabled?: boolean
 }
 
-function clipboardImages(data: DataTransfer | null): File[] {
-  if (!data) return []
-  const itemFiles = Array.from(data.items ?? [])
-    .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
-    .map((item) => item.getAsFile())
-    .filter((file): file is File => file !== null)
-  return itemFiles.length > 0
-    ? itemFiles
-    : Array.from(data.files ?? []).filter((file) => file.type.startsWith('image/'))
-}
-
 function markdownHeadingIndex(value: string, position: number): number {
-  return value.slice(0, Math.max(0, position)).split('\n').filter((line) => /^#{1,6}\s/.test(line)).length - 1
+  const headings = extractEditorOutline(value)
+  const exact = headings.findIndex((heading) => heading.from === position)
+  if (exact >= 0) return exact
+  let closest = 0
+  headings.forEach((heading, index) => {
+    if (heading.from <= position) closest = index
+  })
+  return closest
 }
 
 function activeBlockReference(editor: Editor | null, nodeName: 'table' | 'codeBlock') {
@@ -181,6 +174,74 @@ function CodeLanguageControl({ editor, disabled }: { editor: Editor | null; disa
   />
 }
 
+function activeTableState(editor: Editor | null) {
+  if (!editor || editor.isDestroyed || !editor.isActive('table')) return null
+  const { $from } = editor.state.selection
+  let tableDepth = -1
+  for (let depth = $from.depth; depth > 0; depth -= 1) {
+    if ($from.node(depth).type.name === 'table') {
+      tableDepth = depth
+      break
+    }
+  }
+  if (tableDepth < 0) return null
+  const table = $from.node(tableDepth)
+  const rowIndex = $from.index(tableDepth)
+  const columnIndex = $from.index(tableDepth + 1)
+  return {
+    table,
+    tablePosition: $from.before(tableDepth),
+    rowIndex,
+    columnIndex,
+    rows: table.childCount,
+    columns: table.firstChild?.childCount ?? 0,
+  }
+}
+
+function setTableColumnAlignment(editor: Editor | null, align: 'left' | 'center' | 'right') {
+  const context = activeTableState(editor)
+  if (!editor || !context) return false
+  const transaction = editor.state.tr
+  context.table.forEach((row, rowOffset) => {
+    row.forEach((cell, cellOffset, columnIndex) => {
+      if (columnIndex !== context.columnIndex) return
+      const position = context.tablePosition + 1 + rowOffset + 1 + cellOffset
+      transaction.setNodeMarkup(position, undefined, { ...cell.attrs, align })
+    })
+  })
+  editor.view.dispatch(transaction)
+  editor.commands.focus()
+  return true
+}
+
+function TableContextControls({ editor, disabled }: { editor: Editor | null; disabled: boolean }) {
+  const [, setVersion] = useState(0)
+  useEffect(() => {
+    if (!editor) return
+    const update = () => setVersion((value) => value + 1)
+    editor.on('selectionUpdate', update)
+    editor.on('transaction', update)
+    return () => {
+      editor.off('selectionUpdate', update)
+      editor.off('transaction', update)
+    }
+  }, [editor])
+  const table = activeTableState(editor)
+  const cannotDeleteRow = !table || table.rowIndex === 0 || table.rows <= 2
+  const cannotDeleteColumn = !table || table.columns <= 2
+  return <>
+    <button type="button" disabled={disabled} onClick={() => editor?.chain().focus().addRowAfter().run()}>添加行</button>
+    <button type="button" disabled={disabled || cannotDeleteRow} title={table?.rowIndex === 0 ? '表头不可删除' : '至少保留一条数据行'} onClick={() => editor?.chain().focus().deleteRow().run()}>删除行</button>
+    <button type="button" disabled={disabled} onClick={() => editor?.chain().focus().addColumnAfter().run()}>添加列</button>
+    <button type="button" disabled={disabled || cannotDeleteColumn} title="至少保留两列" onClick={() => editor?.chain().focus().deleteColumn().run()}>删除列</button>
+    <button type="button" disabled={disabled} onClick={() => setTableColumnAlignment(editor, 'left')}>左对齐</button>
+    <button type="button" disabled={disabled} onClick={() => setTableColumnAlignment(editor, 'center')}>居中</button>
+    <button type="button" disabled={disabled} onClick={() => setTableColumnAlignment(editor, 'right')}>右对齐</button>
+    <button type="button" disabled={disabled} onClick={() => editor?.chain().focus().goToNextCell().run()}>下一单元格</button>
+    <button className="danger" type="button" disabled={disabled} onClick={() => editor?.chain().focus().deleteTable().run()}>删除表格</button>
+  </>
+}
+
 export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(function MarkdownEditor({
   value,
   onChange,
@@ -198,10 +259,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const onChangeRef = useRef(onChange)
   const preparePastedImagesRef = useRef(preparePastedImages)
   const onCommitPastedImagesRef = useRef(onCommitPastedImages)
+  const richEditorRef = useRef<Editor | null>(null)
   const richComposingRef = useRef(false)
   const richCompositionPendingRef = useRef(false)
-  const richCompositionStartRef = useRef<number | null>(null)
-  const richCompositionTextRef = useRef('')
   const [mode, setMode] = useState<EditorMode>('rich')
   const [tableDialogOpen, setTableDialogOpen] = useState(false)
 
@@ -215,11 +275,16 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ codeBlock: false }),
-      CodeBlockLowlight.configure({ lowlight }),
-      TableKit.configure({ table: { resizable: false } }),
+      SafeCodeBlock.configure({ lowlight }),
+      SafeTable.configure({ resizable: false }),
+      TableRow,
+      TableHeader,
+      TableCell,
       TaskList,
       TaskItem.configure({ nested: true }),
       Image.configure({ inline: true, allowBase64: false }),
+      RawMarkdownBlock,
+      RawMarkdownInline,
       Markdown,
     ],
     content: value,
@@ -231,27 +296,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         role: 'textbox',
         'aria-multiline': 'true',
         'aria-label': 'Markdown 编辑器',
-      },
-      handlePaste(_view, event) {
-        const files = clipboardImages(event.clipboardData)
-        const prepare = preparePastedImagesRef.current
-        const commit = onCommitPastedImagesRef.current
-        if (files.length === 0 || !prepare || !commit) return false
-        event.preventDefault()
-        const current = latestValueRef.current
-        void prepare({ files, selection: { from: current.length, to: current.length }, value: current })
-          .then((assets) => {
-            if (assets.length === 0 || !editor || editor.isDestroyed) return
-            const imageMarkdown = assets
-              .map((asset) => `![${mediaAlt(asset.name)}](images/${asset.name})`)
-              .join('\n\n')
-            const body = [editor.getMarkdown().trimEnd(), imageMarkdown].filter(Boolean).join('\n\n')
-            latestValueRef.current = body
-            onChangeRef.current(body)
-            commit(assets, body)
-          })
-          .catch(() => undefined)
-        return true
       },
       handleKeyDown(view, event) {
         if (event.key !== 'Tab') return false
@@ -273,45 +317,58 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         return true
       },
       handleDOMEvents: {
+        paste(_view, event) {
+          const clipboardEvent = event as ClipboardEvent
+          const files = clipboardImages(clipboardEvent.clipboardData)
+          const prepare = preparePastedImagesRef.current
+          const commit = onCommitPastedImagesRef.current
+          if (files.length === 0 || !prepare || !commit) return false
+          clipboardEvent.preventDefault()
+          const currentEditor = richEditorRef.current
+          const current = currentEditor?.getMarkdown() ?? latestValueRef.current
+          const selection = currentEditor?.state.selection
+          const from = selection?.from ?? 1
+          const to = selection?.to ?? from
+          void prepare({ files, selection: { from, to }, value: current })
+            .then((assets) => {
+              const activeEditor = richEditorRef.current
+              if (assets.length === 0 || !activeEditor || activeEditor.isDestroyed) return
+              const max = activeEditor.state.doc.content.size
+              const safeFrom = Math.max(1, Math.min(max, from))
+              const safeTo = Math.max(safeFrom, Math.min(max, to))
+              const content = assets.flatMap((asset, index) => [
+                { type: 'image', attrs: { src: `images/${asset.name}`, alt: mediaAlt(asset.name) } },
+                ...(index < assets.length - 1 ? [{ type: 'hardBreak' }] : []),
+              ])
+              activeEditor.chain().focus().setTextSelection({ from: safeFrom, to: safeTo }).insertContent(content).run()
+              commit(assets, activeEditor.getMarkdown())
+            })
+            .catch(() => undefined)
+          return true
+        },
         beforeinput(_view, event) {
           const inputEvent = event as InputEvent
           if (inputEvent.isComposing || inputEvent.inputType === 'insertCompositionText') {
             richComposingRef.current = true
             richCompositionPendingRef.current = true
-            if (richCompositionStartRef.current === null) richCompositionStartRef.current = editor?.state.selection.from ?? null
-            if (inputEvent.data) richCompositionTextRef.current = inputEvent.data
           }
           return false
         },
         compositionstart() {
           richComposingRef.current = true
           richCompositionPendingRef.current = true
-          richCompositionStartRef.current = editor?.state.selection.from ?? null
-          richCompositionTextRef.current = ''
           return false
         },
-        compositionend(_view, event) {
+        compositionend() {
           richComposingRef.current = false
           richCompositionPendingRef.current = true
-          const committedText = (event as CompositionEvent).data || richCompositionTextRef.current
-          const compositionStart = richCompositionStartRef.current
-          if (committedText) richCompositionTextRef.current = committedText
           window.requestAnimationFrame(() => {
-            if (!editor || editor.isDestroyed) return
-            const next = editor.getMarkdown()
+            const activeEditor = richEditorRef.current
+            if (!activeEditor || activeEditor.isDestroyed) return
+            const next = activeEditor.getMarkdown()
             emittedValueRef.current = next
             latestValueRef.current = next
             onChangeRef.current(next)
-            if (compositionStart !== null && committedText) {
-              const target = Math.min(compositionStart + committedText.length, editor.state.doc.content.size)
-              try {
-                editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, target)).scrollIntoView())
-              } catch {
-                // Some complex IME replacements can invalidate the saved position; ignore and keep the document stable.
-              }
-            }
-            richCompositionStartRef.current = null
-            richCompositionTextRef.current = ''
           })
           return false
         },
@@ -325,6 +382,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       onChangeRef.current(next)
     },
   })
+
+  useEffect(() => {
+    richEditorRef.current = editor
+    return () => {
+      if (richEditorRef.current === editor) richEditorRef.current = null
+    }
+  }, [editor])
 
   useEffect(() => {
     if (!editor) return
@@ -407,6 +471,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     },
     insertImage(name: string, alt: string) {
       if (!editor || disabled) return
+      if (mode === 'source') {
+        sourceRef.current?.insertMarkdown(`![${alt}](images/${name})`)
+        return
+      }
       editor.chain().focus().setImage({ src: `images/${name}`, alt }).run()
     },
   }), [disabled, editor, mode])
@@ -438,17 +506,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               nodeName="table"
               label="表格操作"
             >
-              <>
-                <button type="button" onClick={() => editor?.chain().focus().addRowAfter().run()}>添加行</button>
-                <button type="button" onClick={() => editor?.chain().focus().deleteRow().run()}>删除行</button>
-                <button type="button" onClick={() => editor?.chain().focus().addColumnAfter().run()}>添加列</button>
-                <button type="button" onClick={() => editor?.chain().focus().deleteColumn().run()}>删除列</button>
-                <button type="button" onClick={() => editor?.chain().focus().setCellAttribute('align', 'left').run()}>左对齐</button>
-                <button type="button" onClick={() => editor?.chain().focus().setCellAttribute('align', 'center').run()}>居中</button>
-                <button type="button" onClick={() => editor?.chain().focus().setCellAttribute('align', 'right').run()}>右对齐</button>
-                <button type="button" onClick={() => editor?.chain().focus().goToNextCell().run()}>下一单元格</button>
-                <button className="danger" type="button" onClick={() => editor?.chain().focus().deleteTable().run()}>删除表格</button>
-              </>
+              <TableContextControls editor={editor} disabled={disabled} />
             </BlockContextMenu>
             <BlockContextMenu
               editor={editor}
@@ -460,7 +518,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
             </BlockContextMenu>
             <EditorContent editor={editor} />
           </>
-          : <Suspense fallback={<div className="editor-loading" role="status">正在加载源代码编辑器…</div>}><SourceMarkdownEditor ref={sourceRef} value={value} disabled={disabled} onChange={handleSourceChange} /></Suspense>}
+          : <Suspense fallback={<div className="editor-loading" role="status">正在加载源代码编辑器…</div>}><SourceMarkdownEditor ref={sourceRef} value={value} disabled={disabled} onChange={handleSourceChange} preparePastedImages={preparePastedImages} onCommitPastedImages={onCommitPastedImages} /></Suspense>}
       </div>
     </section>
     {tableDialogOpen && <TableDialog onClose={() => setTableDialogOpen(false)} onInsert={insertTable} returnFocus={() => tableButtonRef.current} />}

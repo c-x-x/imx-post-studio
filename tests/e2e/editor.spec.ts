@@ -90,15 +90,15 @@ async function mediaNames(page: Page): Promise<string[]> {
     .sort())
 }
 
-async function pasteImages(page: Page, files: TestFilePayload[]): Promise<void> {
-  await page.getByRole('textbox', { name: 'Markdown 编辑器' }).evaluate((editor, payloads) => {
+async function pasteImages(page: Page, files: TestFilePayload[]): Promise<{ defaultPrevented: boolean; itemCount: number; itemTypes: string[] }> {
+  return page.getByRole('textbox', { name: 'Markdown 编辑器' }).evaluate((editor, payloads) => {
     const transfer = new DataTransfer()
     for (const payload of payloads) {
       transfer.items.add(new File([new Uint8Array(payload.bytes)], payload.name, { type: payload.mimeType }))
     }
-    const event = new Event('paste', { bubbles: true, cancelable: true })
-    Object.defineProperty(event, 'clipboardData', { value: transfer })
+    const event = new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: transfer })
     editor.dispatchEvent(event)
+    return { defaultPrevented: event.defaultPrevented, itemCount: transfer.items.length, itemTypes: Array.from(transfer.items, (item) => `${item.kind}:${item.type}`) }
   }, files.map((file) => ({ name: file.name, mimeType: file.mimeType, bytes: [...file.buffer] })))
 }
 
@@ -329,300 +329,68 @@ test('renders usable code blocks and keeps the preview back control stationary',
   await expect.poll(async () => await back.boundingBox()).toEqual(beforeHover)
 })
 
-test.skip('legacy CodeMirror table widget regression', async ({ page, browserName }) => {
+test('keeps current rich table controls safe and jumps to the selected outline heading', async ({ page }) => {
   await beginArticle(page)
-  await fillMetadata(page)
-
-  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
-  await editor.fill('表格前的正文\n\n')
-  await editor.press('ControlOrMeta+End')
-  await page.getByRole('button', { name: '表格' }).click()
-  const dialog = page.getByRole('dialog', { name: '插入表格' })
-  await expect(dialog.getByLabel('列数')).toHaveValue('3')
-  await expect(dialog.getByLabel('数据行数')).toHaveValue('2')
-  await dialog.getByLabel('列数').fill('2')
-  await dialog.getByLabel('数据行数').fill('1')
-  await dialog.getByRole('button', { name: '插入' }).click()
-
-  const firstHeader = page.getByRole('textbox', { name: '第 1 行第 1 列' })
-  await expect(firstHeader).toBeFocused()
-  await expect(page.locator('.cm-md-table-separator')).toHaveCSS('height', '0px')
-  await expect(page.getByRole('button', { name: '删除整个表格' })).toBeVisible()
-  expect(await firstHeader.evaluate((input) => ({
-    start: (input as HTMLInputElement).selectionStart,
-    end: (input as HTMLInputElement).selectionEnd,
-  }))).toEqual({ start: 0, end: 3 })
-
-  const tableBox = await page.locator('.cm-md-table').boundingBox()
-  if (!tableBox) throw new Error('Table geometry is unavailable')
-  await page.mouse.click(tableBox.x + tableBox.width - 2, tableBox.y + 4)
-  await page.keyboard.press('Enter')
-  await expect(page.getByRole('textbox', { name: '第 1 行第 1 列' })).toBeVisible()
-
-  const firstLineAfterTable = page.locator('.cm-md-table').locator('xpath=following-sibling::*[contains(concat(" ", normalize-space(@class), " "), " cm-line ") and not(contains(concat(" ", normalize-space(@class), " "), " cm-md-block-separator "))][1]')
-  await firstLineAfterTable.click({ position: { x: 8, y: 1 } })
-  await page.keyboard.type('直接写作')
-  await expect(page.getByRole('textbox', { name: '第 1 行第 1 列' })).toBeVisible()
-  if (browserName !== 'chromium') return
-
-  await firstHeader.fill('A|B')
-  await page.getByRole('textbox', { name: '第 1 行第 2 列' }).fill('值')
-  await page.getByRole('textbox', { name: '第 2 行第 1 列' }).fill('格式')
-  await page.getByRole('textbox', { name: '第 2 行第 2 列' }).fill('WebP')
-  await page.getByRole('button', { name: '当前列居中' }).click()
-  await expect(page.getByRole('textbox', { name: '第 2 行第 2 列' })).toHaveCSS('text-align', 'center')
-
-  await firstHeader.focus()
-  await firstHeader.press('Enter')
-  await expect(page.getByRole('textbox', { name: '第 2 行第 1 列' })).toBeFocused()
-  await firstHeader.focus()
-  await firstHeader.press('Tab')
-  await expect(page.getByRole('textbox', { name: '第 1 行第 2 列' })).toBeFocused()
-  await page.keyboard.press('Shift+Tab')
-  await expect(firstHeader).toBeFocused()
-
-  await page.getByRole('textbox', { name: '第 2 行第 1 列' }).focus()
-  await page.getByRole('button', { name: '在当前行下方添加一行' }).click()
-  await expect(page.getByRole('textbox', { name: '第 3 行第 1 列' })).toBeFocused()
-  await page.getByRole('button', { name: '在当前列右侧添加一列' }).click()
-  await expect(page.getByRole('textbox', { name: '第 3 行第 2 列' })).toBeFocused()
-
-  await expect(page.getByRole('status')).toContainText('已保存到本地草稿')
-
-  await page.getByRole('button', { name: '在表格下方继续写作' }).click()
-  await page.keyboard.type('表格后的正文')
-  await expect(page.getByRole('textbox', { name: '第 1 行第 1 列' })).toBeVisible()
-
-  const source = await markdownSource(page)
-  expect(source).toContain('| A\\|B | 列 2 | 值 |')
-  expect(source).toContain('| 格式 | 内容 | WebP |')
-  expect(source).toContain('| 内容 | 内容 | 内容 |')
-  expect(source).toContain('\n\n表格后的正文直接写作')
-
-  await page.getByRole('button', { name: '预览文章' }).click()
-  const preview = page.getByTitle('IMX 文章预览')
-  await expect(preview.locator('table')).toContainText('A|B')
-  await expect(preview.locator('table')).toContainText('WebP')
-  await page.getByRole('button', { name: '返回编辑' }).click()
-
-  await page.setViewportSize({ width: 390, height: 844 })
-  await page.getByRole('tab', { name: '写作' }).click()
-  await expect(page.getByRole('textbox', { name: '第 1 行第 1 列' })).toBeVisible()
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-  expect(await page.locator('.cm-md-table-scroll').evaluate((element) => element.scrollWidth >= element.clientWidth)).toBe(true)
-})
-
-test.skip('legacy CodeMirror whitespace regression', async ({ page }) => {
-  await beginArticle(page)
-  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
-  await editor.fill('第一行')
-
-  const content = await page.locator('.markdown-editor .cm-content').boundingBox()
-  const lastLine = await page.locator('.markdown-editor .cm-line').last().boundingBox()
-  if (!content || !lastLine) throw new Error('Editor geometry is unavailable')
-  await page.mouse.click(content.x + 40, lastLine.y + lastLine.height + 36)
-  await page.keyboard.type('第二行')
-
-  expect(await markdownSource(page)).toBe('第一行\n第二行')
-})
-
-test.skip('legacy CodeMirror live-formatting regression', async ({ page }) => {
-  await beginArticle(page)
-  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
-  const longLine = `长段落${'只做视觉换行而不写入换行符'.repeat(28)}`
-  const markdownSource = [
-    '# 一级标签',
-    '',
-    '## 二级标签',
-    '',
-    '### 三级标签',
-    '',
-    '#### 四级标签',
-    '',
-    '##### 五级标签',
-    '',
-    '###### 六级标签',
-    '',
-    '普通 **粗体**、*斜体*、~~删除线~~、`代码` 和 [链接](https://example.com)。',
-    '',
-    '> 引用',
-    '',
-    '- 列表',
-    '',
-    '- [ ] 未完成',
-    '- [x] 已完成',
-    '',
-    '```ts',
-    'const answer = 42',
-    '```',
-    '',
-    '---',
-    '',
-    longLine,
-  ].join('\n')
-  await page.getByRole('button', { name: '源代码' }).click()
-  await editor.fill(markdownSource)
-  await page.getByRole('button', { name: '即时排版' }).click()
-
-  for (const className of ['heading-1', 'strong', 'emphasis', 'strikethrough', 'inline-code', 'link', 'quote', 'list', 'horizontal-rule']) {
-    await expect(page.locator(`.cm-md-${className}`).first()).toBeVisible()
-  }
-  await expect(page.getByRole('textbox', { name: '代码块内容' })).toHaveValue('const answer = 42')
-  await expect(page.locator('.cm-md-code-line-numbers span')).toHaveCount(1)
-  await expect(page.locator('.cm-md-code-line-numbers span')).toHaveText('1')
-  await expect(page.getByRole('textbox', { name: '代码块语言' })).toHaveValue('ts')
-  await expect(page.locator('.cm-md-code-highlight .hljs-keyword')).toContainText('const')
-  expect(await page.locator('.cm-md-hidden').count()).toBeGreaterThan(0)
-  expect([...new Set(await page.locator('.cm-md-heading span').evaluateAll((elements) => elements.map((element) => getComputedStyle(element).textDecorationLine)))])
-    .toEqual(['none'])
-  const leftEdges = await page.locator('.markdown-editor .cm-content').evaluate((content) => {
-    const lines = [...content.querySelectorAll<HTMLElement>('.cm-line')]
-      .filter((line) => line.classList.contains('cm-md-heading') || line.textContent?.includes('普通 '))
-    return lines.map((line) => {
-      const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT, {
-        acceptNode(node) {
-          const text = node.textContent ?? ''
-          return node.parentElement?.closest('.cm-md-hidden') || !/\S/.test(text)
-            ? NodeFilter.FILTER_REJECT
-            : NodeFilter.FILTER_ACCEPT
-        },
-      })
-      const text = walker.nextNode()
-      const offset = text?.textContent?.search(/\S/) ?? -1
-      if (!text || offset < 0) throw new Error('Missing visible editor text')
-      const range = document.createRange()
-      range.setStart(text, offset)
-      range.setEnd(text, offset + 1)
-      return range.getBoundingClientRect().left
-    })
-  })
-  expect(leftEdges).toHaveLength(7)
-  expect(Math.max(...leftEdges) - Math.min(...leftEdges)).toBeLessThanOrEqual(1)
-  const tasks = page.locator('.cm-md-task-checkbox')
-  await expect(tasks).toHaveCount(2)
-  await expect(tasks.nth(0)).not.toBeChecked()
-  await expect(tasks.nth(1)).toBeChecked()
-  await tasks.nth(0).click()
-
-  await page.getByRole('button', { name: '源代码' }).click()
-  await expect(editor).toContainText('- [x] 未完成')
-  await page.getByRole('button', { name: '即时排版' }).click()
-  await tasks.nth(0).click()
-  await expect(page.getByRole('status')).toContainText('已保存到本地草稿')
-
-  await page.getByRole('button', { name: '源代码' }).click()
-  const beforeResize = (await editor.locator('.cm-line').allTextContents()).join('\n')
-  expect(beforeResize).toBe(markdownSource)
-  await page.getByRole('button', { name: '即时排版' }).click()
-  await page.getByRole('tab', { name: '大纲' }).click()
-  await page.getByRole('button', { name: '三级标签' }).click()
-  await expect(editor.locator('.cm-activeLine')).toContainText('三级标签')
-  const longParagraph = page.locator('.cm-line').filter({ hasText: longLine.slice(0, 20) })
-  const wideHeight = await longParagraph.evaluate((line) => line.getBoundingClientRect().height)
-
-  await page.setViewportSize({ width: 390, height: 844 })
-  await page.getByRole('tab', { name: '设置', exact: true }).click()
-  await page.getByRole('tab', { name: '大纲' }).click()
-  await page.getByRole('button', { name: '三级标签' }).click()
-  await expect(page.getByRole('tab', { name: '写作' })).toHaveAttribute('aria-selected', 'true')
-  await expect(editor.locator('.cm-activeLine')).toContainText('三级标签')
-  await page.getByRole('tab', { name: '写作' }).click()
-  const narrowHeight = await longParagraph.evaluate((line) => line.getBoundingClientRect().height)
-  expect(narrowHeight).toBeGreaterThan(wideHeight)
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-
-  await page.getByRole('button', { name: '源代码' }).click()
-  expect((await editor.locator('.cm-line').allTextContents()).join('\n')).toBe(beforeResize)
-})
-
-test.skip('legacy CodeMirror code-widget regression', async ({ page }) => {
-  await beginArticle(page)
-  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
-  const source = ['```java', 'git add .', 'git commit -m ""', 'git push', '```'].join('\n')
-  await page.getByRole('button', { name: '源代码' }).click()
-  await editor.fill(source)
-  await page.getByRole('button', { name: '即时排版' }).click()
-
-  const code = page.getByRole('textbox', { name: '代码块内容' })
-  await code.focus()
-  expect(await code.evaluate((textarea) => getComputedStyle(textarea).caretColor)).not.toBe('rgba(0, 0, 0, 0)')
-  await code.evaluate((textarea) => (textarea as HTMLTextAreaElement).setSelectionRange(14, 14))
-  await page.keyboard.type('X')
-  expect(await markdownSource(page)).toBe(['```java', 'git add .', 'git Xcommit -m ""', 'git push', '```'].join('\n'))
-
-  const blockBox = await page.locator('.cm-md-code-block').boundingBox()
-  if (!blockBox) throw new Error('Code block geometry is unavailable')
-  await page.mouse.click(blockBox.x + blockBox.width - 2, blockBox.y + 2)
-  await page.keyboard.press('Enter')
-  await expect(page.getByRole('textbox', { name: '代码块内容' })).toBeVisible()
-})
-
-test.skip('legacy CodeMirror language-footer regression', async ({ page }) => {
-  await beginArticle(page)
-  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
-  await page.getByRole('button', { name: '源代码' }).click()
-  await editor.fill(['```java', 'git add .', '```'].join('\n'))
-  await page.getByRole('button', { name: '即时排版' }).click()
-
-  const language = page.getByRole('textbox', { name: '代码块语言' })
-  const footer = page.locator('.cm-md-code-footer')
-  const [languageBox, footerBox] = await Promise.all([language.boundingBox(), footer.boundingBox()])
-  if (!languageBox || !footerBox) throw new Error('Code language control geometry is unavailable')
-
-  expect(languageBox.width).toBeLessThanOrEqual(90)
-  expect(languageBox.height).toBeLessThanOrEqual(26)
-  expect(footerBox.height).toBeLessThanOrEqual(36)
-  expect(Math.abs(footerBox.x + footerBox.width - languageBox.x - languageBox.width)).toBeLessThanOrEqual(12)
-})
-
-test.skip('legacy CodeMirror outline-scrolling regression', async ({ page }) => {
-  await beginArticle(page)
-  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
   const markdown = [
     '## 开头标题',
-    '',
-    ...Array.from({ length: 90 }, (_, index) => `第 ${index + 1} 段正文，用于拉开标题之间的距离。`),
-    '',
+    '| A | B |\n| --- | --- |\n| 1 | 2 |',
+    ...Array.from({ length: 45 }, (_, index) => `第 ${index + 1} 段正文。`),
     '## 末尾标题',
   ].join('\n\n')
+  await setMarkdown(page, markdown)
 
-  await page.getByRole('button', { name: '源代码' }).click()
-  await editor.fill(markdown)
-  await page.getByRole('button', { name: '即时排版' }).click()
-  const scroller = page.locator('.markdown-editor .cm-scroller')
-  await scroller.evaluate((element) => { element.scrollTop = 0 })
+  await page.getByRole('columnheader', { name: 'A' }).click()
+  const tableToolbar = page.getByRole('toolbar', { name: '表格操作' })
+  await expect(tableToolbar.getByRole('button', { name: '删除行' })).toBeDisabled()
+  await expect(tableToolbar.getByRole('button', { name: '删除列' })).toBeDisabled()
 
+  await page.getByRole('cell', { name: '2' }).click()
+  await tableToolbar.getByRole('button', { name: '居中' }).click()
+  expect(await markdownSource(page)).toContain('| --- | :---: |')
+
+  const editorScroll = page.locator('.editor-scroll-region')
+  await editorScroll.evaluate((element) => { element.scrollTop = 0 })
   await page.getByRole('tab', { name: '大纲' }).click()
   await page.getByRole('button', { name: '末尾标题' }).click()
-
-  await expect(editor.locator('.cm-activeLine')).toContainText('末尾标题')
-  await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
-  const visibility = await editor.locator('.cm-activeLine').evaluate((line) => {
-    const lineBounds = line.getBoundingClientRect()
-    const scrollerBounds = line.closest('.cm-scroller')!.getBoundingClientRect()
-    return lineBounds.top >= scrollerBounds.top && lineBounds.bottom <= scrollerBounds.bottom
-  })
-  expect(visibility).toBe(true)
+  await expect.poll(() => editorScroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+  await expect.poll(() => page.evaluate(() => {
+    const selection = window.getSelection()
+    return selection?.anchorNode?.parentElement?.closest('h1,h2,h3,h4,h5,h6')?.textContent ?? ''
+  })).toBe('末尾标题')
 })
 
-test.skip('legacy CodeMirror clipboard-image regression', async ({ page }) => {
+test('pastes images at the active cursor in both rich and source modes', async ({ page }) => {
   await beginArticle(page)
-  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
-  await page.getByRole('button', { name: '源代码' }).click()
-  await editor.fill('正文')
-  await page.getByRole('button', { name: '即时排版' }).click()
-  await pasteImages(page, [
-    pngFile('image.png', 80, 45, [12, 34, 56, 255]),
-    pngFile('image.png', 90, 50, [78, 90, 12, 255]),
-  ])
+  await setMarkdown(page, '前面后面')
+  const richEditor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await richEditor.evaluate((element) => {
+    const text = element.querySelector('p')?.firstChild
+    if (!text) throw new Error('Missing rich paragraph text')
+    const range = document.createRange()
+    range.setStart(text, 2)
+    range.collapse(true)
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+    ;(element as HTMLElement).focus()
+    document.dispatchEvent(new Event('selectionchange'))
+  })
+  expect(await pasteImages(page, [pngFile('rich.png', 40, 30, [12, 34, 56, 255])])).toMatchObject({ defaultPrevented: true, itemCount: 1, itemTypes: ['file:image/png'] })
+  await expect(page.getByRole('listitem', { name: 'rich.png' })).toBeVisible()
+  const richSource = await markdownSource(page)
+  expect(richSource.indexOf('前面')).toBeLessThan(richSource.indexOf('![rich](images/rich.png)'))
+  expect(richSource.indexOf('![rich](images/rich.png)')).toBeLessThan(richSource.indexOf('后面'))
 
-  const items = page.getByLabel('已添加图片').getByRole('listitem')
-  await expect(items).toHaveCount(2)
-  expect(await items.evaluateAll((entries) => entries.map((entry) => entry.getAttribute('aria-label')))).toEqual(['image.png', 'image-2.png'])
-
-  await editor.press('ControlOrMeta+Home')
-  await expect(page.locator('.cm-md-image img[src^="blob:"]')).toHaveCount(2)
   await page.getByRole('button', { name: '源代码' }).click()
-  await expect(editor).toContainText('![image](images/image.png)')
-  await expect(editor).toContainText('![image 2](images/image-2.png)')
+  const sourceEditor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await sourceEditor.fill('源码前源码后')
+  await sourceEditor.press('ControlOrMeta+Home')
+  await sourceEditor.press('ArrowRight')
+  await sourceEditor.press('ArrowRight')
+  await sourceEditor.press('ArrowRight')
+  expect(await pasteImages(page, [pngFile('source.png', 40, 30, [78, 90, 12, 255])])).toMatchObject({ defaultPrevented: true, itemCount: 1, itemTypes: ['file:image/png'] })
+  await expect(page.getByRole('listitem', { name: 'source.png' })).toBeVisible()
+  const sourceText = (await sourceEditor.locator('.cm-line').allTextContents()).join('\n')
+  expect(sourceText.indexOf('源码前')).toBeLessThan(sourceText.indexOf('![source](images/source.png)'))
+  expect(sourceText.indexOf('![source](images/source.png)')).toBeLessThan(sourceText.indexOf('源码后'))
 })

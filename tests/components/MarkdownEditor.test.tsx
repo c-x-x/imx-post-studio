@@ -1,8 +1,8 @@
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useState } from 'react'
+import { createRef, useState } from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
-import { MarkdownEditor } from '../../src/editor/MarkdownEditor'
+import { MarkdownEditor, type MarkdownEditorHandle } from '../../src/editor/MarkdownEditor'
 
 afterEach(cleanup)
 
@@ -55,6 +55,27 @@ describe('MarkdownEditor', () => {
     const highlightedCode = screen.getByRole('textbox', { name: 'Markdown 编辑器' }).querySelector('pre code')
     expect(highlightedCode).toHaveTextContent('echo ok')
     expect(highlightedCode?.querySelector('.hljs-built_in')).toHaveTextContent('echo')
+  })
+
+  it('inserts media into the current source document without restoring stale rich text', async () => {
+    const user = userEvent.setup()
+    const editorRef = createRef<MarkdownEditorHandle>()
+    function RefEditor() {
+      const [value, setValue] = useState('旧正文')
+      return <>
+        <output data-testid="markdown">{value}</output>
+        <button type="button" onClick={() => setValue('源码中的新正文')}>修改源码值</button>
+        <button type="button" onClick={() => editorRef.current?.insertImage('photo.jpg', 'photo')}>插入媒体</button>
+        <MarkdownEditor ref={editorRef} value={value} onChange={setValue} media={[]} />
+      </>
+    }
+    render(<RefEditor />)
+    await user.click(screen.getByRole('button', { name: '源代码' }))
+    await user.click(screen.getByRole('button', { name: '修改源码值' }))
+    await user.click(screen.getByRole('button', { name: '插入媒体' }))
+    expect(screen.getByTestId('markdown')).toHaveTextContent('源码中的新正文')
+    expect(screen.getByTestId('markdown')).toHaveTextContent('![photo](images/photo.jpg)')
+    expect(screen.getByTestId('markdown')).not.toHaveTextContent('旧正文')
   })
 
 })

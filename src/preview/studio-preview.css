@@ -4621,6 +4621,12 @@ body.is-article-page .sidebar-toggle:hover {
   text-align: left;
 }
 
+.article-page .article-content th[align='center'],
+.article-page .article-content td[align='center'] { text-align: center; }
+
+.article-page .article-content th[align='right'],
+.article-page .article-content td[align='right'] { text-align: right; }
+
 .article-page .article-content th {
   color: var(--article-ink);
   font-weight: 700;
