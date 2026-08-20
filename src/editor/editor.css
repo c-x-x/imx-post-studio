@@ -52,7 +52,7 @@
   transform: none;
 }
 
-.editor-toolbar button[aria-pressed='true']:not(:disabled) {
+.markdown-editor .editor-toolbar button[aria-pressed='true']:not(:disabled) {
   border-color: var(--imx-line-strong);
   color: var(--imx-accent-hover);
   background: var(--imx-accent-soft);
@@ -60,7 +60,7 @@
   transform: translateY(1px);
 }
 
-.editor-toolbar button:active:not(:disabled) {
+.markdown-editor .editor-toolbar button:active:not(:disabled) {
   border-color: var(--imx-line-strong);
   color: var(--imx-accent-hover);
   background: var(--imx-accent-soft);
