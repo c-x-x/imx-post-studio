@@ -45,6 +45,15 @@ beforeAll(async () => {
 })
 
 describe('draftRepository', () => {
+  it('actually deletes a pushed draft and prevents delayed writes from resurrecting it', async () => {
+    const pushed = draft({ id: 'published-draft' })
+    await draftRepository.put(pushed)
+    await draftRepository.completePush(pushed.id, 'a'.repeat(40))
+    expect(await draftRepository.get(pushed.id)).toBeUndefined()
+    expect(await (await getDraftDatabase()).get('published', pushed.id)).toBe('a'.repeat(40))
+    await expect(draftRepository.put(pushed)).rejects.toThrow(/已推送/)
+    expect(await draftRepository.get(pushed.id)).toBeUndefined()
+  })
   it('snapshots a fresh database put before its first await', async () => {
     const original = draft({ id: 'snapshot-before-open' })
     const saving = draftRepository.put(original)

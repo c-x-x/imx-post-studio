@@ -23,7 +23,7 @@ export function TransitionConfirmDialog({
     <div className="dialog-actions">
       <DialogClose>{(close) => <button type="button" disabled={busy} onClick={() => close()}>取消</button>}</DialogClose>
       <button type="button" disabled={busy} onClick={onDiscard}>删除草稿并继续</button>
-      <button type="button" disabled={busy} onClick={onSave}>保存到草稿库并继续</button>
+      <button type="button" disabled={busy} onClick={onSave}>保存草稿并新建</button>
     </div>
   </AccessibleDialog>
 }

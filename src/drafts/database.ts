@@ -17,6 +17,7 @@ export interface StoredArticleDraft extends Omit<ArticleDraft, 'media'> {
 }
 
 interface DraftDatabaseSchema extends DBSchema {
+  published: { key: string; value: string }
   drafts: {
     key: string
     value: StoredArticleDraft
@@ -25,14 +26,27 @@ interface DraftDatabaseSchema extends DBSchema {
 }
 
 const DATABASE_NAME = 'imx-post-studio'
-const DATABASE_VERSION = 1
+const DATABASE_VERSION = 2
 
 let databasePromise: Promise<IDBPDatabase<DraftDatabaseSchema>> | undefined
 
 export function getDraftDatabase(): Promise<IDBPDatabase<DraftDatabaseSchema>> {
   if (!databasePromise) {
+    let blocked = false
+    let rejectBlocked: (reason: Error) => void = () => undefined
+    const blockedOpening = new Promise<never>((_resolve, reject) => { rejectBlocked = reject })
     const opening = openDB<DraftDatabaseSchema>(DATABASE_NAME, DATABASE_VERSION, {
+      blocked() {
+        blocked = true
+        rejectBlocked(new Error('请关闭其他旧版 Studio 标签页后重试，以完成草稿存储升级；原草稿不会删除'))
+      },
+      blocking() {
+        databasePromise = undefined
+        void opening.then((db) => db.close())
+      },
+      terminated() { databasePromise = undefined },
       upgrade(database, _oldVersion, _newVersion, transaction) {
+        if (!database.objectStoreNames.contains('published')) database.createObjectStore('published')
         const drafts = database.objectStoreNames.contains('drafts')
           ? transaction.objectStore('drafts')
           : database.createObjectStore('drafts', { keyPath: 'id' })
@@ -42,7 +56,8 @@ export function getDraftDatabase(): Promise<IDBPDatabase<DraftDatabaseSchema>> {
         }
       },
     })
-    const retryable = opening.catch((cause) => {
+    void opening.then((db) => { if (blocked) db.close() }, () => undefined)
+    const retryable = Promise.race([opening, blockedOpening]).catch((cause) => {
       if (databasePromise === retryable) databasePromise = undefined
       throw cause
     })

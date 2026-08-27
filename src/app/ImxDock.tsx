@@ -7,13 +7,14 @@ import './shared-dock.css'
 import './imx-dock.css'
 
 export interface ImxDockProps {
-  view: 'home' | 'dashboard' | 'workspace'
+  view: 'home' | 'dashboard' | 'workspace' | 'works'
   disabled: boolean
   previewTrigger: RefObject<HTMLButtonElement | null>
   onPreview: () => void
   onHome: () => void
   onArticle: () => void
   onDashboard: () => void
+  onWorks: () => void
   theme: AppTheme
   onToggleTheme: () => void
 }
@@ -26,6 +27,7 @@ export function ImxDock({
   onHome,
   onArticle,
   onDashboard,
+  onWorks,
   theme,
   onToggleTheme,
 }: ImxDockProps) {
@@ -76,8 +78,9 @@ export function ImxDock({
       <h1 className="visually-hidden">IMX Post Studio</h1>
       <ul ref={menuRef} className={`imx-dock__menu has-active${menuOpen ? ' active' : ''}`} data-shared-dock="center">
         <li><button className={view === 'home' ? 'active' : undefined} type="button" disabled={disabled} aria-current={view === 'home' ? 'page' : 'false'} onClick={() => choose(onHome)}>首页</button></li>
-        <li><button className={view === 'workspace' ? 'active' : undefined} type="button" disabled={disabled} aria-current={view === 'workspace' ? 'page' : 'false'} onClick={() => choose(onArticle)}>文章</button></li>
-        <li><button className={view === 'dashboard' ? 'active' : undefined} type="button" disabled={disabled} aria-current={view === 'dashboard' ? 'page' : 'false'} onClick={() => choose(onDashboard)}>草稿库</button></li>
+        <li><button className={view === 'workspace' ? 'active' : undefined} type="button" disabled={disabled} aria-current={view === 'workspace' ? 'page' : 'false'} onClick={() => choose(onArticle)}>写作</button></li>
+        <li><button className={view === 'dashboard' ? 'active' : undefined} type="button" disabled={disabled} aria-current={view === 'dashboard' ? 'page' : 'false'} onClick={() => choose(onDashboard)}>草稿</button></li>
+        <li><button className={view === 'works' ? 'active' : undefined} type="button" disabled={disabled} aria-current={view === 'works' ? 'page' : 'false'} onClick={() => choose(onWorks)}>作品</button></li>
         <li className="imx-dock__menu-outline" aria-hidden="true" />
       </ul>
       <div className="imx-dock__actions" data-shared-dock="right">

@@ -16,3 +16,5 @@
 .github-message { color: var(--imx-accent); }
 .github-entry { margin-top: 12px; }
 @media (max-width: 600px) { .github-dialog { padding: 18px; border-radius: 24px; } .github-dialog h2 { font-size: 1.4rem; } .github-controls > button { flex: 1 1 auto; } }
+.github-works { width: 100%; max-height: none; overflow: visible; box-sizing: border-box; }
+.github-works .github-articles ul { max-height: none; }

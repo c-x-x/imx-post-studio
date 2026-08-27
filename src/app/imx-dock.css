@@ -76,6 +76,8 @@
 
 .imx-dock__brand {
   display: flex;
+  min-width: 0;
+  max-width: 100%;
   align-items: center;
   justify-self: start;
   gap: .58rem;
@@ -87,6 +89,8 @@
 }
 
 .imx-dock__brand-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--imx-ink);
   font-family: var(--imx-font-ui);
   font-size: 1.12rem;

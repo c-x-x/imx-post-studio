@@ -5,16 +5,6 @@ interface HomePageProps {
   onGithub?: () => void
 }
 
-const markdownExamples = [
-  ['标题', '# 一级标题\n## 二级标题'],
-  ['强调', '**粗体** 与 *斜体*'],
-  ['列表', '- 无序列表\n1. 有序列表'],
-  ['链接与图片', '[链接](https://example.com)\n![说明](images/photo.webp)'],
-  ['引用', '> 一段引用文字'],
-  ['代码块', '```js\nconst ready = true\n```'],
-  ['表格', '| 名称 | 状态 |\n| --- | --- |\n| 文章 | 完成 |'],
-] as const
-
 export function HomePage({ disabled, onArticle, onDashboard, onGithub }: HomePageProps) {
   return <section className="home-page" aria-label="IMX Post Studio 介绍">
     <div className="home-hero">
@@ -25,7 +15,7 @@ export function HomePage({ disabled, onArticle, onDashboard, onGithub }: HomePag
       <div className="home-actions">
         <button className="home-primary" type="button" disabled={disabled} onClick={onArticle}>开始写文章</button>
         <button type="button" disabled={disabled} onClick={onDashboard}>查看草稿</button>
-        {onGithub ? <button type="button" disabled={disabled} onClick={onGithub}>GitHub 博客</button> : null}
+        {onGithub ? <button type="button" disabled={disabled} onClick={onGithub}>查看作品</button> : null}
       </div>
       <ul className="home-principles" aria-label="项目特点">
         <li><strong>本地优先</strong><span>默认保存在浏览器，主动确认后才提交 GitHub</span></li>
@@ -43,11 +33,14 @@ export function HomePage({ disabled, onArticle, onDashboard, onGithub }: HomePag
       </ol>
     </section>
 
-    <section className="home-section markdown-guide" aria-labelledby="markdown-title">
-      <div className="home-section-heading"><p>CHEATSHEET</p><h2 id="markdown-title">Markdown 语法速查</h2></div>
-      <div className="markdown-grid">
-        {markdownExamples.map(([title, source]) => <article key={title}><h3>{title}</h3><pre><code>{source}</code></pre></article>)}
-      </div>
+    <section className="home-section" aria-labelledby="works-title">
+      <div className="home-section-heading"><p>WORKS</p><h2 id="works-title">作品，与 GitHub 相连</h2></div>
+      <ol className="home-workflow">
+        <li><span>01</span><div><h3>浏览作品</h3><p>连接自己的 GitHub 博客仓库，在作品页查找主分支中的文章。</p></div></li>
+        <li><span>02</span><div><h3>继续打磨</h3><p>点击“读取并编辑”，文字和图片保存到“待提交作品”；重复打开会继续本地修改，不覆盖你的进度。</p></div></li>
+        <li><span>03</span><div><h3>确认推送</h3><p>在写作页确认后直接推送到主分支。成功后清空编辑区、删除该本地草稿，并在作品页查看；失败或冲突时保留草稿。</p></div></li>
+      </ol>
+      <p>不连接 GitHub 也能完整使用本地写作、预览和 ZIP 导入导出。建议定期导出备份；是否在博客公开发布仍取决于文章的 draft 标记及站点构建配置。</p>
     </section>
   </section>
 }

@@ -13,6 +13,14 @@ async function database() {
 }
 
 export const githubOrigins = {
+  async list() {
+    const db = await database()
+    try {
+      const tx = db.transaction('origins')
+      const [ids, origins] = await Promise.all([tx.store.getAllKeys(), tx.store.getAll()])
+      return new Map(ids.map((id, index) => [id, origins[index]]))
+    } finally { db.close() }
+  },
   async get(id: string) {
     const db = await database()
     try { return await db.get('origins', id) } finally { db.close() }

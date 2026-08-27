@@ -9,7 +9,7 @@ const slug = 'preserve-current-draft'
 
 async function beginArticle(page: Page): Promise<void> {
   await page.goto('/')
-  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await page.getByRole('button', { name: '写作', exact: true }).click()
   await page.getByLabel('标题').fill(title)
   await page.getByLabel('Slug').fill(slug)
   await page.getByLabel('发布日期').fill('2026-08-04T12:34:56+08:00')
@@ -162,7 +162,7 @@ test('rejects SVG and oversized media, blocks missing media export, and keeps cu
 test('keeps a verified ZIP dialog viewport-bound while its workspace rail is transformed', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 560 })
   await page.goto('/')
-  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await page.getByRole('button', { name: '写作', exact: true }).click()
   await page.locator('.workspace-actions').evaluate((rail) => {
     ;(rail as HTMLElement).style.transform = 'translateX(18px)'
   })
@@ -208,9 +208,9 @@ test('retries a transient IndexedDB open failure and clears the page alert after
     })
   })
   await page.goto('/')
-  await page.getByRole('button', { name: '草稿库' }).click()
+  await page.getByRole('button', { name: '草稿' }).click()
   await expect(page.getByRole('alert')).toContainText('列出草稿失败')
-  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await page.getByRole('button', { name: '写作', exact: true }).click()
   await expect(page.getByRole('region', { name: '文章工作区' })).toBeVisible()
   await page.getByRole('textbox', { name: 'Markdown 编辑器' }).fill('新的 IndexedDB 打开尝试必须允许同页自动保存。')
   await expect(page.getByRole('status')).toContainText('已保存到本地草稿')
@@ -241,7 +241,7 @@ test.skip('legacy editor recovery-focus regression', async ({ browser, page }) =
   try {
     const recovered = await cleanContext.newPage()
     await recovered.goto('/')
-    await recovered.getByRole('button', { name: '文章', exact: true }).click()
+    await recovered.getByRole('button', { name: '写作', exact: true }).click()
     const recoveryInput = recovered.getByLabel('导入紧急恢复 ZIP')
     await recoveryInput.setInputFiles({ name: 'recovery.zip', mimeType: 'application/zip', buffer: recoveryZip })
     await expect(recovered.getByRole('dialog', { name: '导入已验证' })).toBeVisible()

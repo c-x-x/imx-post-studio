@@ -40,7 +40,7 @@ export const githubApi = {
       if (uploaded.sha !== image.sha) throw new Error('图片上传校验失败，已停止提交')
       image.ticket = uploaded.ticket
     }
-    onProgress('正在创建提交与 PR…')
+    onProgress('正在推送到主分支…')
     return request<GithubSaveResult>('save', {}, prepared.input, csrf)
   },
 }

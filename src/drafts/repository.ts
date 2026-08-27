@@ -190,7 +190,14 @@ async function saveDraft(draft: ArticleDraft): Promise<void> {
   return enqueueDraftMutation(draft.id, async () => {
     try {
       const database = await getDraftDatabase()
-      await database.put('drafts', await storedDraft)
+      const snapshot = await storedDraft
+      const tx = database.transaction(['drafts', 'published'], 'readwrite')
+      if (await tx.objectStore('published').get(draft.id)) {
+        await tx.done
+        throw new Error('此草稿已推送，请从作品页重新读取；当前窗口的内容可先导出备份')
+      }
+      await tx.objectStore('drafts').put(snapshot)
+      await tx.done
     } catch (error) {
       throw storageError('保存草稿', error)
     }
@@ -198,6 +205,16 @@ async function saveDraft(draft: ArticleDraft): Promise<void> {
 }
 
 export const draftRepository = {
+  async completePush(id: string, commit: string): Promise<void> {
+    return enqueueDraftMutation(id, async () => {
+      const database = await getDraftDatabase()
+      // The receipt and actual deletion are atomic, including across browser tabs.
+      const tx = database.transaction(['drafts', 'published'], 'readwrite')
+      await tx.objectStore('published').put(commit, id)
+      await tx.objectStore('drafts').delete(id)
+      await tx.done
+    })
+  },
   async get(id: string): Promise<ArticleDraft | undefined> {
     return readDraft(id)
   },

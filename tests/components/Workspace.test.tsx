@@ -29,7 +29,7 @@ describe('article workspace', () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await user.click(screen.getByRole('button', { name: '文章' }))
+    await user.click(screen.getByRole('button', { name: '写作' }))
     await user.click(screen.getByRole('button', { name: '预览文章' }))
     const preview = screen.getByTitle('IMX 文章预览')
     expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
@@ -45,7 +45,7 @@ describe('article workspace', () => {
     const user = userEvent.setup()
     const first = render(<App />)
 
-    await user.click(screen.getByRole('button', { name: '文章' }))
+    await user.click(screen.getByRole('button', { name: '写作' }))
     const workspace = screen.getByRole('region', { name: '文章工作区' })
     expect(workspace).toHaveAttribute('data-actions-collapsed', 'false')
 
@@ -57,7 +57,7 @@ describe('article workspace', () => {
 
     first.unmount()
     render(<App />)
-    await user.click(screen.getByRole('button', { name: '文章' }))
+    await user.click(screen.getByRole('button', { name: '写作' }))
     expect(screen.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-actions-collapsed', 'true')
   })
 
@@ -65,7 +65,7 @@ describe('article workspace', () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await user.click(screen.getByRole('button', { name: '文章' }))
+    await user.click(screen.getByRole('button', { name: '写作' }))
     const settings = document.querySelector<HTMLElement>('#panel-settings')!
     const tools = document.querySelector<HTMLElement>('#panel-actions')!
 
@@ -83,7 +83,7 @@ describe('article workspace', () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await user.click(screen.getByRole('button', { name: '文章' }))
+    await user.click(screen.getByRole('button', { name: '写作' }))
     expect(screen.getByRole('tab', { name: '文章设置' })).toHaveAttribute('aria-selected', 'true')
 
     await user.click(screen.getByRole('tab', { name: '大纲' }))
@@ -108,7 +108,7 @@ describe('article workspace', () => {
     const user = userEvent.setup()
     const first = render(<App />)
 
-    await user.click(screen.getByRole('button', { name: '文章' }))
+    await user.click(screen.getByRole('button', { name: '写作' }))
     const workspace = screen.getByRole('region', { name: '文章工作区' })
     const collapse = screen.getByRole('button', { name: '折叠文章设置' })
     await user.click(collapse)
@@ -119,7 +119,7 @@ describe('article workspace', () => {
     first.unmount()
 
     render(<App />)
-    await user.click(screen.getByRole('button', { name: '文章' }))
+    await user.click(screen.getByRole('button', { name: '写作' }))
     expect(screen.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-inspector-collapsed', 'true')
     await user.click(screen.getByRole('button', { name: '展开文章设置' }))
     expect(screen.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-inspector-collapsed', 'false')
@@ -129,7 +129,7 @@ describe('article workspace', () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await user.click(screen.getByRole('button', { name: '文章' }))
+    await user.click(screen.getByRole('button', { name: '写作' }))
     await user.type(screen.getByLabelText('标题'), 'Hugo 图片处理指南')
     await user.clear(screen.getByLabelText('Slug'))
     await user.type(screen.getByLabelText('Slug'), 'my-manual-slug')
@@ -151,7 +151,7 @@ describe('article workspace', () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await user.click(screen.getByRole('button', { name: '文章' }))
+    await user.click(screen.getByRole('button', { name: '写作' }))
     const trigger = screen.getByRole('button', { name: '预览文章' })
     expect(within(screen.getByRole('tablist', { name: '工作区视图' })).getAllByRole('tab')).toHaveLength(2)
     expect(screen.queryByTitle('IMX 文章预览')).not.toBeInTheDocument()
@@ -172,7 +172,7 @@ describe('article workspace', () => {
   it('shows an imported body image and blocks a production export for an invalid slug', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await user.click(screen.getByRole('button', { name: '文章' }))
+    await user.click(screen.getByRole('button', { name: '写作' }))
 
     const png = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], '封面 图.PNG', { type: 'image/png' })
     await user.upload(screen.getByLabelText('添加正文图片'), png)
@@ -188,7 +188,7 @@ describe('article workspace', () => {
   it.skip('legacy editor clipboard image integration', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await user.click(screen.getByRole('button', { name: '文章' }))
+    await user.click(screen.getByRole('button', { name: '写作' }))
     const editor = screen.getByRole('textbox', { name: 'Markdown 编辑器' })
     const png = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], 'Image.PNG', { type: 'image/png' })
 
@@ -202,7 +202,7 @@ describe('article workspace', () => {
   it('rejects an invalid clipboard image without changing body or media', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await user.click(screen.getByRole('button', { name: '文章' }))
+    await user.click(screen.getByRole('button', { name: '写作' }))
     const editor = screen.getByRole('textbox', { name: 'Markdown 编辑器' })
     const invalid = new File([new Uint8Array([0x00, 0x01, 0x02])], 'broken.png', { type: 'image/png' })
 

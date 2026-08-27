@@ -406,7 +406,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 
   useEffect(() => {
     if (!editor) return
-    editor.setEditable(!disabled)
+    editor.setEditable(!disabled, false)
   }, [disabled, editor])
 
   useEffect(() => {

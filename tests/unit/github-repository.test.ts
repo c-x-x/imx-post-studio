@@ -10,7 +10,7 @@ const original = 'a'.repeat(40)
 const treeSha = 'b'.repeat(40)
 const nextCommit = 'c'.repeat(40)
 const nextTree = 'd'.repeat(40)
-const input = (): GithubSaveInput => ({ create: true, path: 'content/posts/article/index.md', ref: 'main', commit: original, requestId: crypto.randomUUID(),
+const input = (): GithubSaveInput => ({ mode: 'direct', create: true, path: 'content/posts/article/index.md', ref: 'main', commit: original, requestId: crypto.randomUUID(),
   source: '+++\ntitle = "Article"\ndate = "2026-08-26T12:00:00+08:00"\ndraft = false\n+++\nHello', images: [] })
 
 function fakeGithub(options: { head?: string; entries?: unknown[]; closed?: boolean } = {}) {
@@ -44,17 +44,18 @@ function fakeGithub(options: { head?: string; entries?: unknown[]; closed?: bool
 }
 
 describe('GitHub atomic content writes', () => {
-  it('writes only scoped paths to a new branch, never main, and reuses a retry', async () => {
+  it('pushes only scoped paths to main without force and reuses a retry', async () => {
     const fake = fakeGithub({ entries: [{ path: 'unrelated.txt', mode: '100644', type: 'blob', sha: 'e'.repeat(40) }] })
     const request = input()
     const result = await saveArticle(config, fake.client, request)
-    expect(result.ref).toBe(`ipost/123-${request.requestId}`)
-    expect(fake.refs.get('main')).toBe(original)
+    expect(result.ref).toBe('main')
+    expect(fake.refs.get('main')).toBe(nextCommit)
     const treeCall = fake.mock.mock.calls.find(([path, method]) => path.endsWith('/git/trees') && method === 'POST')!
     expect(treeCall[2]).toEqual({ base_tree: treeSha, tree: [{ path: request.path, mode: '100644', type: 'blob', content: request.source }] })
     expect(await saveArticle(config, fake.client, request)).toEqual(result)
     expect(fake.mock.mock.calls.filter(([path, method]) => path.endsWith('/git/commits') && method === 'POST')).toHaveLength(1)
-    expect(fake.pulls).toHaveLength(1)
+    expect(fake.pulls).toHaveLength(0)
+    expect(fake.mock.mock.calls.find(([, method]) => method === 'PATCH')?.[2]).toEqual({ sha: nextCommit, force: false })
   })
   it('rejects stale revisions before any write', async () => {
     const fake = fakeGithub({ head: 'e'.repeat(40) })
@@ -95,16 +96,19 @@ describe('GitHub atomic content writes', () => {
       { path: 'content/posts/article/images/old.png', sha: null },
     ] })
   })
-  it('updates only its open PR without force and refuses a closed PR', async () => {
-    const fake = fakeGithub({ entries: [{ path: input().path, mode: '100644', type: 'blob', sha: 'e'.repeat(40) }] })
-    const ref = `ipost/123-${crypto.randomUUID()}`
-    fake.refs.set(ref, original)
-    fake.pulls.push({ html_url: 'https://github.com/owner/blog/pull/1', state: 'open', merged_at: null, head: { ref }, base: { ref: 'main' } })
-    const request = { ...input(), create: false, ref }
-    await saveArticle(config, fake.client, request)
-    expect(fake.mock.mock.calls.find(([, method]) => method === 'PATCH')?.[2]).toEqual({ sha: nextCommit, force: false })
-    fake.pulls[0].state = 'closed'
-    await expect(saveArticle(config, fake.client, { ...request, requestId: crypto.randomUUID(), commit: nextCommit })).rejects.toMatchObject({ status: 409 })
+  it('rejects legacy PR clients and non-main targets before writes', async () => {
+    const fake = fakeGithub()
+    await expect(saveArticle(config, fake.client, { ...input(), mode: undefined } as unknown as GithubSaveInput)).rejects.toMatchObject({ status: 400 })
+    await expect(saveArticle(config, fake.client, { ...input(), ref: 'ipost/123-' + crypto.randomUUID() })).rejects.toMatchObject({ status: 400 })
+    expect(fake.mock).not.toHaveBeenCalled()
+  })
+  it('preserves concurrent main changes instead of force-pushing', async () => {
+    const fake = fakeGithub()
+    const client: GithubClient = async (path, method, body) => {
+      if (method === 'PATCH') throw new GithubError(422, 'not a fast forward')
+      return fake.client(path, method, body)
+    }
+    await expect(saveArticle(config, client, input())).rejects.toMatchObject({ status: 409 })
     expect(fake.refs.get('main')).toBe(original)
   })
 })

@@ -9,7 +9,6 @@ import { assertArticlePath, assertRef, assertSha, GithubError, seal, unseal, typ
 
 interface TreeEntry { path: string; mode: string; type: string; sha: string; size?: number }
 interface Commit { sha: string; tree: { sha: string }; message: string }
-interface PullRequest { html_url: string; state: string; merged_at: string | null; head: { ref: string }; base: { ref: string } }
 interface UploadTicket { path: string; name: string; sha: string; userId: number }
 
 export async function head(config: GithubConfig, client: GithubClient, ref: string): Promise<string> {
@@ -95,24 +94,10 @@ export async function uploadImage(config: GithubConfig, client: GithubClient, in
   return { sha, ticket: seal(config, 'upload', { path: input.path, name: input.name, sha, userId: config.userId } satisfies UploadTicket) }
 }
 
-async function pullRequests(config: GithubConfig, client: GithubClient, ref: string) {
-  const query = new URLSearchParams({ state: 'all', head: `${config.repository.split('/')[0]}:${ref}`, base: config.branch, per_page: '100' })
-  return await client<PullRequest[]>(`${repositoryApi(config)}/pulls?${query}`)
-}
-
-async function finishPullRequest(config: GithubConfig, client: GithubClient, ref: string, commit: string, title: string): Promise<GithubSaveResult> {
-  const existing = (await pullRequests(config, client, ref)).find((pr) => pr.head.ref === ref && pr.base.ref === config.branch)
-  if (existing && (existing.state !== 'open' || existing.merged_at)) throw new GithubError(409, '此 PR 已合并或关闭，请从博客文章列表重新读取')
-  const pr = existing ?? await client<PullRequest>(`${repositoryApi(config)}/pulls`, 'POST', {
-    title: `文章：${title.slice(0, 150)}`,
-    head: ref,
-    base: config.branch,
-    body: '由 IMX Post Studio 提交。请检查文章、Front Matter 和图片变更后手动合并。\n\n本功能不会自动合并或修改工作流。',
-  })
-  return { ref, commit, pullRequest: pr.html_url }
-}
-
 function validateSave(config: GithubConfig, input: GithubSaveInput) {
+  // Old cached PR clients must never silently publish directly to the main branch.
+  if (input.mode !== 'direct') throw new GithubError(400, '请刷新 Studio 后重新确认直接推送')
+  if (input.ref !== config.branch) throw new GithubError(400, '只能推送到配置的主分支，请从作品页重新读取文章')
   assertArticlePath(config, input.path)
   assertRef(config, input.ref)
   assertSha(input.commit)
@@ -139,22 +124,17 @@ function validateSave(config: GithubConfig, input: GithubSaveInput) {
 
 export async function saveArticle(config: GithubConfig, client: GithubClient, input: GithubSaveInput): Promise<GithubSaveResult> {
   const title = validateSave(config, input)
-  const target = input.ref === config.branch ? `ipost/${config.userId}-${input.requestId}` : input.ref
+  const target = config.branch
+  const result = (commit: string): GithubSaveResult => ({ ref: target, commit, url: `https://github.com/${config.repository}/commit/${commit}` })
   const fingerprint = createHash('sha256').update(JSON.stringify({ path: input.path, source: input.source, images: input.images.map(({ name, sha }) => ({ name, sha })) })).digest('hex')
   const marker = `ipost-request:${input.requestId}:${fingerprint}`
-  let targetHead: string | undefined
-  try { targetHead = await head(config, client, target) } catch (error) {
-    if (!(error instanceof GithubError) || error.status !== 404) throw error
-  }
-  // A retry after a lost response must recover the existing commit / PR, not duplicate it.
-  if (targetHead) {
+  const targetHead = await head(config, client, target)
+  // Recover a completed push after a lost response without creating a second commit.
+  if (targetHead !== input.commit) {
     const targetCommit = await client<Commit>(`${repositoryApi(config)}/git/commits/${targetHead}`)
-    if (targetCommit.message.split('\n').at(-1) === marker) return finishPullRequest(config, client, target, targetHead, title)
-    if (input.ref === config.branch) throw new GithubError(409, '提交标识已被使用，请重新准备提交')
-    const pr = (await pullRequests(config, client, target)).find((item) => item.head.ref === target)
-    if (!pr || pr.state !== 'open' || pr.merged_at) throw new GithubError(409, '此编辑分支没有可更新的 PR，请重新读取博客文章')
+    if (targetCommit?.message.split('\n').at(-1) === marker) return result(targetHead)
+    throw new GithubError(409, '远端已有新提交，已停止推送；本地修改仍保留，请先备份并重新读取远端版本')
   }
-  if (await head(config, client, input.ref) !== input.commit) throw new GithubError(409, '远端已有新提交，已停止保存；请保留本地修改并重新读取远端版本')
   const { commit, entries } = await snapshot(config, client, input.commit)
   const original = entries.find((entry) => entry.path === input.path)
   if (input.create && original) throw new GithubError(409, '仓库中已有同名文章，请先读取后编辑，不能作为新文章覆盖')
@@ -187,10 +167,13 @@ export async function saveArticle(config: GithubConfig, client: GithubClient, in
   const nextCommit = await client<{ sha: string }>(`${repositoryApi(config)}/git/commits`, 'POST', {
     message: `Edit article: ${title.slice(0, 120)}\n\n${marker}`, tree: nextTree.sha, parents: [input.commit],
   })
-  if (input.ref === config.branch) {
-    await client(`${repositoryApi(config)}/git/refs`, 'POST', { ref: `refs/heads/${target}`, sha: nextCommit.sha })
-  } else {
+  try {
     await client(`${repositoryApi(config)}/git/refs/heads/${encodePath(target)}`, 'PATCH', { sha: nextCommit.sha, force: false })
+  } catch (cause) {
+    if (cause instanceof GithubError && (cause.status === 409 || cause.status === 422)) {
+      throw new GithubError(409, '主分支已更新或受分支规则保护，未强制覆盖；草稿仍保留，请检查 GitHub 后重试')
+    }
+    throw cause
   }
-  return finishPullRequest(config, client, target, nextCommit.sha, title)
+  return result(nextCommit.sha)
 }

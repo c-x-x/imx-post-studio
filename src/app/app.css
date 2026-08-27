@@ -827,6 +827,7 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
 .draft-list p { margin: 0; }
 
 .draft-list h3 { color: var(--imx-ink); font-family: var(--imx-font-reading); font-size: 1.05rem; }
+.draft-group { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--imx-line); }
 
 .draft-list p { margin-top: 5px; color: var(--imx-ink-muted); font-size: .8rem; }
 

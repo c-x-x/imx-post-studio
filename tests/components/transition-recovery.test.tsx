@@ -8,13 +8,15 @@ vi.mock('../../src/drafts/repository', () => ({
   draftRepository: { put, list, get: vi.fn(), duplicate: vi.fn(), rename: vi.fn(), delete: remove },
 }))
 
+vi.mock('../../src/github/origins', () => ({ githubOrigins: { get: vi.fn(), delete: vi.fn(), list: vi.fn().mockResolvedValue(new Map()) } }))
+
 import { App } from '../../src/app/App'
 import { exportRecoveryBundle } from '../../src/bundles/recovery-bundle'
 import { createArticleDraft } from '../../src/metadata/article'
 import { fileFromBlob } from '../helpers/test-files'
 
 async function startWorkspace() {
-  fireEvent.click(screen.getByRole('button', { name: '文章' }))
+  fireEvent.click(screen.getByRole('button', { name: '写作' }))
   await act(async () => { await Promise.resolve() })
 }
 
@@ -41,22 +43,23 @@ describe('workspace transitions', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(put).not.toHaveBeenCalled()
     expect(screen.getByRole('region', { name: 'IMX Post Studio 介绍' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '文章' }))
+    fireEvent.click(screen.getByRole('button', { name: '写作' }))
     expect(screen.getByLabelText('标题')).toHaveValue('仍在内存')
   })
 
-  it('explicitly saves the current article without leaving the workspace', async () => {
+  it('automatically saves without a manual save button', async () => {
     render(<App />)
     await startWorkspace()
     fireEvent.change(screen.getByLabelText('标题'), { target: { value: '手动保存' } })
     put.mockClear()
 
-    fireEvent.click(screen.getByRole('button', { name: '保存到草稿库' }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(800) })
     await act(async () => { await Promise.resolve() })
 
     expect(put).toHaveBeenCalledWith(expect.objectContaining({ meta: expect.objectContaining({ title: '手动保存' }) }))
     expect(screen.getByRole('region', { name: '文章工作区' })).toBeInTheDocument()
-    expect(screen.getByText('已保存到草稿库')).toBeInTheDocument()
+    expect(screen.getByText('已保存到本地草稿')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '保存到草稿库' })).not.toBeInTheDocument()
   })
 
   it('saves a started article before creating a fresh unsaved article', async () => {
@@ -71,7 +74,7 @@ describe('workspace transitions', () => {
     await act(async () => { await Promise.resolve() })
 
     expect(screen.getByRole('dialog', { name: '新建文章前是否保存？' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '保存到草稿库并继续' }))
+    fireEvent.click(screen.getByRole('button', { name: '保存草稿并新建' }))
     await act(async () => { await Promise.resolve() })
 
     expect(put).toHaveBeenCalledWith(expect.objectContaining({ meta: expect.objectContaining({ title: '上一份文章' }) }))
@@ -103,7 +106,7 @@ describe('workspace transitions', () => {
     render(<App />)
     await startWorkspace()
     fireEvent.change(screen.getByLabelText('标题'), { target: { value: '删除这份草稿' } })
-    fireEvent.click(screen.getByRole('button', { name: '保存到草稿库' }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(800) })
     await act(async () => { await Promise.resolve() })
     const outgoing = put.mock.calls.at(-1)?.[0] as { id: string }
     put.mockClear()
@@ -124,7 +127,7 @@ describe('workspace transitions', () => {
     render(<App />)
     await startWorkspace()
     fireEvent.change(screen.getByLabelText('标题'), { target: { value: '删除失败也要保留' } })
-    fireEvent.click(screen.getByRole('button', { name: '保存到草稿库' }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(800) })
     await act(async () => { await Promise.resolve() })
     const outgoing = put.mock.calls.at(-1)?.[0] as { id: string }
     remove.mockRejectedValueOnce(new Error('Quota exceeded'))
@@ -149,7 +152,7 @@ describe('workspace transitions', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(put).not.toHaveBeenCalled()
     expect(screen.getByRole('region', { name: 'IMX Post Studio 介绍' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '文章' }))
+    fireEvent.click(screen.getByRole('button', { name: '写作' }))
     expect(screen.getByLabelText('标题')).toHaveValue('Logo 返回后保留')
   })
 
@@ -161,10 +164,10 @@ describe('workspace transitions', () => {
     put.mockRejectedValueOnce(new Error('Quota exceeded'))
 
     fireEvent.click(screen.getByRole('button', { name: '新建文章' }))
-    fireEvent.click(screen.getByRole('button', { name: '保存到草稿库并继续' }))
+    fireEvent.click(screen.getByRole('button', { name: '保存草稿并新建' }))
     await act(async () => { await Promise.resolve() })
 
-    expect(screen.getByRole('dialog', { name: '新建文章前是否保存？' })).toHaveTextContent('保存到草稿库失败：Quota exceeded')
+    expect(screen.getByRole('dialog', { name: '新建文章前是否保存？' })).toHaveTextContent('保存草稿失败：Quota exceeded')
     expect(screen.getByRole('region', { name: '文章工作区' })).toBeInTheDocument()
     expect(screen.getByLabelText('标题')).toHaveValue('不能丢失')
   })
@@ -177,10 +180,10 @@ describe('workspace transitions', () => {
     act(() => vi.advanceTimersByTime(799))
     expect(put).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole('button', { name: '草稿库' }))
+    fireEvent.click(screen.getByRole('button', { name: '草稿' }))
     expect(put).toHaveBeenCalledWith(expect.objectContaining({ meta: expect.objectContaining({ title: '立即保存' }) }))
     await act(async () => { await Promise.resolve() })
-    expect(screen.getByRole('region', { name: '草稿库' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '草稿' })).toBeInTheDocument()
   })
 
   it('keeps the workspace and offers explicit recovery/discard actions when a transition flush fails', async () => {
@@ -189,7 +192,7 @@ describe('workspace transitions', () => {
     put.mockReset()
     put.mockRejectedValueOnce(new Error('Quota exceeded'))
     fireEvent.change(screen.getByLabelText('标题'), { target: { value: '不可丢失' } })
-    fireEvent.click(screen.getByRole('button', { name: '草稿库' }))
+    fireEvent.click(screen.getByRole('button', { name: '草稿' }))
     await act(async () => { await Promise.resolve() })
 
     expect(screen.getByRole('region', { name: '文章工作区' })).toBeInTheDocument()
@@ -205,7 +208,7 @@ describe('workspace transitions', () => {
     render(<App />)
     await startWorkspace()
     fireEvent.change(screen.getByLabelText('标题'), { target: { value: '可返回的草稿' } })
-    fireEvent.click(screen.getByRole('button', { name: '草稿库' }))
+    fireEvent.click(screen.getByRole('button', { name: '草稿' }))
     await act(async () => { await Promise.resolve(); await Promise.resolve() })
 
     fireEvent.click(screen.getByRole('button', { name: '打开' }))
@@ -220,7 +223,7 @@ describe('workspace transitions', () => {
     render(<App />)
     await startWorkspace()
     fireEvent.change(screen.getByLabelText('标题'), { target: { value: '应被保存的版本' } })
-    fireEvent.click(screen.getByRole('button', { name: '草稿库' }))
+    fireEvent.click(screen.getByRole('button', { name: '草稿' }))
 
     const title = screen.getByLabelText('标题')
     expect(title).toBeDisabled()
@@ -228,7 +231,7 @@ describe('workspace transitions', () => {
     expect(put).toHaveBeenLastCalledWith(expect.objectContaining({ meta: expect.objectContaining({ title: '应被保存的版本' }) }))
 
     await act(async () => { resolvePut?.() })
-    expect(screen.getByRole('region', { name: '草稿库' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '草稿' })).toBeInTheDocument()
   })
 
   it('does not let discard race a retry continuation', async () => {
@@ -238,7 +241,7 @@ describe('workspace transitions', () => {
     render(<App />)
     await startWorkspace()
     fireEvent.change(screen.getByLabelText('标题'), { target: { value: '需要恢复的文章' } })
-    fireEvent.click(screen.getByRole('button', { name: '草稿库' }))
+    fireEvent.click(screen.getByRole('button', { name: '草稿' }))
     await act(async () => { await Promise.resolve() })
 
     fireEvent.click(screen.getByRole('button', { name: '重试保存' }))
@@ -246,7 +249,7 @@ describe('workspace transitions', () => {
     fireEvent.click(screen.getByRole('button', { name: '放弃未保存更改' }))
     await act(async () => { resolveRetry?.() })
 
-    expect(screen.getByRole('region', { name: '草稿库' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '草稿' })).toBeInTheDocument()
     expect(put).toHaveBeenCalledTimes(2)
   })
 
@@ -261,7 +264,7 @@ describe('workspace transitions', () => {
     fireEvent.change(screen.getByLabelText('选择封面'), { target: { files: [delayed] } })
 
     expect(screen.getByRole('button', { name: '新建文章' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: '草稿库' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '草稿' })).toBeDisabled()
     expect(screen.getByLabelText('导入 ZIP')).toBeDisabled()
     await act(async () => { resolveRead?.(png.buffer) })
   })
@@ -276,7 +279,7 @@ describe('workspace transitions', () => {
     render(<App />)
     await startWorkspace()
     fireEvent.change(screen.getByLabelText('标题'), { target: { value: '未保存文章' } })
-    fireEvent.click(screen.getByRole('button', { name: '草稿库' }))
+    fireEvent.click(screen.getByRole('button', { name: '草稿' }))
     await act(async () => { await Promise.resolve() })
     fireEvent.change(screen.getByLabelText('添加正文图片'), { target: { files: [delayed] } })
 

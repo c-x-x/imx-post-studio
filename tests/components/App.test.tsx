@@ -16,18 +16,18 @@ describe('App', () => {
     expect(screen.getByText(/本地优先的 Markdown 写作工作台/)).toBeInTheDocument()
     expect(screen.queryByText('Hugo 输出')).not.toBeInTheDocument()
     expect(screen.queryByText('IMX 预览')).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Markdown 语法速查' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '作品，与 GitHub 相连' })).toBeInTheDocument()
   })
 
   it('uses article navigation without creating a different workspace', async () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await user.click(screen.getByRole('button', { name: '文章' }))
+    await user.click(screen.getByRole('button', { name: '写作' }))
     await user.click(screen.getByRole('button', { name: '源代码' }))
     const editor = await screen.findByRole('textbox', { name: 'Markdown 编辑器' })
     await user.type(editor, '保留当前文章')
-    await user.click(screen.getByRole('button', { name: '文章' }))
+    await user.click(screen.getByRole('button', { name: '写作' }))
 
     expect(editor).toHaveTextContent('保留当前文章')
     expect(screen.getByRole('region', { name: '文章工作区' })).toBeInTheDocument()

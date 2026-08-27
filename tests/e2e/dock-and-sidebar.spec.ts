@@ -29,14 +29,14 @@ test('follows the system theme, persists a manual choice, and keeps the workspac
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
   await page.getByRole('button', { name: '切换到深色主题' }).click()
 
-  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await page.getByRole('button', { name: '写作', exact: true }).click()
   await expect(page.getByRole('button', { name: /切换到.*主题/ })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '预览文章' })).toBeVisible()
 })
 
 test('warns on browser exit only until the current changes reach the draft library', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await page.getByRole('button', { name: '写作', exact: true }).click()
   const dirtyBeforeHome = await page.evaluate(async (title) => {
     const input = document.querySelector<HTMLInputElement>('#title')
     const home = [...document.querySelectorAll<HTMLButtonElement>('button')]
@@ -60,7 +60,7 @@ test('warns on browser exit only until the current changes reach the draft libra
   await expect(page.getByRole('region', { name: 'IMX Post Studio 介绍' })).toBeVisible()
   expect(await page.evaluate(() => window.dispatchEvent(new Event('beforeunload', { cancelable: true })))).toBe(false)
 
-  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await page.getByRole('button', { name: '写作', exact: true }).click()
   await expect(page.getByLabel('标题')).toHaveValue('首页往返时仍在内存')
   await expect(page.getByRole('status')).toContainText('已保存到本地草稿')
   expect(await page.evaluate(() => window.dispatchEvent(new Event('beforeunload', { cancelable: true })))).toBe(true)
@@ -68,7 +68,7 @@ test('warns on browser exit only until the current changes reach the draft libra
 
 test('collapses the settings sidebar, expands the editor, and restores the preference', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await page.getByRole('button', { name: '写作', exact: true }).click()
   const workspace = page.getByRole('region', { name: '文章工作区' })
   const inspector = page.locator('.workspace-inspector')
   const editor = page.locator('.workspace-editor')
@@ -84,7 +84,7 @@ test('collapses the settings sidebar, expands the editor, and restores the prefe
   await expect.poll(async () => (await inspector.boundingBox())?.width ?? -1).toBe(0)
 
   await page.reload()
-  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await page.getByRole('button', { name: '写作', exact: true }).click()
   await expect(page.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-inspector-collapsed', 'true')
   await page.getByRole('button', { name: '展开文章设置' }).click()
   await expect(page.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-inspector-collapsed', 'false')
@@ -92,7 +92,7 @@ test('collapses the settings sidebar, expands the editor, and restores the prefe
 
 test('collapses the action rail, expands the editor, and restores it independently', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await page.getByRole('button', { name: '写作', exact: true }).click()
   const workspace = page.getByRole('region', { name: '文章工作区' })
   const actions = page.locator('.workspace-actions')
   const settings = page.locator('#panel-settings')
@@ -114,7 +114,7 @@ test('collapses the action rail, expands the editor, and restores it independent
   await expect.poll(async () => (await actions.boundingBox())?.width ?? -1).toBe(0)
 
   await page.reload()
-  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await page.getByRole('button', { name: '写作', exact: true }).click()
   await expect(page.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-actions-collapsed', 'true')
   await expect(page.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-inspector-collapsed', 'false')
 })
@@ -122,7 +122,7 @@ test('collapses the action rail, expands the editor, and restores it independent
 test('synchronizes preview theme with the app and persists changes after closing', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'dark' })
   await page.goto('/')
-  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await page.getByRole('button', { name: '写作', exact: true }).click()
   await page.getByRole('button', { name: '预览文章' }).click()
 
   await expect(page.locator('.preview-surface')).toHaveAttribute('data-theme', 'dark')
@@ -139,7 +139,7 @@ test('synchronizes preview theme with the app and persists changes after closing
 
 test('attracts and merges the preview Dock as the article preview scrolls', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await page.getByRole('button', { name: '写作', exact: true }).click()
   await page.getByRole('button', { name: '预览文章' }).click()
 
   const previewDocument = page.getByTitle('IMX 文章预览')
@@ -160,7 +160,7 @@ test('attracts and merges the preview Dock as the article preview scrolls', asyn
 test('keeps preview Dock merging responsive and reduced-motion safe', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto('/')
-  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await page.getByRole('button', { name: '写作', exact: true }).click()
   await page.getByRole('button', { name: '预览文章' }).click()
   const previewDocument = page.getByTitle('IMX 文章预览')
   const surface = page.locator('.preview-surface')
@@ -184,7 +184,7 @@ test('keeps preview Dock merging responsive and reduced-motion safe', async ({ p
 
 test('fits the complete preview canvas and Dock without horizontal scrolling at intermediate widths', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await page.getByRole('button', { name: '写作', exact: true }).click()
   await page.getByLabel('标题').fill('中间尺寸预览')
   await page.getByLabel('Slug').fill('intermediate-preview-widths')
   await page.getByRole('textbox', { name: 'Markdown 编辑器' }).fill('## 第一节\n\n正文。\n\n## 第二节\n\n更多正文。')
@@ -213,8 +213,8 @@ test('uses the compact IMX menu and existing workspace tabs on mobile without ov
   const toggle = page.getByRole('button', { name: '打开菜单' })
   await toggle.click()
   await expect(page.getByRole('button', { name: '关闭菜单' })).toHaveAttribute('aria-expanded', 'true')
-  await expect(page.getByRole('button', { name: '文章', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await expect(page.getByRole('button', { name: '写作', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '写作', exact: true }).click()
 
   await expect(page.getByRole('button', { name: '打开菜单' })).toHaveAttribute('aria-expanded', 'false')
   await expect(page.getByRole('tab', { name: '设置', exact: true })).toBeVisible()
@@ -222,7 +222,7 @@ test('uses the compact IMX menu and existing workspace tabs on mobile without ov
   await expect(page.getByRole('button', { name: '折叠文章设置' })).toBeHidden()
   await expect(page.getByRole('button', { name: '折叠文章操作' })).toBeHidden()
   await expect(page.getByRole('button', { name: '新建文章' })).toBeVisible()
-  await expect(page.getByRole('button', { name: '保存到草稿库' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '推送' })).toBeVisible()
   await expect(page.getByRole('heading', { name: '媒体' })).toBeVisible()
   await expect(page.locator('#panel-settings').getByRole('heading', { name: '文章封面' })).toBeVisible()
   await expect(page.locator('#panel-settings').getByLabel('选择封面')).toBeVisible()
@@ -237,7 +237,7 @@ test('uses the compact IMX menu and existing workspace tabs on mobile without ov
 
 test('keeps the preview table of contents controllable on desktop and mobile without navigating away', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await page.getByRole('button', { name: '写作', exact: true }).click()
   await page.getByLabel('标题').fill('目录交互回归')
   await page.getByLabel('Slug').fill('preview-toc-controls')
   await page.getByRole('textbox', { name: 'Markdown 编辑器' }).fill('## 第一节\n\n正文。\n\n### 第二节\n\n更多正文。')
@@ -310,7 +310,7 @@ test('keeps the preview table of contents controllable on desktop and mobile wit
 
 test('preserves the preview reading position, follows the active directory entry, and hides scrollbars', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await page.getByRole('button', { name: '写作', exact: true }).click()
   await page.getByLabel('标题').fill('目录滚动回归')
   await page.getByLabel('Slug').fill('preview-scroll-follow')
   const sections = Array.from({ length: 32 }, (_, index) => (

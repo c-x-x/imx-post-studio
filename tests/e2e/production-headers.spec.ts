@@ -161,7 +161,7 @@ test('exports a valid WebP cover under production CSP and forces the WASM fallba
   }
 
   const response = await page.goto(productionBaseURL)
-  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await page.getByRole('button', { name: '写作', exact: true }).click()
   await page.getByLabel('标题').fill('生产 CSP WebP 回退')
   await page.getByLabel('Slug').fill('production-csp-webp-fallback')
   await page.getByLabel('发布日期').fill('2026-08-04T10:30:00+08:00')

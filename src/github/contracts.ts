@@ -27,6 +27,7 @@ export interface GithubArticle {
 }
 
 export interface GithubSaveInput {
+  mode: 'direct'
   create: boolean
   path: string
   ref: string
@@ -39,7 +40,7 @@ export interface GithubSaveInput {
 export interface GithubSaveResult {
   ref: string
   commit: string
-  pullRequest: string
+  url: string
 }
 
 // Conservative sizes also work on deployments with a 4.5 MB function payload cap.

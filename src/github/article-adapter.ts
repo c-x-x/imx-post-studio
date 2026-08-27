@@ -73,6 +73,7 @@ export interface PreparedGithubSave {
 
 export async function prepareGithubSave(draft: ArticleDraft, repository: GithubRepository, commit: string, origin?: GithubOrigin): Promise<PreparedGithubSave> {
   if (origin && origin.repository !== repository.name) throw new Error('此草稿关联了另一仓库，请取消关联后再提交')
+  if (origin && origin.ref !== repository.branch) throw new Error('此草稿来自旧的 PR 分支，请导出备份后从作品页重新读取主分支文章')
   const source = serializeForGithub(draft, origin)
   if (new TextEncoder().encode(source).length > GITHUB_SOURCE_LIMIT) throw new Error('GitHub 模式的文章不能超过 512 KiB')
   if (draft.media.length > GITHUB_IMAGE_COUNT) throw new Error('GitHub 模式最多支持 50 张图片')
@@ -90,6 +91,6 @@ export async function prepareGithubSave(draft: ArticleDraft, repository: GithubR
   }
   const deleted = origin?.images.filter((image) => !images.some((current) => current.name === image.name)).map((image) => image.name) ?? []
   if (origin && source === origin.source && !uploads.length && !deleted.length) throw new Error('文章和图片没有变化，无需提交')
-  return { input: { create: !origin, path: origin?.path ?? `${repository.contentRoot}/${draft.meta.slug}/index.md`, ref: origin?.ref ?? repository.branch,
+  return { input: { mode: 'direct', create: !origin, path: origin?.path ?? `${repository.contentRoot}/${draft.meta.slug}/index.md`, ref: repository.branch,
     commit: origin?.commit ?? commit, source, images, requestId: crypto.randomUUID() }, uploads, deleted, origin }
 }

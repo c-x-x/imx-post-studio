@@ -13,6 +13,7 @@ function props(view: 'home' | 'dashboard' | 'workspace' = 'workspace') {
     onHome: vi.fn(),
     onArticle: vi.fn(),
     onDashboard: vi.fn(),
+    onWorks: vi.fn(),
     theme: 'light' as const,
     onToggleTheme: vi.fn(),
   }
@@ -29,11 +30,11 @@ describe('IMX Studio Dock', () => {
     expect(screen.getByRole('navigation', { name: 'Studio 导航' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'IMX Post Studio' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'IMX Post Studio，返回首页' }))
-    expect(screen.getByRole('button', { name: '草稿库' })).toHaveAttribute('aria-current', 'false')
+    expect(screen.getByRole('button', { name: '草稿' })).toHaveAttribute('aria-current', 'false')
     await user.click(screen.getByRole('button', { name: '预览文章' }))
     await user.click(screen.getByRole('button', { name: '首页' }))
-    await user.click(screen.getByRole('button', { name: '文章' }))
-    await user.click(screen.getByRole('button', { name: '草稿库' }))
+    await user.click(screen.getByRole('button', { name: '写作' }))
+    await user.click(screen.getByRole('button', { name: '草稿' }))
 
     expect(callbacks.onPreview).toHaveBeenCalledOnce()
     expect(callbacks.onHome).toHaveBeenCalledTimes(2)
@@ -46,7 +47,7 @@ describe('IMX Studio Dock', () => {
     const callbacks = props('dashboard')
     const dock = render(<ImxDock {...callbacks} />)
 
-    expect(screen.getByRole('button', { name: '草稿库' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('button', { name: '草稿' })).toHaveAttribute('aria-current', 'page')
     expect(screen.queryByRole('button', { name: '预览文章' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '切换到深色主题' }))
     expect(callbacks.onToggleTheme).toHaveBeenCalledOnce()
@@ -61,7 +62,7 @@ describe('IMX Studio Dock', () => {
     home.unmount()
 
     render(<ImxDock {...props('workspace')} />)
-    expect(screen.getByRole('button', { name: '文章' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('button', { name: '写作' })).toHaveAttribute('aria-current', 'page')
   })
 
   it('positions and moves the liquid indicator with the current desktop action', async () => {
@@ -72,8 +73,8 @@ describe('IMX Studio Dock', () => {
     const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
       if (this.classList.contains('imx-dock__menu')) return rect(100, 270)
       if (this.textContent === '首页') return rect(100, 80)
-      if (this.textContent === '文章') return rect(180, 80)
-      if (this.textContent === '草稿库') return rect(260, 110)
+      if (this.textContent === '写作') return rect(180, 80)
+      if (this.textContent === '草稿') return rect(260, 110)
       return rect(0, 0)
     })
     const homeProps = props('home')
@@ -107,7 +108,7 @@ describe('IMX Studio Dock', () => {
     render(<ImxDock {...callbacks} />)
 
     await user.click(screen.getByRole('button', { name: '打开菜单' }))
-    await user.click(screen.getByRole('button', { name: '文章' }))
+    await user.click(screen.getByRole('button', { name: '写作' }))
 
     expect(callbacks.onArticle).toHaveBeenCalledOnce()
     expect(screen.getByRole('button', { name: '打开菜单' })).toHaveAttribute('aria-expanded', 'false')

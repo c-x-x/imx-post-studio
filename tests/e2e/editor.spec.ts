@@ -31,7 +31,7 @@ const ARTICLE_BODY = [
 
 async function beginArticle(page: Page): Promise<void> {
   await page.goto('/')
-  await page.getByRole('button', { name: '文章', exact: true }).click()
+  await page.getByRole('button', { name: '写作', exact: true }).click()
   await expect(page.getByRole('region', { name: '文章工作区' })).toBeVisible()
 }
 
@@ -186,8 +186,8 @@ test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle
 
   await expect(page.getByRole('status')).toContainText('已保存到本地草稿')
   await page.reload()
-  await page.getByRole('button', { name: '草稿库' }).click()
-  await expect(page.getByRole('region', { name: '草稿库' })).toBeVisible()
+  await page.getByRole('button', { name: '草稿' }).click()
+  await expect(page.getByRole('region', { name: '草稿' })).toBeVisible()
   await expect(page.getByRole('heading', { name: ARTICLE_TITLE })).toBeVisible()
   await page.getByRole('button', { name: '打开' }).click()
   await assertEditorState(page, { draft: true, body: expectedBody })
@@ -250,12 +250,12 @@ test('has no serious or critical axe violations on the home, dashboard, and work
   const homeResults = await new AxeBuilder({ page }).analyze()
   expect(homeResults.violations.filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')).toEqual([])
 
-  await page.getByRole('button', { name: '草稿库' }).click()
+  await page.getByRole('button', { name: '草稿' }).click()
   const dashboardResults = await new AxeBuilder({ page }).analyze()
   expect(dashboardResults.violations.filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')).toEqual([])
 
-  await page.getByRole('button', { name: '文章', exact: true }).focus()
-  await expect(page.getByRole('button', { name: '文章', exact: true })).toBeFocused()
+  await page.getByRole('button', { name: '写作', exact: true }).focus()
+  await expect(page.getByRole('button', { name: '写作', exact: true })).toBeFocused()
   await page.keyboard.press('Enter')
   await fillMetadata(page)
   await expect(page.locator('.cover-help')).toHaveCSS('color', 'rgb(95, 88, 80)')
