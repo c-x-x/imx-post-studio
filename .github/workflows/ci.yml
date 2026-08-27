@@ -24,6 +24,31 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Detect documentation-only changes
+        id: changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        shell: bash
+        run: |
+          browser=true
+          # Unknown ranges and manual runs must retain browser coverage.
+          if [[ "$EVENT_NAME" != "workflow_dispatch" && "$BASE_SHA" =~ ^[0-9a-f]{40}$ && "$BASE_SHA" != 0000000000000000000000000000000000000000 ]]; then
+            if git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null || git fetch --no-tags --depth=1 origin "$BASE_SHA"; then
+              if git diff --name-only --no-renames -z "$BASE_SHA" HEAD > "$RUNNER_TEMP/ci-changed-files"; then
+                browser=false
+                while IFS= read -r -d '' file; do
+                  case "$file" in
+                    README.md|docs/*.md) ;;
+                    *) browser=true; break ;;
+                  esac
+                done < "$RUNNER_TEMP/ci-changed-files"
+              fi
+            fi
+          fi
+          echo "browser=$browser" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -35,8 +60,10 @@ jobs:
       - run: npm run build
       - run: npm run check:standalone
       - name: Install Playwright browsers
+        if: steps.changes.outputs.browser != 'false'
         run: npx playwright install --with-deps chromium firefox webkit
       - name: Browser checks
+        if: steps.changes.outputs.browser != 'false'
         run: |
           if [ "${{ inputs.full_browser_suite }}" = "true" ]; then
             npm run test:e2e

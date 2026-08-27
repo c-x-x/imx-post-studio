@@ -80,18 +80,7 @@ test('works → pending → failed/successful push preserves then deletes the ac
   await page.reload()
   await navigate(page, '草稿')
   await expect(page.locator('.draft-list li')).toHaveCount(0)
-  for (const width of [1440, 820, 390]) {
-    await page.setViewportSize({ width, height: 900 })
-    await navigate(page, '作品')
-    await expect(page.getByRole('button', { name: '读取并编辑' })).toBeVisible()
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-    if (width > 768) {
-      const brand = await page.locator('.imx-dock__brand').boundingBox()
-      const menu = await page.locator('.imx-dock__menu').boundingBox()
-      expect(brand!.x + brand!.width).toBeLessThanOrEqual(menu!.x)
-    }
-  }
+  await navigate(page, '作品')
   await page.getByRole('button', { name: '读取并编辑' }).click()
-  await page.getByRole('tab', { name: '写作', exact: true }).click()
   await expect(editor).toHaveText('Updated body')
 })

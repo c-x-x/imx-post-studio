@@ -149,8 +149,17 @@ test('fits the complete preview canvas and Dock without horizontal scrolling at 
 })
 
 test('uses the compact IMX menu and existing workspace tabs on mobile without overflow', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/')
+  for (const width of [1440, 820, 390]) {
+    await page.setViewportSize({ width, height: 900 })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    if (width > 768) {
+      const brand = await page.locator('.imx-dock__brand').boundingBox()
+      const menu = await page.locator('.imx-dock__menu').boundingBox()
+      expect(brand!.x + brand!.width).toBeLessThanOrEqual(menu!.x)
+    }
+  }
+  await page.setViewportSize({ width: 390, height: 844 })
   const toggle = page.getByRole('button', { name: '打开菜单' })
   await toggle.click()
   await expect(page.getByRole('button', { name: '关闭菜单' })).toHaveAttribute('aria-expanded', 'true')
@@ -176,7 +185,7 @@ test('uses the compact IMX menu and existing workspace tabs on mobile without ov
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
-test('keeps the preview table of contents controllable on desktop and mobile without navigating away', { tag: '@critical' }, async ({ page }) => {
+test('keeps the preview table of contents controllable on desktop and mobile without navigating away', { tag: ['@critical', '@webkit-smoke'] }, async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: '写作', exact: true }).click()
   await page.getByLabel('标题').fill('目录交互回归')

@@ -153,7 +153,7 @@ async function scanPreviewDomWithAxe(page: Page) {
   return new AxeBuilder({ page }).analyze()
 }
 
-test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle', { tag: '@critical' }, async ({ page, browserName }) => {
+test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle', { tag: ['@critical', '@webkit-smoke'] }, async ({ page, browserName }) => {
   // This full round trip includes image encoding, reload and three ZIP exports;
   // Linux WebKit needs more than the default 30s total, not longer assertion waits.
   if (browserName === 'webkit') test.setTimeout(60_000)
@@ -333,7 +333,7 @@ test('renders usable code blocks and keeps the preview back control stationary',
   await expect.poll(async () => await back.boundingBox()).toEqual(beforeHover)
 })
 
-test('keeps current rich table controls safe and jumps to the selected outline heading', { tag: '@critical' }, async ({ page }) => {
+test('keeps current rich table controls safe and jumps to the selected outline heading', { tag: ['@critical', '@firefox-smoke', '@webkit-smoke'] }, async ({ page }) => {
   await beginArticle(page)
   const markdown = [
     '## 开头标题',
@@ -363,7 +363,7 @@ test('keeps current rich table controls safe and jumps to the selected outline h
   })).toBe('末尾标题')
 })
 
-test('pastes images at the active cursor in both rich and source modes', { tag: '@critical' }, async ({ page }) => {
+test('pastes images at the active cursor in both rich and source modes', { tag: ['@critical', '@firefox-smoke', '@webkit-smoke'] }, async ({ page }) => {
   await beginArticle(page)
   await setMarkdown(page, '前面后面')
   const richEditor = page.getByRole('textbox', { name: 'Markdown 编辑器' })

@@ -15,7 +15,7 @@
     "typecheck": "tsc -b --pretty false",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "test:e2e:ci": "playwright test --grep @critical",
+    "test:e2e:ci": "playwright test --config playwright.ci.config.ts",
     "check:standalone": "node scripts/verify-standalone.mjs",
     "verify:bundle": "tsx scripts/export-verification-bundle.ts",
     "verify:bundle:timezones": "node scripts/verify-verification-bundle-timezones.mjs"
