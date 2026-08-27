@@ -153,7 +153,7 @@ async function scanPreviewDomWithAxe(page: Page) {
   return new AxeBuilder({ page }).analyze()
 }
 
-test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle', async ({ page }) => {
+test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle', { tag: '@critical' }, async ({ page }) => {
   await beginArticle(page)
   await fillMetadata(page)
 
@@ -186,8 +186,8 @@ test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle
 
   await expect(page.getByRole('status')).toContainText('已保存到本地草稿')
   await page.reload()
-  await page.getByRole('button', { name: '草稿' }).click()
-  await expect(page.getByRole('region', { name: '草稿' })).toBeVisible()
+  await page.getByRole('button', { name: '草稿', exact: true }).click()
+  await expect(page.getByRole('region', { name: '草稿', exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: ARTICLE_TITLE })).toBeVisible()
   await page.getByRole('button', { name: '打开' }).click()
   await assertEditorState(page, { draft: true, body: expectedBody })
@@ -250,7 +250,7 @@ test('has no serious or critical axe violations on the home, dashboard, and work
   const homeResults = await new AxeBuilder({ page }).analyze()
   expect(homeResults.violations.filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')).toEqual([])
 
-  await page.getByRole('button', { name: '草稿' }).click()
+  await page.getByRole('button', { name: '草稿', exact: true }).click()
   const dashboardResults = await new AxeBuilder({ page }).analyze()
   expect(dashboardResults.violations.filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')).toEqual([])
 
@@ -298,7 +298,7 @@ test('keeps both responsive workspace tabs mounted and opens preview without hor
   await expectNoHorizontalOverflow()
 })
 
-test('renders usable code blocks and keeps the preview back control stationary', async ({ page, browserName }) => {
+test('renders usable code blocks and keeps the preview back control stationary', { tag: '@critical' }, async ({ page, browserName }) => {
   if (browserName === 'webkit') {
     await page.addInitScript(() => {
       Object.defineProperty(navigator, 'clipboard', {
@@ -330,7 +330,7 @@ test('renders usable code blocks and keeps the preview back control stationary',
   await expect.poll(async () => await back.boundingBox()).toEqual(beforeHover)
 })
 
-test('keeps current rich table controls safe and jumps to the selected outline heading', async ({ page }) => {
+test('keeps current rich table controls safe and jumps to the selected outline heading', { tag: '@critical' }, async ({ page }) => {
   await beginArticle(page)
   const markdown = [
     '## 开头标题',
@@ -360,7 +360,7 @@ test('keeps current rich table controls safe and jumps to the selected outline h
   })).toBe('末尾标题')
 })
 
-test('pastes images at the active cursor in both rich and source modes', async ({ page }) => {
+test('pastes images at the active cursor in both rich and source modes', { tag: '@critical' }, async ({ page }) => {
   await beginArticle(page)
   await setMarkdown(page, '前面后面')
   const richEditor = page.getByRole('textbox', { name: 'Markdown 编辑器' })

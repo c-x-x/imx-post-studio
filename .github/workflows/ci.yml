@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      full_browser_suite:
+        description: Run all remaining browser checks
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -15,7 +21,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,13 +30,19 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci --prefer-offline --no-audit --no-fund
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium firefox webkit
       - run: npm run lint
       - run: npm test
       - run: npm run build
       - run: npm run check:standalone
-      - run: npm run test:e2e
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium firefox webkit
+      - name: Browser checks
+        run: |
+          if [ "${{ inputs.full_browser_suite }}" = "true" ]; then
+            npm run test:e2e
+          else
+            npm run test:e2e:ci
+          fi
       - name: Upload Playwright report on failure
         if: ${{ failure() }}
         uses: actions/upload-artifact@v4

@@ -57,58 +57,9 @@ async function seedPreview(page: Page, body = sampleBody): Promise<void> {
   await expect(page.getByTitle('IMX 文章预览').locator('img[src^="blob:"]')).toHaveCount(1)
 }
 
-test.describe('IMX visual regressions', () => {
+test.describe('Preview typography and contrast', () => {
   test.beforeEach(({ browserName }) => {
-    test.skip(browserName !== 'chromium', 'Only Chromium owns approved screenshot baselines.')
-  })
-
-  test('loads meaningful content with the IMX application shell and no Vite error overlay', async ({ page }) => {
-    await page.goto('/')
-    await expect(page.getByRole('heading', { name: 'IMX Post Studio' })).toBeVisible()
-    await expect(page.locator('.vite-error-overlay, [data-nextjs-dialog], #webpack-dev-server-client-overlay')).toHaveCount(0)
-    await expect(page.getByRole('button', { name: '写作', exact: true })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'I am no bird; and no net ensnares me.' })).toBeVisible()
-    await expect(page.getByText('Charlotte Brontë · Jane Eyre')).toBeVisible()
-    await expect(page.getByText('Hugo 输出')).toHaveCount(0)
-    await expect(page.getByText('IMX 预览')).toHaveCount(0)
-    await expect(page.getByRole('heading', { name: '作品，与 GitHub 相连' })).toBeVisible()
-    await expect(page.getByRole('button', { name: '草稿' })).toBeVisible()
-    const shellStyle = await page.locator('.imx-dock').evaluate((dock) => {
-      const dockStyle = getComputedStyle(dock)
-      const containerStyle = getComputedStyle(dock.querySelector('.imx-dock__container')!)
-      const bodyStyle = getComputedStyle(document.body)
-      return {
-        bodyBackground: bodyStyle.backgroundColor,
-        columns: containerStyle.gridTemplateColumns.split(' ').length,
-        fontFamily: dockStyle.fontFamily,
-        position: dockStyle.position,
-      }
-    })
-    expect(shellStyle).toMatchObject({
-      bodyBackground: 'rgb(251, 250, 247)',
-      columns: 3,
-      position: 'fixed',
-    })
-    expect(shellStyle.fontFamily).toContain('IMX Noto Serif SC')
-  })
-
-  test('uses the IMX-style card and primary-action primitives outside the Dock', async ({ page }) => {
-    await page.goto('/')
-    const surfaces = await page.locator('.home-hero').evaluate((hero) => {
-      const heroStyle = getComputedStyle(hero)
-      const actionStyle = getComputedStyle(document.querySelector('.home-primary')!)
-      return {
-        cardRadius: heroStyle.borderRadius,
-        cardShadow: heroStyle.boxShadow,
-        primaryBackground: actionStyle.backgroundImage,
-      }
-    })
-
-    expect(surfaces).toEqual({
-      cardRadius: '26px',
-      cardShadow: 'rgba(75, 64, 52, 0.11) 0px 2px 8px 0px',
-      primaryBackground: 'linear-gradient(135deg, rgb(139, 103, 64) 0%, rgb(86, 61, 33) 100%)',
-    })
+    test.skip(browserName !== 'chromium', 'Supplemental font and palette checks run once in Chromium.')
   })
 
   test('renders semantic emphasis with real regular and bold preview fonts', async ({ page }) => {

@@ -71,7 +71,7 @@ async function currentDraftFingerprint(page: Page): Promise<unknown> {
   }
 }
 
-test('sanitizes hostile preview HTML inside the script-free Shadow DOM contract', async ({ page }) => {
+test('sanitizes hostile preview HTML inside the script-free Shadow DOM contract', { tag: '@critical' }, async ({ page }) => {
   await beginArticle(page)
   await setMarkdown(page, [
     '<script>window.__imx_xss = true</script>',
@@ -109,7 +109,7 @@ test('sanitizes hostile preview HTML inside the script-free Shadow DOM contract'
   expect(fontProof).toEqual({ regular: true, bold: true, computed: true })
 })
 
-test('rejects SVG and oversized media, blocks missing media export, and keeps current content after hostile ZIP imports', async ({ page }) => {
+test('rejects SVG and oversized media, blocks missing media export, and keeps current content after hostile ZIP imports', { tag: '@critical' }, async ({ page }) => {
   await beginArticle(page)
   const imageInput = page.getByLabel('添加正文图片')
   await imageInput.setInputFiles({
@@ -208,50 +208,13 @@ test('retries a transient IndexedDB open failure and clears the page alert after
     })
   })
   await page.goto('/')
-  await page.getByRole('button', { name: '草稿' }).click()
+  await page.getByRole('button', { name: '草稿', exact: true }).click()
   await expect(page.getByRole('alert')).toContainText('列出草稿失败')
   await page.getByRole('button', { name: '写作', exact: true }).click()
   await expect(page.getByRole('region', { name: '文章工作区' })).toBeVisible()
   await page.getByRole('textbox', { name: 'Markdown 编辑器' }).fill('新的 IndexedDB 打开尝试必须允许同页自动保存。')
   await expect(page.getByRole('status')).toContainText('已保存到本地草稿')
   await expect(page.getByRole('alert')).toHaveCount(0)
-})
-
-test.skip('legacy editor recovery-focus regression', async ({ browser, page }) => {
-  await page.addInitScript(() => {
-    Object.defineProperty(window, 'indexedDB', {
-      configurable: true,
-      value: { open: () => { throw new DOMException('blocked by test', 'InvalidStateError') } },
-    })
-  })
-  await beginArticle(page)
-  await page.getByRole('textbox', { name: 'Markdown 编辑器' }).fill('这份内容必须在本地存储故障后仍可恢复。')
-  await expect(page.getByRole('alert')).toContainText('本地草稿保存失败')
-  await expect(page.getByLabel('标题')).toHaveValue(title)
-
-  const recoveryDownload = page.waitForEvent('download')
-  await page.getByRole('button', { name: '紧急导出恢复备份' }).click()
-  const recoveryPath = await (await recoveryDownload).path()
-  if (!recoveryPath) throw new Error('The recovery download path is unavailable')
-  const recoveryZip = await readFile(recoveryPath)
-
-  const cleanContext = await browser.newContext({
-    baseURL: 'http://127.0.0.1:4173', locale: 'zh-CN', timezoneId: 'Asia/Shanghai', reducedMotion: 'reduce', viewport: { width: 1440, height: 900 },
-  })
-  try {
-    const recovered = await cleanContext.newPage()
-    await recovered.goto('/')
-    await recovered.getByRole('button', { name: '写作', exact: true }).click()
-    const recoveryInput = recovered.getByLabel('导入紧急恢复 ZIP')
-    await recoveryInput.setInputFiles({ name: 'recovery.zip', mimeType: 'application/zip', buffer: recoveryZip })
-    await expect(recovered.getByRole('dialog', { name: '导入已验证' })).toBeVisible()
-    await recovered.getByRole('button', { name: '作为新草稿打开' }).click()
-    await expect(recovered.getByLabel('标题')).toHaveValue(title)
-    await expect(recovered.getByRole('textbox', { name: 'Markdown 编辑器' })).toContainText('本地存储故障后仍可恢复')
-    await expect(recoveryInput).toBeFocused()
-  } finally {
-    await cleanContext.close()
-  }
 })
 
 test('renders a real Blob body image inside the script-free Shadow DOM preview', async ({ page }) => {

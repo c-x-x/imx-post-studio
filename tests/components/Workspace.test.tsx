@@ -185,20 +185,6 @@ describe('article workspace', () => {
     expect(within(exportArea).getByText('Slug 只能包含小写英文、数字和单个连字符')).toBeInTheDocument()
   })
 
-  it.skip('legacy editor clipboard image integration', async () => {
-    const user = userEvent.setup()
-    render(<App />)
-    await user.click(screen.getByRole('button', { name: '写作' }))
-    const editor = screen.getByRole('textbox', { name: 'Markdown 编辑器' })
-    const png = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], 'Image.PNG', { type: 'image/png' })
-
-    pasteImage(editor, png)
-
-    expect(await screen.findByRole('listitem', { name: 'image.png' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: '源代码' }))
-    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Markdown 编辑器' })).toHaveTextContent('![image](images/image.png)'))
-  })
-
   it('rejects an invalid clipboard image without changing body or media', async () => {
     const user = userEvent.setup()
     render(<App />)

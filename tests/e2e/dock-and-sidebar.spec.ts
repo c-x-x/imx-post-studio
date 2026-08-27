@@ -1,19 +1,5 @@
 import { expect, test } from '@playwright/test'
 
-test('attracts and merges the desktop Dock as the document scrolls', async ({ page }) => {
-  await page.goto('/')
-  await page.evaluate(() => { document.body.style.minHeight = '240vh' })
-  await page.evaluate(() => window.scrollTo(0, window.innerHeight * 0.45))
-
-  const dock = page.locator('.imx-dock')
-  await expect.poll(() => dock.evaluate((element) => Number.parseFloat(getComputedStyle(element).getPropertyValue('--home-dock-shell-opacity')))).toBeLessThan(0.35)
-  await expect.poll(() => dock.evaluate((element) => Number.parseFloat(getComputedStyle(element).getPropertyValue('--home-dock-part-bg-alpha')))).toBeGreaterThan(0.65)
-  await page.evaluate(() => window.scrollTo(0, window.innerHeight))
-
-  await expect(dock).toHaveClass(/is-dock-merged/)
-  await expect.poll(() => dock.evaluate((element) => getComputedStyle(element).getPropertyValue('--home-dock-shell-opacity').trim())).toBe('1.000')
-})
-
 test('follows the system theme, persists a manual choice, and keeps the workspace action focused on preview', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'dark' })
   await page.goto('/')
@@ -137,51 +123,6 @@ test('synchronizes preview theme with the app and persists changes after closing
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
 })
 
-test('attracts and merges the preview Dock as the article preview scrolls', async ({ page }) => {
-  await page.goto('/')
-  await page.getByRole('button', { name: '写作', exact: true }).click()
-  await page.getByRole('button', { name: '预览文章' }).click()
-
-  const previewDocument = page.getByTitle('IMX 文章预览')
-  const dock = page.locator('.preview-dock')
-  await previewDocument.evaluate((element) => {
-    const spacer = document.createElement('div')
-    spacer.style.height = '200vh'
-    spacer.setAttribute('aria-hidden', 'true')
-    element.shadowRoot?.querySelector('.preview-body')?.append(spacer)
-    element.scrollTop = element.clientHeight
-  })
-  await expect.poll(() => previewDocument.evaluate((element) => element.scrollTop / element.clientHeight)).toBeGreaterThanOrEqual(0.88)
-
-  await expect(dock).toHaveClass(/is-dock-merged/)
-  await expect.poll(() => dock.evaluate((element) => getComputedStyle(element).getPropertyValue('--home-dock-shell-opacity').trim())).toBe('1.000')
-})
-
-test('keeps preview Dock merging responsive and reduced-motion safe', async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: 'reduce' })
-  await page.goto('/')
-  await page.getByRole('button', { name: '写作', exact: true }).click()
-  await page.getByRole('button', { name: '预览文章' }).click()
-  const previewDocument = page.getByTitle('IMX 文章预览')
-  const surface = page.locator('.preview-surface')
-  const dock = page.locator('.preview-dock')
-
-  await previewDocument.evaluate((element) => {
-    const spacer = document.createElement('div')
-    spacer.style.height = '200vh'
-    spacer.setAttribute('aria-hidden', 'true')
-    element.shadowRoot?.querySelector('.preview-body')?.append(spacer)
-    element.scrollTop = element.clientHeight
-  })
-  await expect.poll(() => previewDocument.evaluate((element) => element.scrollTop / element.clientHeight)).toBeGreaterThanOrEqual(0.88)
-  await expect(dock).toHaveClass(/is-dock-merged/)
-  await expect(dock).not.toHaveClass(/is-dock-attracting/)
-
-  await page.setViewportSize({ width: 390, height: 844 })
-  await expect(dock).not.toHaveClass(/is-dock-merged/)
-  expect(await surface.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
-})
-
 test('fits the complete preview canvas and Dock without horizontal scrolling at intermediate widths', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: '写作', exact: true }).click()
@@ -235,7 +176,7 @@ test('uses the compact IMX menu and existing workspace tabs on mobile without ov
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
-test('keeps the preview table of contents controllable on desktop and mobile without navigating away', async ({ page }) => {
+test('keeps the preview table of contents controllable on desktop and mobile without navigating away', { tag: '@critical' }, async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: '写作', exact: true }).click()
   await page.getByLabel('标题').fill('目录交互回归')

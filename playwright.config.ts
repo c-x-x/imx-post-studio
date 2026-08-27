@@ -14,19 +14,18 @@ const previewCommand = process.env.CI
 
 export default defineConfig({
   testDir: './tests/e2e',
-  fullyParallel: false,
+  fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
-  workers: 1,
+  workers: process.env.CI ? 2 : 1,
   reporter: process.env.CI ? [['html', { open: 'never' }], ['list']] : 'list',
   use: {
     ...sharedUse,
-    trace: 'retain-on-failure',
-    video: 'retain-on-failure',
+    trace: process.env.CI ? 'on-first-retry' : 'retain-on-failure',
+    screenshot: 'only-on-failure',
+    video: 'off',
   },
   expect: { timeout: 10_000 },
-  // Chromium text metrics differ between macOS CoreText and Linux FreeType.
-  snapshotPathTemplate: '{testDir}/{testFilePath}-snapshots/{arg}-{projectName}-{platform}{ext}',
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'], ...sharedUse } },
     { name: 'firefox', use: { ...devices['Desktop Firefox'], ...sharedUse } },

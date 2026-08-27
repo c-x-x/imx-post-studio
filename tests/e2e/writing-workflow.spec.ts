@@ -6,7 +6,7 @@ async function navigate(page: Page, name: string) {
   await button.click()
 }
 
-test('both new-article decisions reset the real editor and preserve only saved drafts', async ({ page }) => {
+test('both new-article decisions reset the real editor and preserve only saved drafts', { tag: '@critical' }, async ({ page }) => {
   await page.goto('/')
   await navigate(page, '写作')
   const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
@@ -29,7 +29,7 @@ test('both new-article decisions reset the real editor and preserve only saved d
   await expect(editor).toHaveText('第一篇正文')
 })
 
-test('works → pending → failed/successful push preserves then deletes the actual draft', async ({ page }) => {
+test('works → pending → failed/successful push preserves then deletes the actual draft', { tag: '@critical' }, async ({ page }) => {
   let source = '+++\ntitle = "Remote article"\ndate = "2026-08-27T10:00:00+08:00"\ndescription = "Article summary"\ndraft = false\n+++\nOriginal body'
   let revision = 'a'.repeat(40)
   let failPush = true

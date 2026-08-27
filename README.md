@@ -17,7 +17,7 @@ Hugo leaf bundle ZIP。主体是独立的静态 Vite 应用；另有默认关闭
 丢弃当前编辑器内存中的文章；再次进入“写作”可继续编辑。如果当前修改还没有成功
 写入草稿库，关闭或刷新网页时浏览器会显示原生离开提醒；保存成功后不再提醒。
 
-CI 覆盖 Chromium、Firefox 和 WebKit。建议使用这些浏览器的当前稳定版本；移动
+日常 CI 在 Chromium、Firefox 和 WebKit 上验证关键流程。建议使用这些浏览器的当前稳定版本；移动
 预览以 390px 画布验证。浏览器需要支持 IndexedDB、Blob、WebP 和现代 JavaScript。
 
 ## 本地开发
@@ -118,7 +118,7 @@ content/posts/<slug>/images/<image-name>
 
 文章排版、目录、响应式行为和字体均由 Studio 自身维护，构建与测试不读取其他仓库。
 预览使用 `src/preview/` 下的 Studio 样式和 `public/studio/fonts/` 下的本地字体；视觉
-升级作为本项目的普通代码变更进行，并由单元、浏览器和视觉回归测试保护。
+升级作为本项目的普通代码变更进行，并由单元和浏览器功能测试保护。
 
 ## 可选 GitHub 博客后台
 
@@ -147,12 +147,18 @@ npm run typecheck
 npm test
 npm run build
 npm run check:standalone
-npm run test:e2e
+npm run test:e2e:ci # 日常关键流程，三浏览器
+npm run test:e2e    # 手动全面检查，包括外观、布局与无障碍
 ```
 
-GitHub Actions 会在 `main` 推送和 pull request 上执行同一组检查，并在失败时保留
-7 天 Playwright HTML 报告。CI 的 `npm run build` 已包含 TypeScript 项目检查，因此
-不再重复单独运行 `npm run typecheck`；Playwright 仍覆盖 Chromium、Firefox 和 WebKit。
+GitHub Actions 在 `main` 推送和 pull request 上执行 lint、完整单元/组件测试、构建和独立性检查，
+浏览器部分只运行标记为 `@critical` 的 10 条关键流程，在三浏览器中共 30 个用例
+（其中 1 个 Firefox 不适用），使用 2 个 worker 并行，不再每次串行运行所有布局检查。
+覆盖写作/草稿/推送、ZIP 导入导出、表格、代码块、粘贴图片、移动端目录和内容安全。
+失败时保留 7 天 HTML 报告、截图及重试 trace，不全程录制视频。
+需要全面检查时，在 Actions → CI → Run workflow 勾选 `full_browser_suite`。
+已移除重复的装饰性断言、停用的旧编辑器测试以及未被引用的截图文件。
+构建已包含 TypeScript 检查，浏览器检查复用构建产物，不重复构建。
 
 ## Vercel 部署
 

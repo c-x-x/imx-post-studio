@@ -142,7 +142,7 @@ test('effective production CSP permits WebAssembly compilation in Chromium and W
   expect(response?.headers()['content-security-policy']).toBe(EXPECTED_CSP)
 })
 
-test('exports a valid WebP cover under production CSP and forces the WASM fallback in WebKit', async ({ browserName, page }) => {
+test('exports a valid WebP cover under production CSP and forces the WASM fallback in WebKit', { tag: '@critical' }, async ({ browserName, page }) => {
   test.skip(browserName === 'firefox', 'The production CSP regression targets the supported Chromium and WebKit engines')
 
   if (browserName === 'webkit') {
