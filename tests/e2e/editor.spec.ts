@@ -153,7 +153,10 @@ async function scanPreviewDomWithAxe(page: Page) {
   return new AxeBuilder({ page }).analyze()
 }
 
-test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle', { tag: '@critical' }, async ({ page }) => {
+test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle', { tag: '@critical' }, async ({ page, browserName }) => {
+  // This full round trip includes image encoding, reload and three ZIP exports;
+  // Linux WebKit needs more than the default 30s total, not longer assertion waits.
+  if (browserName === 'webkit') test.setTimeout(60_000)
   await beginArticle(page)
   await fillMetadata(page)
 
