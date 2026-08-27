@@ -1,0 +1,18 @@
+.github-dialog { width: min(860px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); overflow-y: auto; overflow-x: hidden; }
+.github-dialog h3 { margin: 0 0 .65rem; font-size: 1.05rem; }
+.github-dialog p, .github-dialog li, .github-dialog label { font-size: .86rem; line-height: 1.7; overflow-wrap: anywhere; }
+.github-dialog a { color: var(--imx-accent); }
+.github-dialog button, .github-button { min-height: 40px; border: 1px solid var(--imx-line); border-radius: 24px; padding: .55rem 1rem; color: var(--imx-ink); background: var(--imx-control-soft); text-decoration: none; font: inherit; font-size: .8rem; }
+.github-dialog button:hover:not(:disabled), .github-button:hover { background: var(--imx-accent-soft); }
+.github-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-block: 12px; font-size: .85rem; }
+.github-current, .github-articles { margin-top: 20px; border-top: 1px solid var(--imx-line); padding-top: 20px; }
+.github-articles input { display: block; box-sizing: border-box; width: 100%; border: 1px solid var(--imx-line); padding: 10px 14px; margin-block: 8px; border-radius: 16px; background: var(--imx-control-soft); color: var(--imx-ink); }
+.github-articles ul { padding: 0; list-style: none; max-height: 35dvh; overflow-y: auto; }
+.github-articles li { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid var(--imx-line); padding: 10px 0; }
+.github-articles li span { flex: 1; min-width: 150px; }
+.github-confirm { padding: 16px; border: 1px solid var(--imx-line); border-radius: 18px; margin-top: 12px; }
+.github-confirm pre { max-height: 220px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .75rem; }
+.github-note { color: var(--imx-ink-secondary); }
+.github-message { color: var(--imx-accent); }
+.github-entry { margin-top: 12px; }
+@media (max-width: 600px) { .github-dialog { padding: 18px; border-radius: 24px; } .github-dialog h2 { font-size: 1.4rem; } .github-controls > button { flex: 1 1 auto; } }

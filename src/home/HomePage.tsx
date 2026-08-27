@@ -2,6 +2,7 @@ interface HomePageProps {
   disabled: boolean
   onArticle: () => void
   onDashboard: () => void
+  onGithub?: () => void
 }
 
 const markdownExamples = [
@@ -14,19 +15,20 @@ const markdownExamples = [
   ['表格', '| 名称 | 状态 |\n| --- | --- |\n| 文章 | 完成 |'],
 ] as const
 
-export function HomePage({ disabled, onArticle, onDashboard }: HomePageProps) {
+export function HomePage({ disabled, onArticle, onDashboard, onGithub }: HomePageProps) {
   return <section className="home-page" aria-label="IMX Post Studio 介绍">
     <div className="home-hero">
       <p className="home-eyebrow">IMX POST STUDIO</p>
       <h2>I am no bird; and no net ensnares me.</h2>
       <p className="home-quote-source">Charlotte Brontë · Jane Eyre</p>
-      <p>一个本地优先的 Markdown 写作工作台，让文字、图片、草稿与预览都留在你的浏览器中。</p>
+      <p>一个本地优先的 Markdown 写作工作台。默认在浏览器内保存文字和图片，也可主动连接 GitHub 管理博客文章。</p>
       <div className="home-actions">
         <button className="home-primary" type="button" disabled={disabled} onClick={onArticle}>开始写文章</button>
         <button type="button" disabled={disabled} onClick={onDashboard}>查看草稿</button>
+        {onGithub ? <button type="button" disabled={disabled} onClick={onGithub}>GitHub 博客</button> : null}
       </div>
       <ul className="home-principles" aria-label="项目特点">
-        <li><strong>本地写作</strong><span>文章与图片只在当前浏览器中处理</span></li>
+        <li><strong>本地优先</strong><span>默认保存在浏览器，主动确认后才提交 GitHub</span></li>
         <li><strong>即时呈现</strong><span>专注书写，同时看见 Markdown 排版效果</span></li>
         <li><strong>自由带走</strong><span>保存本地草稿，随时导出可移植的文章包</span></li>
       </ul>

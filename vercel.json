@@ -4,10 +4,15 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/api/github/:action",
+      "destination": "/api/github?action=:action"
+    },
+    {
+      "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
   ],
+  "functions": { "api/github.ts": { "maxDuration": 60 } },
   "headers": [
     {
       "source": "/(.*)",

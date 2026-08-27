@@ -2,12 +2,14 @@
 
 IMX Post Studio 是一个浏览器内运行、本地优先的 Markdown 写作工具。它提供结构化
 写作、源码编辑、本地草稿、图片管理和整屏预览，并可把文章、元数据与图片整理为
-Hugo leaf bundle ZIP。生产产物是独立的静态 Vite 应用，不包含 API 路由或服务端数据库。
+Hugo leaf bundle ZIP。主体是独立的静态 Vite 应用；另有默认关闭的 GitHub 博客后台，
+启用后可读取仓库文章，并通过 PR 提交修改，不需要服务端数据库。
 
 ## 隐私与浏览器支持
 
 草稿和图片默认仅保存在当前浏览器的 IndexedDB 中；处理、预览、导入和导出都
-在本机浏览器完成。项目不内置账号、分析、云同步或跨设备恢复服务。清除浏览器
+在本机浏览器完成。项目不内置分析或自动云同步；可选 GitHub 登录与手动提交仅在
+配置后启用。清除浏览器
 站点数据会删除本地草稿，因此请定期导出备份。若正文保留外部 HTTPS 图片链接，
 浏览器仍可能向该图片来源发起请求；其在不同托管环境中的加载限制见下方预览边界。
 
@@ -72,8 +74,8 @@ GFM Markdown；表格单元格中的竖线会保持为 `\|`，左/中/右对齐�
 从剪贴板复制图片后，可直接在 Markdown 光标处粘贴。Studio 会先按与媒体面板相同的
 MIME、文件签名、大小和安全文件名规则验证整个批次，再一次性加入媒体并写入
 `![说明](images/<name>)`；同名图片自动追加数字后缀。任意一张验证失败时，正文和
-媒体列表都不会发生变化。普通文本粘贴仍由 Markdown 编辑器原生处理，图片不会上传
-到服务器或远程存储。
+媒体列表都不会发生变化。普通文本粘贴仍由 Markdown 编辑器原生处理，粘贴操作不会上传
+图片；只有另行确认 GitHub 提交时才会上传对应图片。
 
 下载的文章 ZIP 解压到 Hugo 站点的 `content/posts/`，得到：
 
@@ -118,6 +120,16 @@ content/posts/<slug>/images/<image-name>
 预览使用 `src/preview/` 下的 Studio 样式和 `public/studio/fonts/` 下的本地字体；视觉
 升级作为本项目的普通代码变更进行，并由单元、浏览器和视觉回归测试保护。
 
+## 可选 GitHub 博客后台
+
+首页、文章操作区和草稿库的“GitHub 博客”可读取指定仓库的文章与图片、在现有编辑器
+修改，再确认提交到 PR。仅允许配置的本人账号登录；不直接改写默认分支，不自动合并。
+此功能不依赖主题代码，也不改变本地草稿与 ZIP 流程。
+
+默认未启用。部署和 GitHub App 配置见 [GitHub 博客后台说明](docs/github-blog.md)，
+变量模板见 [.env.example](.env.example)。GitHub 模式的图片上限为 2 MiB/张、50 张/篇；
+本地模式限制不变。公开仓库中的草稿和 PR 同样公开，不适合存放私密内容。
+
 ## 测试
 
 ```bash
@@ -133,9 +145,10 @@ GitHub Actions 会在 `main` 推送和 pull request 上执行同一组检查，�
 7 天 Playwright HTML 报告。CI 的 `npm run build` 已包含 TypeScript 项目检查，因此
 不再重复单独运行 `npm run typecheck`；Playwright 仍覆盖 Chromium、Firefox 和 WebKit。
 
-## Vercel 静态部署
+## Vercel 部署
 
-`vercel.json` 将 Vite 产物设为 `dist`，把 SPA 路径重写到 `/index.html`，并为所有
+`vercel.json` 将 Vite 产物设为 `dist`，把 `/api/github/*` 路由交给可选的 Node Function，
+其余 SPA 路径重写到 `/index.html`，并为所有
 路径发送 CSP、`nosniff`、无 Referrer 和受限的 Permissions Policy。CSP 的脚本源
 仅允许自身脚本，并以 `'wasm-unsafe-eval'` 允许 WebKit 封面转换所需的 WebAssembly
 回退；它不允许 `'unsafe-eval'` 或内联脚本。`'unsafe-inline'` 只用于预览文档所需的

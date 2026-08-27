@@ -34,7 +34,8 @@ describe('Vercel static delivery configuration', () => {
 
     expect(config.framework).toBe('vite')
     expect(config.outputDirectory).toBe('dist')
-    expect(config.rewrites).toContainEqual({ source: '/(.*)', destination: '/index.html' })
+    expect(config.rewrites).toContainEqual({ source: '/api/github/:action', destination: '/api/github?action=:action' })
+    expect(config.rewrites).toContainEqual({ source: '/((?!api/).*)', destination: '/index.html' })
   })
 
   it('applies the required global browser security policy', async () => {

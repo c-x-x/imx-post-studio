@@ -101,7 +101,7 @@ export function findImageReferences(markdown: string): string[] {
 
 export function validateMediaReferences(
   markdown: string,
-  media: MediaAsset[],
+  media: Pick<MediaAsset, 'name' | 'kind'>[],
 ): { missing: string[]; unused: string[] } {
   const { references, invalid } = analyzeImageReferences(markdown)
   const available = new Set(media.map((asset) => `images/${asset.name}`))

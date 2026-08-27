@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, type MouseEvent, type ReactNode } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import type { ArticleDraft, MediaAsset } from '../metadata/article'
 import { createArticleDraft, hasDraftContent } from '../metadata/article'
 import { MarkdownEditor, type MarkdownEditorHandle, type PastedImageRequest } from '../editor/MarkdownEditor'
@@ -30,6 +30,8 @@ import { TransitionConfirmDialog } from './TransitionConfirmDialog'
 import { useUnsavedChangesWarning } from './use-unsaved-changes-warning'
 import './app.css'
 
+const GithubPanel = lazy(() => import('../github/GithubPanel'))
+
 type View = 'home' | 'dashboard' | 'workspace'
 type WorkspaceTab = 'settings' | 'write'
 type InspectorView = 'settings' | 'outline'
@@ -60,6 +62,8 @@ function downloadRecovery(blob: Blob): void {
 }
 
 export function App() {
+  const [githubOpen, setGithubOpen] = useState(() => new URLSearchParams(window.location.search).has('github'))
+  const githubTrigger = useRef<HTMLElement | null>(null)
   const [draft, dispatch] = useReducer(appReducer, undefined, () => createArticleDraft())
   const [view, setView] = useState<View>('home')
   const [tab, setTab] = useState<WorkspaceTab>('settings')
@@ -252,14 +256,21 @@ export function App() {
     setNotice('草稿已打开')
   }, '打开草稿')
 
-  const replaceImportedDraft = (next: ArticleDraft) => requestTransition(() => {
-    dispatchDraft({ type: 'replace-import-content', draft: next }, true)
-    setDraftStarted(true)
-    setTab('settings')
-    setInspectorView('settings')
-    setView('workspace')
-    setNotice('已替换当前草稿内容')
-  }, '替换当前文章')
+  const replaceImportedDraft = async (next: ArticleDraft) => {
+    // Imported replacements must not silently overwrite a previously linked repository article.
+    if (window.localStorage.getItem('ipost-github-linked') === 'true') {
+      const { githubOrigins } = await import('../github/origins')
+      await githubOrigins.delete(draftRef.current.id)
+    }
+    return requestTransition(() => {
+      dispatchDraft({ type: 'replace-import-content', draft: next }, true)
+      setDraftStarted(true)
+      setTab('settings')
+      setInspectorView('settings')
+      setView('workspace')
+      setNotice('已替换当前草稿内容')
+    }, '替换当前文章')
+  }
 
   const openImportedAsNew = (next: ArticleDraft) => requestTransition(() => {
     dispatchDraft({ type: 'new', draft: createImportedDraft(next) }, true)
@@ -283,6 +294,18 @@ export function App() {
   const showWorkspace = () => {
     setView('workspace')
     setNotice('文章编辑器已打开')
+  }
+
+  const openGithub = async () => {
+    if (transitionInFlight.current || intakeBusyRef.current) return
+    githubTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    transitionInFlight.current = true
+    setTransitioning(true)
+    try {
+      await persistLatestDraft()
+      setGithubOpen(true)
+    } catch (cause) { setRecoveryError(`打开 GitHub 前保存本地草稿失败：${errorMessage(cause)}`) }
+    finally { transitionInFlight.current = false; setTransitioning(false) }
   }
 
   const changeTheme = (next: AppTheme) => {
@@ -462,7 +485,7 @@ export function App() {
   return <main className="app-shell" data-view={view}>
     <ImxDock view={view} disabled={workspaceLocked} previewTrigger={previewTrigger} theme={theme} onToggleTheme={toggleTheme} onPreview={openPreview} onHome={() => void showHome()} onArticle={showWorkspace} onDashboard={() => void showDashboard()} />
     <Notifications alert={alerts.length > 0 ? <>{alerts}</> : undefined} />
-    {view === 'home' ? <HomePage disabled={workspaceLocked} onArticle={showWorkspace} onDashboard={() => void showDashboard()} /> : view === 'dashboard' ? <DraftDashboard onOpen={openDraft} disabled={workspaceLocked} /> : <section className="workspace" aria-label="文章工作区" aria-busy={workspaceLocked} data-inspector-collapsed={settingsCollapsed} data-actions-collapsed={actionsCollapsed}>
+    {view === 'home' ? <HomePage disabled={workspaceLocked} onArticle={showWorkspace} onDashboard={() => void showDashboard()} onGithub={() => void openGithub()} /> : view === 'dashboard' ? <><div className="article-actions"><button type="button" disabled={workspaceLocked} onClick={() => void openGithub()}>GitHub 博客</button></div><DraftDashboard onOpen={openDraft} disabled={workspaceLocked} /></> : <section className="workspace" aria-label="文章工作区" aria-busy={workspaceLocked} data-inspector-collapsed={settingsCollapsed} data-actions-collapsed={actionsCollapsed}>
       <nav className="workspace-tabs" role="tablist" aria-label="工作区视图">
         {([['settings', '设置'], ['write', '写作']] as const).map(([id, label]) => <button key={id} id={`tab-${id}`} type="button" disabled={workspaceLocked} role="tab" aria-selected={tab === id} aria-controls={`panel-${id}`} onClick={() => setTab(id)}>{label}</button>)}
       </nav>
@@ -487,6 +510,7 @@ export function App() {
         <button className="actions-toggle" type="button" aria-controls="panel-actions" aria-expanded={!actionsCollapsed} aria-label={actionsCollapsed ? '展开文章操作' : '折叠文章操作'} title={actionsCollapsed ? '展开文章操作' : '折叠文章操作'} onClick={toggleActions}><span aria-hidden="true">{actionsCollapsed ? '‹' : '›'}</span></button>
         <aside id="panel-actions" className="workspace-actions" aria-label="文章工具">
           <ArticleActions disabled={workspaceLocked} onNew={() => void startNew()} onSave={() => void saveCurrentDraft()} />
+          <div className="article-actions github-entry"><button type="button" disabled={workspaceLocked} onClick={() => void openGithub()}>GitHub 博客</button></div>
           <MediaPanel draftId={draft.id} disabled={transitioning} media={draft.media} body={draft.body} onAddBatch={(assets) => dispatchDraft({ type: 'add-media-batch', assets })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onInsertImage={(asset) => editorRef.current?.insertImage(asset.name, mediaAlt(asset.name))} onIntakeBusyChange={(busy) => setIntakeSourceBusy('body', busy)} />
           <BundleActions disabled={workspaceLocked} draft={draft} onReplace={replaceImportedDraft} onNew={openImportedAsNew} onStatus={setNotice} onImportFocusRequest={(target) => { importFocusTarget.current = target; setImportFocusVersion((current) => current + 1) }} />
         </aside>
@@ -494,5 +518,6 @@ export function App() {
     </section>}
     {newArticlePromptOpen ? <TransitionConfirmDialog busy={transitioning || intakeBusy} error={newArticlePromptError} onCancel={cancelNewArticle} onDiscard={() => void deleteAndContinueNewArticle()} onSave={() => void saveAndContinueNewArticle()} returnFocus={() => confirmReturnFocus.current} /> : null}
     {previewOpen ? <AccessibleDialog title="IMX 文章预览" className="preview-dialog" onClose={closePreview} returnFocus={() => previewTrigger.current}><DialogClose>{(close) => <PreviewFrame meta={draft.meta} rendered={rendered} css={previewCss} theme={theme} onThemeChange={changeTheme} onClose={() => close()} />}</DialogClose></AccessibleDialog> : null}
+    {githubOpen ? <Suspense fallback={<p role="status">正在加载 GitHub 工作区…</p>}><GithubPanel draft={draft} onOpen={openDraft} onClose={() => { setGithubOpen(false); if (new URLSearchParams(window.location.search).has('github')) window.history.replaceState(null, '', window.location.pathname) }} returnFocus={() => githubTrigger.current} /></Suspense> : null}
   </main>
 }
