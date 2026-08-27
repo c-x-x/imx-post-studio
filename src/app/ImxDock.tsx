@@ -71,9 +71,9 @@ export function ImxDock({
   return <nav ref={navRef} className="imx-dock has-shared-dock" aria-label="Studio 导航">
     <div className="imx-dock__container" data-shared-dock="container">
       <span className="imx-dock__shell" data-shared-dock="shell" aria-hidden="true" />
-      <button className="imx-dock__brand imx-dock__brand-default-logo" data-shared-dock="left" type="button" disabled={disabled} aria-label="IMX Post Studio，返回首页" onClick={onHome}>
+      <button className="imx-dock__brand imx-dock__brand-default-logo" data-shared-dock="left" type="button" disabled={disabled} aria-label="IPS，返回首页" onClick={onHome}>
         <ImxLogo />
-        <span className="imx-dock__brand-title">IMX Post Studio</span>
+        <span className="imx-dock__brand-title">IPS</span>
       </button>
       <h1 className="visually-hidden">IMX Post Studio</h1>
       <ul ref={menuRef} className={`imx-dock__menu has-active${menuOpen ? ' active' : ''}`} data-shared-dock="center">

@@ -26,6 +26,16 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('optional GitHub workspace', () => {
+  it('shows missing-summary feedback without offering a push confirmation', async () => {
+    const draft = createArticleDraft()
+    draft.meta.title = 'Local'
+    draft.meta.slug = 'local'
+    draft.body = 'Content'
+    render(<GithubPanel mode="push" draft={draft} onOpen={vi.fn()} onPushed={vi.fn()} onClose={vi.fn()} returnFocus={() => null} />)
+    expect(await screen.findByRole('alert')).toHaveTextContent('摘要不能为空')
+    expect(screen.queryByRole('button', { name: '确认推送到 main' })).not.toBeInTheDocument()
+    expect(githubApi.save).not.toHaveBeenCalled()
+  })
   it('does not request repository data when disabled; expired tokens offer login again', async () => {
     vi.mocked(githubApi.session).mockResolvedValueOnce({ configured: false })
     render(<GithubPanel mode="works" draft={createArticleDraft()} onOpen={vi.fn()} onClose={vi.fn()} returnFocus={() => null} />)
@@ -53,6 +63,7 @@ describe('optional GitHub workspace', () => {
     const draft = createArticleDraft()
     draft.meta.title = 'Local article'
     draft.meta.slug = 'local-article'
+    draft.meta.description = 'A short article summary'
     draft.body = 'Edited content'
     const result = { ref: 'main', commit: 'b'.repeat(40), url: 'https://github.com/owner/blog/commit/b' }
     vi.mocked(githubApi.save).mockResolvedValue(result)

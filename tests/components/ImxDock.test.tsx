@@ -29,7 +29,8 @@ describe('IMX Studio Dock', () => {
 
     expect(screen.getByRole('navigation', { name: 'Studio 导航' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'IMX Post Studio' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'IMX Post Studio，返回首页' }))
+    expect(screen.getByRole('button', { name: 'IPS，返回首页' })).toHaveTextContent('IPS')
+    await user.click(screen.getByRole('button', { name: 'IPS，返回首页' }))
     expect(screen.getByRole('button', { name: '草稿' })).toHaveAttribute('aria-current', 'false')
     await user.click(screen.getByRole('button', { name: '预览文章' }))
     await user.click(screen.getByRole('button', { name: '首页' }))

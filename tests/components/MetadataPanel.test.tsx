@@ -31,7 +31,8 @@ describe('MetadataPanel', () => {
     const user = userEvent.setup()
     render(<MetadataHarness />)
 
-    for (const label of ['标题', 'Slug', '发布日期', '摘要', '分类', '标签', '草稿', '显示目录']) {
+    expect(screen.queryByRole('checkbox', { name: /^草稿$/ })).not.toBeInTheDocument()
+    for (const label of ['标题', 'Slug', '发布日期', '摘要', '分类', '标签', '显示目录']) {
       expect(screen.getByLabelText(label)).toBeInTheDocument()
     }
 

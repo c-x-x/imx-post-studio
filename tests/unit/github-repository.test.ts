@@ -11,7 +11,7 @@ const treeSha = 'b'.repeat(40)
 const nextCommit = 'c'.repeat(40)
 const nextTree = 'd'.repeat(40)
 const input = (): GithubSaveInput => ({ mode: 'direct', create: true, path: 'content/posts/article/index.md', ref: 'main', commit: original, requestId: crypto.randomUUID(),
-  source: '+++\ntitle = "Article"\ndate = "2026-08-26T12:00:00+08:00"\ndraft = false\n+++\nHello', images: [] })
+  source: '+++\ntitle = "Article"\ndate = "2026-08-26T12:00:00+08:00"\ndescription = "Article summary"\ndraft = false\n+++\nHello', images: [] })
 
 function fakeGithub(options: { head?: string; entries?: unknown[]; closed?: boolean } = {}) {
   const refs = new Map<string, string>([['main', options.head || original]])
@@ -44,6 +44,20 @@ function fakeGithub(options: { head?: string; entries?: unknown[]; closed?: bool
 }
 
 describe('GitHub atomic content writes', () => {
+  it('rejects incomplete or unpublished submissions before any GitHub writes', async () => {
+    const fake = fakeGithub()
+    const request = input()
+    for (const [source, message] of [
+      [request.source.replace('description = "Article summary"\n', ''), '摘要不能为空'],
+      [request.source.replace('Article summary', '   '), '摘要不能为空'],
+      [request.source.replace('Hello', ' \n '), '正文不能为空'],
+      [request.source.replace('draft = false', 'draft = true'), '必须设为已发布'],
+      [request.source.replace('title = "Article"', 'title = ""'), '标题不能为空'],
+    ]) {
+      await expect(saveArticle(config, fake.client, { ...request, source })).rejects.toMatchObject({ status: 400, message: expect.stringContaining(message) })
+    }
+    expect(fake.mock).not.toHaveBeenCalled()
+  })
   it('pushes only scoped paths to main without force and reuses a retry', async () => {
     const fake = fakeGithub({ entries: [{ path: 'unrelated.txt', mode: '100644', type: 'blob', sha: 'e'.repeat(40) }] })
     const request = input()

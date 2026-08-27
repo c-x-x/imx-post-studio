@@ -109,7 +109,7 @@ export default function GithubPanel({ mode, draft, onOpen, onClose, onPushed, re
           <p>目标：{session.repository.branch} · {prepared.input.path}</p>
           <p>文章文件 1 个；新增/更新图片 {prepared.uploads.length} 张；删除原有图片 {prepared.deleted.length} 张。</p>
           {prepared.deleted.length ? <p className="field-error">推送后删除图片：{prepared.deleted.join('、')}</p> : null}
-          {draft.meta.draft ? <p>文章的 draft 标记仍为 true；推送到 GitHub 不等于在博客公开发布。</p> : null}
+          <p>推送会将文章设为已发布（draft = false），博客部署完成后生效。</p>
           <details><summary>查看 Markdown</summary><pre>{prepared.input.source}</pre></details>
           <button type="button" disabled={busy} onClick={() => void submit()}>{published ? '完成草稿清理' : `确认推送到 ${session.repository.branch}`}</button>
         </div> : !busy && !hasDraftContent(draft) ? <p>文章为空，无需推送。</p> : null}

@@ -30,7 +30,7 @@ test('both new-article decisions reset the real editor and preserve only saved d
 })
 
 test('works → pending → failed/successful push preserves then deletes the actual draft', async ({ page }) => {
-  let source = '+++\ntitle = "Remote article"\ndate = "2026-08-27T10:00:00+08:00"\ndraft = false\n+++\nOriginal body'
+  let source = '+++\ntitle = "Remote article"\ndate = "2026-08-27T10:00:00+08:00"\ndescription = "Article summary"\ndraft = false\n+++\nOriginal body'
   let revision = 'a'.repeat(40)
   let failPush = true
   let pushed = 0

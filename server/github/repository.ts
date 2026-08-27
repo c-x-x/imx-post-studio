@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { assertImageBytes, assertSafeImageName } from '../../src/bundles/media-validation.js'
-import { assertCompleteArticleMeta } from '../../src/metadata/article.js'
+import { assertPublishableArticle } from '../../src/metadata/article.js'
 import { parseArticle } from '../../src/metadata/frontmatter.js'
 import { validateMediaReferences } from '../../src/media/references.js'
 import { GITHUB_IMAGE_COUNT, GITHUB_IMAGE_LIMIT, GITHUB_SOURCE_LIMIT, type GithubArticle, type GithubSaveInput, type GithubSaveResult } from '../../src/github/contracts.js'
@@ -115,7 +115,11 @@ function validateSave(config: GithubConfig, input: GithubSaveInput) {
   const article = parseArticle(input.source)
   const slug = input.path.split('/').at(-2)!
   if (article.meta.slug && article.meta.slug !== slug) throw new GithubError(400, '文章 Slug 或封面路径与仓库目录不一致')
-  assertCompleteArticleMeta({ ...article.meta, slug })
+  try {
+    assertPublishableArticle({ ...article.meta, slug }, article.body)
+  } catch (cause) {
+    throw new GithubError(400, cause instanceof Error ? cause.message : '文章发布格式无效')
+  }
   if (Boolean(article.coverPath) !== names.has('cover.webp')) throw new GithubError(400, '封面引用与图片清单不一致')
   const references = validateMediaReferences(article.body, input.images.map((image) => ({ name: image.name, kind: image.name === 'cover.webp' ? 'cover' : 'body' })))
   if (references.missing.length) throw new GithubError(400, `文章缺少图片：${references.missing.join('、')}`)

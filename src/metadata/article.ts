@@ -89,6 +89,14 @@ export function assertCompleteArticleMeta(meta: ArticleMeta): void {
   }
 }
 
+/** Publishing requirements must not prevent incomplete drafts from being saved/imported. */
+export function assertPublishableArticle(meta: ArticleMeta, body: string): void {
+  assertCompleteArticleMeta(meta)
+  if (!meta.description.trim()) throw new Error('摘要不能为空，请在文章设置中填写摘要后再推送')
+  if (!body.trim()) throw new Error('正文不能为空，请填写文章内容后再推送')
+  if (meta.draft) throw new Error('推送文章必须设为已发布，请刷新 Studio 后重新推送')
+}
+
 function formatBeijingDateTime(now: Date): string {
   const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000)
   return `${beijingTime.toISOString().slice(0, 19)}+08:00`

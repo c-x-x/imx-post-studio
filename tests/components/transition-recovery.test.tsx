@@ -147,7 +147,7 @@ describe('workspace transitions', () => {
     fireEvent.change(screen.getByLabelText('标题'), { target: { value: 'Logo 返回后保留' } })
     put.mockClear()
 
-    fireEvent.click(screen.getByRole('button', { name: 'IMX Post Studio，返回首页' }))
+    fireEvent.click(screen.getByRole('button', { name: 'IPS，返回首页' }))
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(put).not.toHaveBeenCalled()

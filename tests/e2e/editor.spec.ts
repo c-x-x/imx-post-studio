@@ -131,7 +131,7 @@ async function assertEditorState(page: Page, expected: {
   await expect(page.getByLabel('摘要')).toHaveValue(ARTICLE_DESCRIPTION)
   expect(await page.locator('[aria-label="分类列表"] .chip').evaluateAll((items) => items.map((item) => item.firstChild?.textContent))).toEqual(['测试'])
   expect(await page.locator('[aria-label="标签列表"] .chip').evaluateAll((items) => items.map((item) => item.firstChild?.textContent))).toEqual(['IMX'])
-  await expect(page.getByLabel('草稿')).toBeChecked({ checked: expected.draft })
+  await expect(page.getByRole('checkbox', { name: '草稿', exact: true })).toHaveCount(0)
   await expect(page.getByLabel('显示目录')).toBeChecked()
   const normalizeMarkdown = (source: string) => source
     .split('\n')

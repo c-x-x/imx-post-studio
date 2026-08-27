@@ -1,5 +1,5 @@
 import { parse, stringify } from 'smol-toml'
-import { createArticleDraft, assertCompleteArticleMeta, type ArticleDraft, type ArticleMeta, type MediaAsset } from '../metadata/article'
+import { createArticleDraft, assertCompleteArticleMeta, assertPublishableArticle, type ArticleDraft, type ArticleMeta, type MediaAsset } from '../metadata/article'
 import { parseArticle, serializeArticle } from '../metadata/frontmatter'
 import { assertExportableMedia, assertImageBytes } from '../bundles/media-validation'
 import { validateMediaReferences } from '../media/references'
@@ -28,8 +28,10 @@ export async function articleToDraft(article: GithubArticle, loadImage: (name: s
 }
 
 export function serializeForGithub(draft: ArticleDraft, origin?: GithubOrigin): string {
-  assertCompleteArticleMeta(draft.meta)
-  if (!origin) return serializeArticle(draft)
+  const publishedMeta = { ...draft.meta, draft: false }
+  assertPublishableArticle(publishedMeta, draft.body)
+  // Pushing is publishing; local draft storage is independent of Hugo's flag.
+  if (!origin) return serializeArticle(draft, false)
   if (draft.meta.slug !== origin.path.split('/').at(-2)) throw new Error('已关联文章不能直接改名；请恢复 Slug，或取消仓库关联后另建文章')
   const normalized = origin.source.replace(/\r\n?/g, '\n')
   const match = /^(\+\+\+\n)([\s\S]*?)(\n\+\+\+(?:\n|$))([\s\S]*)$/.exec(normalized)
@@ -39,8 +41,8 @@ export function serializeForGithub(draft: ArticleDraft, origin?: GithubOrigin): 
   let metaChanged = false
   const keys: (keyof ArticleMeta)[] = ['title', 'date', 'draft', 'categories', 'tags', 'description', 'toc']
   for (const key of keys) {
-    if (JSON.stringify(draft.meta[key]) !== JSON.stringify(baseline.meta[key])) {
-      table[key] = draft.meta[key]
+    if (JSON.stringify(publishedMeta[key]) !== JSON.stringify(baseline.meta[key])) {
+      table[key] = publishedMeta[key]
       metaChanged = true
     }
   }
