@@ -3,13 +3,33 @@ import { assertImageBytes, assertSafeImageName } from '../../src/bundles/media-v
 import { assertPublishableArticle } from '../../src/metadata/article.js'
 import { parseArticle } from '../../src/metadata/frontmatter.js'
 import { validateMediaReferences } from '../../src/media/references.js'
-import { GITHUB_IMAGE_COUNT, GITHUB_IMAGE_LIMIT, GITHUB_SOURCE_LIMIT, type GithubArticle, type GithubSaveInput, type GithubSaveResult } from '../../src/github/contracts.js'
+import { GITHUB_IMAGE_COUNT, GITHUB_IMAGE_LIMIT, GITHUB_SOURCE_LIMIT, type GithubArticle, type GithubDeleteInput, type GithubSaveInput, type GithubSaveResult } from '../../src/github/contracts.js'
 import { encodePath, repositoryApi, type GithubClient } from './client.js'
 import { assertArticlePath, assertRef, assertSha, GithubError, seal, unseal, type GithubConfig } from './security.js'
 
 interface TreeEntry { path: string; mode: string; type: string; sha: string; size?: number }
+interface TreeChange { path: string; mode: string; type: string; content?: string; sha?: string | null }
 interface Commit { sha: string; tree: { sha: string }; message: string }
 interface UploadTicket { path: string; name: string; sha: string; userId: number }
+
+const writeResult = (config: GithubConfig, commit: string): GithubSaveResult => ({ ref: config.branch, commit, url: `https://github.com/${config.repository}/commit/${commit}` })
+
+async function commitArticleTree(config: GithubConfig, client: GithubClient, commit: Commit, tree: TreeChange[], message: string): Promise<GithubSaveResult> {
+  const nextTree = await client<{ sha: string }>(`${repositoryApi(config)}/git/trees`, 'POST', { base_tree: commit.tree.sha, tree })
+  if (nextTree.sha === commit.tree.sha) throw new GithubError(400, '文章和图片没有变化，无需创建提交')
+  const nextCommit = await client<{ sha: string }>(`${repositoryApi(config)}/git/commits`, 'POST', {
+    message, tree: nextTree.sha, parents: [commit.sha],
+  })
+  try {
+    await client(`${repositoryApi(config)}/git/refs/heads/${encodePath(config.branch)}`, 'PATCH', { sha: nextCommit.sha, force: false })
+  } catch (cause) {
+    if (cause instanceof GithubError && (cause.status === 409 || cause.status === 422)) {
+      throw new GithubError(409, '主分支已更新或受分支规则保护，未强制覆盖；草稿仍保留，请检查 GitHub 后重试')
+    }
+    throw cause
+  }
+  return writeResult(config, nextCommit.sha)
+}
 
 export async function head(config: GithubConfig, client: GithubClient, ref: string): Promise<string> {
   assertRef(config, ref)
@@ -129,14 +149,13 @@ function validateSave(config: GithubConfig, input: GithubSaveInput) {
 export async function saveArticle(config: GithubConfig, client: GithubClient, input: GithubSaveInput): Promise<GithubSaveResult> {
   const title = validateSave(config, input)
   const target = config.branch
-  const result = (commit: string): GithubSaveResult => ({ ref: target, commit, url: `https://github.com/${config.repository}/commit/${commit}` })
   const fingerprint = createHash('sha256').update(JSON.stringify({ path: input.path, source: input.source, images: input.images.map(({ name, sha }) => ({ name, sha })) })).digest('hex')
   const marker = `ipost-request:${input.requestId}:${fingerprint}`
   const targetHead = await head(config, client, target)
   // Recover a completed push after a lost response without creating a second commit.
   if (targetHead !== input.commit) {
     const targetCommit = await client<Commit>(`${repositoryApi(config)}/git/commits/${targetHead}`)
-    if (targetCommit?.message.split('\n').at(-1) === marker) return result(targetHead)
+    if (targetCommit?.message.split('\n').at(-1) === marker) return writeResult(config, targetHead)
     throw new GithubError(409, '远端已有新提交，已停止推送；本地修改仍保留，请先备份并重新读取远端版本')
   }
   const { commit, entries } = await snapshot(config, client, input.commit)
@@ -151,7 +170,7 @@ export async function saveArticle(config: GithubConfig, client: GithubClient, in
   }
   const oldImages = bundleImages(input.path, entries)
   const prefix = input.path.slice(0, -'index.md'.length)
-  const tree: ({ path: string; mode: string; type: string; content?: string; sha?: string | null })[] = [
+  const tree: TreeChange[] = [
     { path: input.path, mode: '100644', type: 'blob', content: input.source },
   ]
   for (const image of input.images) {
@@ -166,18 +185,34 @@ export async function saveArticle(config: GithubConfig, client: GithubClient, in
   for (const image of oldImages) {
     if (!input.images.some((item) => item.name === image.name)) tree.push({ path: `${prefix}images/${image.name}`, mode: '100644', type: 'blob', sha: null })
   }
-  const nextTree = await client<{ sha: string }>(`${repositoryApi(config)}/git/trees`, 'POST', { base_tree: commit.tree.sha, tree })
-  if (nextTree.sha === commit.tree.sha) throw new GithubError(400, '文章和图片没有变化，无需创建提交')
-  const nextCommit = await client<{ sha: string }>(`${repositoryApi(config)}/git/commits`, 'POST', {
-    message: `Edit article: ${title.slice(0, 120)}\n\n${marker}`, tree: nextTree.sha, parents: [input.commit],
-  })
-  try {
-    await client(`${repositoryApi(config)}/git/refs/heads/${encodePath(target)}`, 'PATCH', { sha: nextCommit.sha, force: false })
-  } catch (cause) {
-    if (cause instanceof GithubError && (cause.status === 409 || cause.status === 422)) {
-      throw new GithubError(409, '主分支已更新或受分支规则保护，未强制覆盖；草稿仍保留，请检查 GitHub 后重试')
-    }
-    throw cause
+  return commitArticleTree(config, client, commit, tree, `Edit article: ${title.slice(0, 120)}\n\n${marker}`)
+}
+
+export async function deleteArticle(config: GithubConfig, client: GithubClient, input: GithubDeleteInput): Promise<GithubSaveResult> {
+  assertArticlePath(config, input.path)
+  if (input.ref !== config.branch) throw new GithubError(400, '只能删除配置的主分支中的作品')
+  assertSha(input.commit)
+  if (typeof input.requestId !== 'string' || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(input.requestId)) {
+    throw new GithubError(400, '删除请求格式无效')
   }
-  return result(nextCommit.sha)
+  const fingerprint = createHash('sha256').update(JSON.stringify({ path: input.path, commit: input.commit })).digest('hex')
+  const marker = `ipost-delete:${input.requestId}:${fingerprint}`
+  const targetHead = await head(config, client, config.branch)
+  if (targetHead !== input.commit) {
+    const targetCommit = await client<Commit>(`${repositoryApi(config)}/git/commits/${targetHead}`)
+    // A lost response may be retried, but never delete a newer/restored article.
+    if (targetCommit?.message.split('\n').at(-1) === marker) return writeResult(config, targetHead)
+    throw new GithubError(409, '远端已有新提交，已停止删除；请取消并刷新作品后重新确认')
+  }
+  const { commit, entries } = await snapshot(config, client, input.commit)
+  const original = entries.find((entry) => entry.path === input.path)
+  if (!original || original.type !== 'blob' || original.mode !== '100644') throw new GithubError(404, '文章已不存在或不是普通 Markdown 文件，请刷新作品')
+  const bundle = input.path.slice(0, -'/index.md'.length)
+  const directory = entries.find((entry) => entry.path === bundle)
+  if (!directory || directory.type !== 'tree' || directory.mode !== '040000'
+    || entries.some((entry) => bundle.startsWith(`${entry.path}/`) && (entry.type !== 'tree' || entry.mode !== '040000'))) {
+    throw new GithubError(400, '文章目录包含非目录节点，已停止删除')
+  }
+  // Delete the bundle as one tree entry. base_tree preserves every other article.
+  return commitArticleTree(config, client, commit, [{ path: bundle, mode: '040000', type: 'tree', sha: null }], `Delete article: ${bundle.split('/').at(-1)}\n\n${marker}`)
 }

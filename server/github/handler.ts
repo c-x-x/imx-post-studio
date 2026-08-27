@@ -1,8 +1,8 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { githubClient, repositoryApi, type Fetcher } from './client.js'
-import { listArticles, readArticle, readImage, saveArticle, uploadImage } from './repository.js'
+import { deleteArticle, listArticles, readArticle, readImage, saveArticle, uploadImage } from './repository.js'
 import { assertMutation, cookie, cookieName, equalSecret, GithubError, readConfig, readCookie, seal, sessionFor, unseal, type GithubConfig, type LoginSession } from './security.js'
-import type { GithubSaveInput } from '../../src/github/contracts.js'
+import type { GithubDeleteInput, GithubSaveInput } from '../../src/github/contracts.js'
 
 const responseHeaders = { 'Cache-Control': 'no-store, private', 'Vary': 'Cookie, Origin', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' }
 const json = (data: unknown, status = 200) => Response.json(data, { status, headers: responseHeaders })
@@ -50,7 +50,7 @@ export async function handleGithubRequest(request: Request, env = process.env, f
     if (!config) return action === 'session' ? json({ configured: false }) : json({ error: 'GitHub 功能尚未启用' }, 503)
     if (url.origin !== config.origin) throw new GithubError(403, '此域名未启用 GitHub 后台')
     const method = request.method
-    const expectedMethods: Record<string, string> = { session: 'GET', login: 'GET', callback: 'GET', logout: 'POST', list: 'GET', article: 'GET', media: 'GET', upload: 'POST', save: 'POST' }
+    const expectedMethods: Record<string, string> = { session: 'GET', login: 'GET', callback: 'GET', logout: 'POST', list: 'GET', article: 'GET', media: 'GET', upload: 'POST', save: 'POST', delete: 'POST' }
     if (!expectedMethods[action]) throw new GithubError(404, '接口不存在')
     if (method !== expectedMethods[action]) throw new GithubError(405, '请求方法不允许')
     const session = sessionFor(config, request)
@@ -117,6 +117,7 @@ export async function handleGithubRequest(request: Request, env = process.env, f
     }
     const input = await readBody(request)
     if (action === 'upload') return json(await uploadImage(config, client, input))
+    if (action === 'delete') return json(await deleteArticle(config, client, input as unknown as GithubDeleteInput))
     return json(await saveArticle(config, client, input as unknown as GithubSaveInput))
   } catch (error) {
     if (action === 'callback' && config) {

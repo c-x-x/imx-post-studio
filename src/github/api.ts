@@ -1,4 +1,4 @@
-import type { GithubArticle, GithubSaveResult, GithubSession } from './contracts'
+import type { GithubArticle, GithubDeleteInput, GithubSaveResult, GithubSession } from './contracts'
 import type { PreparedGithubSave } from './article-adapter'
 
 export class GithubApiError extends Error {
@@ -23,6 +23,7 @@ export const githubApi = {
   list: () => request<{ commit: string; articles: { path: string; slug: string }[] }>('list'),
   article: (path: string, ref?: string) => request<GithubArticle>('article', { path, ...(ref ? { ref } : {}) }),
   logout: (csrf: string) => request<{ warning?: string }>('logout', {}, {}, csrf),
+  deleteArticle: (input: GithubDeleteInput, csrf: string) => request<GithubSaveResult>('delete', {}, input, csrf),
   async image(article: GithubArticle, name: string): Promise<Blob> {
     const response = await fetch(`/api/github/media?${new URLSearchParams({ path: article.path, ref: article.ref, commit: article.commit, name })}`, { credentials: 'same-origin' })
     if (!response.ok) throw new GithubApiError(response.status, (await response.json()).error || '读取图片失败')

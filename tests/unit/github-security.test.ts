@@ -50,8 +50,18 @@ describe('GitHub backend security boundaries', () => {
     const fetcher = vi.fn()
     const anonymous = await handleGithubRequest(new Request(`${config.origin}/api/github/list`), env, fetcher)
     expect(anonymous.status).toBe(401)
-    const denied = await handleGithubRequest(new Request(`${config.origin}/api/github/save`, { method: 'POST', headers: { cookie: sessionCookie(), origin: 'https://evil.example', 'x-ipost-csrf': 'test-csrf' }, body: '{}' }), env, fetcher)
-    expect(denied.status).toBe(403)
+    for (const action of ['save', 'delete']) {
+      const url = `${config.origin}/api/github/${action}`
+      expect((await handleGithubRequest(new Request(url), env, fetcher)).status).toBe(405)
+      for (const [headers, status] of [
+        [{}, 401],
+        [{ cookie: sessionCookie(), origin: 'https://evil.example', 'x-ipost-csrf': 'test-csrf' }, 403],
+        [{ cookie: sessionCookie(), origin: config.origin }, 403],
+      ] as const) {
+        const denied = await handleGithubRequest(new Request(url, { method: 'POST', headers, body: '{}' }), env, fetcher)
+        expect(denied.status).toBe(status)
+      }
+    }
     expect(fetcher).not.toHaveBeenCalled()
   })
   it('uses OAuth state + PKCE and rejects a forged callback without token exchange', async () => {

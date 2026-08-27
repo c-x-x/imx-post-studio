@@ -29,16 +29,17 @@ test('both new-article decisions reset the real editor and preserve only saved d
   await expect(editor).toHaveText('第一篇正文')
 })
 
-test('works → pending → failed/successful push preserves then deletes the actual draft', { tag: '@critical' }, async ({ page }) => {
+test('works → pending → push and confirmed remote deletion preserve the correct drafts', { tag: '@critical' }, async ({ page }) => {
   let source = '+++\ntitle = "Remote article"\ndate = "2026-08-27T10:00:00+08:00"\ndescription = "Article summary"\ndraft = false\n+++\nOriginal body'
   let revision = 'a'.repeat(40)
   let failPush = true
   let pushed = 0
+  let deleted = 0
   await page.route('**/api/github/**', async (route) => {
     const action = new URL(route.request().url()).pathname.split('/').at(-1)
     let json: unknown
     if (action === 'session') json = { configured: true, user: { id: 123, login: 'owner' }, csrf: 'test', repository: { name: 'owner/blog', branch: 'main', contentRoot: 'content/posts' } }
-    else if (action === 'list') json = { commit: revision, articles: [{ path: 'content/posts/remote/index.md', slug: 'remote' }] }
+    else if (action === 'list') json = { commit: revision, articles: deleted ? [] : [{ path: 'content/posts/remote/index.md', slug: 'remote' }] }
     else if (action === 'article') json = { path: 'content/posts/remote/index.md', ref: 'main', commit: revision, images: [], source }
     else if (action === 'save') {
       const input = route.request().postDataJSON()
@@ -48,6 +49,13 @@ test('works → pending → failed/successful push preserves then deletes the ac
       source = input.source
       revision = 'b'.repeat(40)
       pushed += 1
+      json = { ref: 'main', commit: revision, url: 'https://github.com/owner/blog/commit/' + revision }
+    } else if (action === 'delete') {
+      expect(route.request().method()).toBe('POST')
+      expect(route.request().headers()['x-ipost-csrf']).toBe('test')
+      expect(route.request().postDataJSON()).toMatchObject({ path: 'content/posts/remote/index.md', ref: 'main', commit: revision })
+      deleted += 1
+      revision = 'c'.repeat(40)
       json = { ref: 'main', commit: revision, url: 'https://github.com/owner/blog/commit/' + revision }
     } else throw new Error('Unexpected GitHub API: ' + action)
     await route.fulfill({ json })
@@ -82,5 +90,30 @@ test('works → pending → failed/successful push preserves then deletes the ac
   await expect(page.locator('.draft-list li')).toHaveCount(0)
   await navigate(page, '作品')
   await page.getByRole('button', { name: '读取并编辑' }).click()
+  await expect(editor).toHaveText('Updated body')
+  await navigate(page, '作品')
+  const remove = page.getByRole('button', { name: '删除', exact: true })
+  await remove.click()
+  const confirmation = page.getByRole('dialog', { name: '删除作品？' })
+  await expect(confirmation).toContainText('封面、正文图片及目录内附件')
+  await expect(confirmation.getByRole('button', { name: '取消' })).toBeFocused()
+  await confirmation.getByRole('button', { name: '取消' }).click()
+  await expect(remove).toBeFocused()
+  expect(deleted).toBe(0)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await remove.click()
+  const bounds = await confirmation.boundingBox()
+  expect(bounds!.x).toBeGreaterThanOrEqual(0)
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390)
+  expect(bounds!.y).toBeGreaterThanOrEqual(0)
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(844)
+  await confirmation.getByRole('button', { name: '确认删除作品' }).click()
+  await expect(confirmation).toHaveCount(0)
+  await expect(page.getByRole('region', { name: 'GitHub 文章列表' }).getByRole('listitem')).toHaveCount(0)
+  expect(deleted).toBe(1)
+  await navigate(page, '草稿')
+  await expect(pending.getByRole('listitem')).toHaveCount(1)
+  await pending.getByRole('button', { name: '打开', exact: true }).click()
+  await page.getByRole('tab', { name: '写作', exact: true }).click()
   await expect(editor).toHaveText('Updated body')
 })

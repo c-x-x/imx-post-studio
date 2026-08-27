@@ -43,6 +43,13 @@ export interface GithubSaveResult {
   url: string
 }
 
+export interface GithubDeleteInput {
+  path: string
+  ref: string
+  commit: string
+  requestId: string
+}
+
 // Conservative sizes also work on deployments with a 4.5 MB function payload cap.
 export const GITHUB_IMAGE_LIMIT = 2 * 1024 * 1024
 export const GITHUB_SOURCE_LIMIT = 512 * 1024

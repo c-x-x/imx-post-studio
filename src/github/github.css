@@ -10,6 +10,11 @@
 .github-articles ul { padding: 0; list-style: none; max-height: 35dvh; overflow-y: auto; }
 .github-articles li { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid var(--imx-line); padding: 10px 0; }
 .github-articles li span { flex: 1; min-width: 150px; }
+.github-article-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.github-dialog button.github-danger { color: var(--imx-danger-strong); border-color: var(--imx-danger); background: var(--imx-danger-bg); }
+.github-dialog button.github-danger:hover:not(:disabled) { background: color-mix(in srgb, var(--imx-danger) 18%, var(--imx-control-soft)); }
+.github-delete-dialog { max-width: 580px; box-sizing: border-box; }
+.github-delete-warning { padding: 12px 16px; border-radius: 16px; color: var(--imx-danger-strong); background: var(--imx-danger-bg); }
 .github-confirm { padding: 16px; border: 1px solid var(--imx-line); border-radius: 18px; margin-top: 12px; }
 .github-confirm pre { max-height: 220px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .75rem; }
 .github-note { color: var(--imx-ink-secondary); }

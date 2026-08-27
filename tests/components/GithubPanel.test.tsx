@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import GithubPanel from '../../src/github/GithubPanel'
 import { githubApi, GithubApiError } from '../../src/github/api'
@@ -9,10 +9,10 @@ import { createArticleDraft } from '../../src/metadata/article'
 
 vi.mock('../../src/github/api', async (original) => {
   const actual = await original<typeof import('../../src/github/api')>()
-  return { ...actual, githubApi: { session: vi.fn(), list: vi.fn(), article: vi.fn(), image: vi.fn(), save: vi.fn(), logout: vi.fn() } }
+  return { ...actual, githubApi: { session: vi.fn(), list: vi.fn(), article: vi.fn(), image: vi.fn(), save: vi.fn(), deleteArticle: vi.fn(), logout: vi.fn() } }
 })
 vi.mock('../../src/github/origins', () => ({ githubOrigins: { get: vi.fn(), set: vi.fn(), delete: vi.fn(), list: vi.fn() } }))
-vi.mock('../../src/drafts/repository', () => ({ draftRepository: { put: vi.fn(), get: vi.fn() } }))
+vi.mock('../../src/drafts/repository', () => ({ draftRepository: { put: vi.fn(), get: vi.fn(), delete: vi.fn() } }))
 
 const repository = { name: 'owner/blog', branch: 'main', contentRoot: 'content/posts' }
 const article = { path: 'content/posts/example/index.md', ref: 'main', commit: 'a'.repeat(40), images: [], source: '+++\ntitle = "Example"\ndate = "2026-08-26T12:00:00+08:00"\ndraft = false\n+++\nOriginal' }
@@ -90,6 +90,58 @@ describe('optional GitHub workspace', () => {
     await userEvent.click(await screen.findByRole('button', { name: '读取并编辑' }))
     await waitFor(() => expect(onOpen).toHaveBeenCalledWith(draft))
     expect(githubApi.article).not.toHaveBeenCalled()
+    expect(draftRepository.put).not.toHaveBeenCalled()
+  })
+
+  it('warns before deletion, defaults to cancel and restores focus without deleting', async () => {
+    render(<GithubPanel mode="works" draft={createArticleDraft()} onOpen={vi.fn()} onClose={vi.fn()} returnFocus={() => null} />)
+    const trigger = await screen.findByRole('button', { name: '删除' })
+    await waitFor(() => expect(trigger).toBeEnabled())
+    await userEvent.click(trigger)
+    const dialog = screen.getByRole('dialog', { name: '删除作品？' })
+    expect(dialog).toHaveTextContent('owner/blog · main')
+    expect(dialog).toHaveTextContent('content/posts/example/')
+    expect(dialog).toHaveTextContent('Markdown、封面、正文图片及目录内附件')
+    expect(dialog).toHaveTextContent('本地草稿和待提交修改会保留')
+    const cancel = within(dialog).getByRole('button', { name: '取消' })
+    expect(cancel).toHaveFocus()
+    await userEvent.click(cancel)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+    expect(screen.getByRole('listitem', { name: 'example' })).toBeInTheDocument()
+    expect(githubApi.deleteArticle).not.toHaveBeenCalled()
+  })
+
+  it('keeps a failed deletion visible and retries without duplicate requests or deleting local drafts', async () => {
+    const result = { ref: 'main', commit: 'b'.repeat(40), url: 'https://github.com/owner/blog/commit/b' }
+    let finish: (value: typeof result) => void = () => undefined
+    vi.mocked(githubApi.deleteArticle)
+      .mockRejectedValueOnce(new GithubApiError(409, '远端已更新，请取消并刷新作品'))
+      .mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    render(<GithubPanel mode="works" draft={createArticleDraft()} onOpen={vi.fn()} onClose={vi.fn()} returnFocus={() => null} />)
+    const trigger = await screen.findByRole('button', { name: '删除' })
+    await waitFor(() => expect(trigger).toBeEnabled())
+    await userEvent.click(trigger)
+    await userEvent.click(screen.getByRole('button', { name: '确认删除作品' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('远端已更新')
+    expect(screen.getByRole('listitem', { name: 'example' })).toBeInTheDocument()
+    const firstRequest = vi.mocked(githubApi.deleteArticle).mock.calls[0][0]
+    expect(firstRequest).toEqual({ path: article.path, ref: 'main', commit: article.commit, requestId: expect.any(String) })
+    expect(githubApi.deleteArticle).toHaveBeenCalledWith(firstRequest, 'csrf')
+    await userEvent.dblClick(screen.getByRole('button', { name: '确认删除作品' }))
+    expect(screen.getByRole('button', { name: '正在删除…' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '取消' })).toBeDisabled()
+    await userEvent.keyboard('{Escape}')
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(githubApi.deleteArticle).toHaveBeenCalledTimes(2)
+    expect(githubApi.deleteArticle).toHaveBeenLastCalledWith(firstRequest, 'csrf')
+    finish(result)
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.queryByRole('listitem', { name: 'example' })).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('已从 main 删除作品“example”')
+    expect(screen.getByRole('region', { name: '作品' })).toHaveFocus()
+    expect(draftRepository.delete).not.toHaveBeenCalled()
+    expect(githubOrigins.delete).not.toHaveBeenCalled()
     expect(draftRepository.put).not.toHaveBeenCalled()
   })
 })

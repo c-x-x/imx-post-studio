@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { saveArticle, uploadImage } from '../../server/github/repository'
+import { deleteArticle, saveArticle, uploadImage } from '../../server/github/repository'
 import { GithubError, readConfig } from '../../server/github/security'
 import type { GithubClient } from '../../server/github/client'
-import type { GithubSaveInput } from '../../src/github/contracts'
+import type { GithubDeleteInput, GithubSaveInput } from '../../src/github/contracts'
 import { createPngBuffer } from '../helpers/test-images'
 
 const config = readConfig({ GITHUB_ENABLED: 'true', GITHUB_SITE_ORIGIN: 'https://studio.example.com', GITHUB_REPOSITORY: 'owner/blog', GITHUB_ALLOWED_USER_ID: '123', GITHUB_CLIENT_ID: 'test', GITHUB_CLIENT_SECRET: 'test', GITHUB_SESSION_SECRET: 'a1'.repeat(32) })!
@@ -13,7 +13,7 @@ const nextTree = 'd'.repeat(40)
 const input = (): GithubSaveInput => ({ mode: 'direct', create: true, path: 'content/posts/article/index.md', ref: 'main', commit: original, requestId: crypto.randomUUID(),
   source: '+++\ntitle = "Article"\ndate = "2026-08-26T12:00:00+08:00"\ndescription = "Article summary"\ndraft = false\n+++\nHello', images: [] })
 
-function fakeGithub(options: { head?: string; entries?: unknown[]; closed?: boolean } = {}) {
+function fakeGithub(options: { head?: string; entries?: readonly unknown[]; closed?: boolean; truncated?: boolean } = {}) {
   const refs = new Map<string, string>([['main', options.head || original]])
   const commits = new Map<string, { sha: string; tree: { sha: string }; message: string }>([[original, { sha: original, tree: { sha: treeSha }, message: 'original' }]])
   const pulls: { html_url: string; state: string; merged_at: null; head: { ref: string }; base: { ref: string } }[] = []
@@ -26,7 +26,7 @@ function fakeGithub(options: { head?: string; entries?: unknown[]; closed?: bool
       return { object: { sha } }
     }
     if (method === 'GET' && path.includes('/git/commits/')) return commits.get(path.split('/').at(-1)!)
-    if (method === 'GET' && path.includes('/git/trees/')) return { truncated: false, tree: options.entries ?? [] }
+    if (method === 'GET' && path.includes('/git/trees/')) return { truncated: options.truncated ?? false, tree: options.entries ?? [] }
     if (method === 'POST' && path.endsWith('/git/trees')) return { sha: nextTree }
     if (method === 'POST' && path.endsWith('/git/commits')) { commits.set(nextCommit, { sha: nextCommit, tree: { sha: nextTree }, message: data!.message }); return { sha: nextCommit } }
     if (method === 'POST' && path.endsWith('/git/refs')) { refs.set(data!.ref.replace('refs/heads/', ''), data!.sha); return {} }
@@ -123,6 +123,63 @@ describe('GitHub atomic content writes', () => {
       return fake.client(path, method, body)
     }
     await expect(saveArticle(config, client, input())).rejects.toMatchObject({ status: 409 })
+    expect(fake.refs.get('main')).toBe(original)
+  })
+
+  it('deletes only the selected bundle atomically and safely retries a lost response', async () => {
+    const request: GithubDeleteInput = { path: input().path, ref: 'main', commit: original, requestId: crypto.randomUUID() }
+    const fake = fakeGithub({ entries: [
+      { path: 'content/posts/article', mode: '040000', type: 'tree', sha: treeSha },
+      { path: request.path, mode: '100644', type: 'blob', sha: original },
+      { path: 'content/posts/article/images/cover.webp', mode: '100644', type: 'blob', sha: original },
+      { path: 'content/posts/article/attachment.pdf', mode: '100644', type: 'blob', sha: original },
+      { path: 'content/posts/article-other/index.md', mode: '100644', type: 'blob', sha: original },
+    ] })
+    const result = await deleteArticle(config, fake.client, request)
+    expect(result).toEqual({ ref: 'main', commit: nextCommit, url: `https://github.com/owner/blog/commit/${nextCommit}` })
+    expect(fake.mock.mock.calls.find(([path, method]) => path.endsWith('/git/trees') && method === 'POST')?.[2]).toEqual({
+      base_tree: treeSha, tree: [{ path: 'content/posts/article', mode: '040000', type: 'tree', sha: null }],
+    })
+    expect(fake.mock.mock.calls.find(([, method]) => method === 'PATCH')?.[2]).toEqual({ sha: nextCommit, force: false })
+    expect(await deleteArticle(config, fake.client, request)).toEqual(result)
+    expect(fake.mock.mock.calls.filter(([path, method]) => path.endsWith('/git/commits') && method === 'POST')).toHaveLength(1)
+    // A different article/base must not be mistaken for the completed delete.
+    await expect(deleteArticle(config, fake.client, { ...request, path: 'content/posts/article-other/index.md' })).rejects.toMatchObject({ status: 409 })
+  })
+
+  it('rejects invalid delete targets, stale/incomplete snapshots and non-directory ancestors without writes', async () => {
+    const request: GithubDeleteInput = { path: input().path, ref: 'main', commit: original, requestId: crypto.randomUUID() }
+    const fake = fakeGithub()
+    for (const invalid of [{ path: 'content/posts' }, { path: 'content/posts/../index.md' }, { ref: 'other' }, { commit: 'bad' }, { requestId: '' }]) {
+      await expect(deleteArticle(config, fake.client, { ...request, ...invalid })).rejects.toMatchObject({ status: 400 })
+    }
+    expect(fake.mock).not.toHaveBeenCalled()
+    const entries = [
+      { path: 'content/posts/article', mode: '040000', type: 'tree', sha: treeSha },
+      { path: request.path, mode: '100644', type: 'blob', sha: original },
+    ]
+    for (const [options, status] of [
+      [{ head: 'e'.repeat(40) }, 409],
+      [{ entries: [] }, 404],
+      [{ entries, truncated: true }, 413],
+      [{ entries: [...entries, { path: 'content/posts', mode: '120000', type: 'blob', sha: original }] }, 400],
+    ] as const) {
+      const denied = fakeGithub(options)
+      await expect(deleteArticle(config, denied.client, request)).rejects.toMatchObject({ status })
+      expect(denied.mock.mock.calls.every(([, method]) => !method || method === 'GET')).toBe(true)
+    }
+  })
+
+  it('does not delete when the branch changes during confirmation/commit', async () => {
+    const fake = fakeGithub({ entries: [
+      { path: 'content/posts/article', mode: '040000', type: 'tree', sha: treeSha },
+      { path: input().path, mode: '100644', type: 'blob', sha: original },
+    ] })
+    const client: GithubClient = async (path, method, body) => {
+      if (method === 'PATCH') throw new GithubError(422, 'not a fast forward')
+      return fake.client(path, method, body)
+    }
+    await expect(deleteArticle(config, client, input())).rejects.toMatchObject({ status: 409 })
     expect(fake.refs.get('main')).toBe(original)
   })
 })
