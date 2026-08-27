@@ -1,6 +1,6 @@
-import type { MediaAsset, MediaMime } from '../metadata/article'
-import { safeMediaName } from '../media/names'
-import { MAX_SOURCE_BYTES } from '../shared/limits'
+import type { MediaAsset, MediaMime } from '../metadata/article.js'
+import { safeMediaName } from '../media/names.js'
+import { MAX_SOURCE_BYTES } from '../shared/limits.js'
 
 const MIME_BY_EXTENSION: Record<string, MediaMime> = {
   jpg: 'image/jpeg',

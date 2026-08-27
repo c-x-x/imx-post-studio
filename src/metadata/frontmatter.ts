@@ -1,6 +1,6 @@
 import { parse, TomlDate } from 'smol-toml'
-import type { ArticleDraft, ArticleMeta } from './article'
-import { validateSlug } from './slug'
+import type { ArticleDraft, ArticleMeta } from './article.js'
+import { validateSlug } from './slug.js'
 
 export interface ParsedArticle {
   meta: ArticleMeta

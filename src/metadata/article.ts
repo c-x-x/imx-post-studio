@@ -1,4 +1,4 @@
-import { validateSlug } from './slug'
+import { validateSlug } from './slug.js'
 
 export type MediaMime = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
 export type MediaKind = 'cover' | 'body'

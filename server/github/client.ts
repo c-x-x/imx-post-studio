@@ -1,4 +1,4 @@
-import { GithubError, type GithubConfig } from './security'
+import { GithubError, type GithubConfig } from './security.js'
 
 export type Fetcher = typeof fetch
 

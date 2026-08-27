@@ -2,8 +2,8 @@ import { unified } from 'unified'
 import remarkParse from 'remark-parse'
 import { visit } from 'unist-util-visit'
 import type { Definition, Image, ImageReference, Root } from 'mdast'
-import type { MediaAsset } from '../metadata/article'
-import { safeMediaName } from './names'
+import type { MediaAsset } from '../metadata/article.js'
+import { safeMediaName } from './names.js'
 
 function normalizedIdentifier(identifier: string): string {
   return identifier.trim().replace(/\s+/g, ' ').toLowerCase()

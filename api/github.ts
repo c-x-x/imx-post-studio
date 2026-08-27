@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { handleGithubRequest } from '../server/github/handler'
+import { handleGithubRequest } from '../server/github/handler.js'
 
 // Node handler works with Vercel's Vite integration and the local Vite bridge.
 export default async function handler(request: IncomingMessage & { body?: unknown }, response: ServerResponse) {

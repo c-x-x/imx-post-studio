@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto'
-import { assertImageBytes, assertSafeImageName } from '../../src/bundles/media-validation'
-import { assertCompleteArticleMeta } from '../../src/metadata/article'
-import { parseArticle } from '../../src/metadata/frontmatter'
-import { validateMediaReferences } from '../../src/media/references'
-import { GITHUB_IMAGE_COUNT, GITHUB_IMAGE_LIMIT, GITHUB_SOURCE_LIMIT, type GithubArticle, type GithubSaveInput, type GithubSaveResult } from '../../src/github/contracts'
-import { encodePath, repositoryApi, type GithubClient } from './client'
-import { assertArticlePath, assertRef, assertSha, GithubError, seal, unseal, type GithubConfig } from './security'
+import { assertImageBytes, assertSafeImageName } from '../../src/bundles/media-validation.js'
+import { assertCompleteArticleMeta } from '../../src/metadata/article.js'
+import { parseArticle } from '../../src/metadata/frontmatter.js'
+import { validateMediaReferences } from '../../src/media/references.js'
+import { GITHUB_IMAGE_COUNT, GITHUB_IMAGE_LIMIT, GITHUB_SOURCE_LIMIT, type GithubArticle, type GithubSaveInput, type GithubSaveResult } from '../../src/github/contracts.js'
+import { encodePath, repositoryApi, type GithubClient } from './client.js'
+import { assertArticlePath, assertRef, assertSha, GithubError, seal, unseal, type GithubConfig } from './security.js'
 
 interface TreeEntry { path: string; mode: string; type: string; sha: string; size?: number }
 interface Commit { sha: string; tree: { sha: string }; message: string }

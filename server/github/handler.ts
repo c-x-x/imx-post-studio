@@ -1,8 +1,8 @@
 import { createHash, randomBytes } from 'node:crypto'
-import { githubClient, repositoryApi, type Fetcher } from './client'
-import { listArticles, readArticle, readImage, saveArticle, uploadImage } from './repository'
-import { assertMutation, cookie, cookieName, equalSecret, GithubError, readConfig, readCookie, seal, sessionFor, unseal, type GithubConfig, type LoginSession } from './security'
-import type { GithubSaveInput } from '../../src/github/contracts'
+import { githubClient, repositoryApi, type Fetcher } from './client.js'
+import { listArticles, readArticle, readImage, saveArticle, uploadImage } from './repository.js'
+import { assertMutation, cookie, cookieName, equalSecret, GithubError, readConfig, readCookie, seal, sessionFor, unseal, type GithubConfig, type LoginSession } from './security.js'
+import type { GithubSaveInput } from '../../src/github/contracts.js'
 
 const responseHeaders = { 'Cache-Control': 'no-store, private', 'Vary': 'Cookie, Origin', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' }
 const json = (data: unknown, status = 200) => Response.json(data, { status, headers: responseHeaders })
