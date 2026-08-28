@@ -92,6 +92,7 @@ body {
 .home-hero,
 .home-section,
 .workspace-panel,
+.workspace-actions,
 .draft-dashboard,
 .confirm-dialog,
 .crop-dialog {
@@ -101,6 +102,7 @@ body {
 .home-hero,
 .home-section,
 .workspace-panel,
+.workspace-actions,
 .draft-dashboard {
   box-shadow: var(--imx-shadow-sm);
 }
@@ -138,10 +140,37 @@ body {
   font-family: var(--imx-font-mono);
 }
 
-.home-primary,
-.article-actions .article-save,
 .dialog-actions button:last-child {
   background: var(--imx-primary-bg);
+}
+
+/* Action buttons share a neutral idle state; Dock/tab sliders remain separate. */
+:is(.home-actions, .article-actions, .editor-toolbar, .bundle-actions, .media-list) button,
+.file-button {
+  border-color: var(--imx-line);
+  color: var(--imx-ink-secondary);
+  background: transparent;
+  box-shadow: none;
+  transition: border-color .18s ease, color .18s ease, box-shadow .18s ease;
+}
+
+:is(.home-actions, .article-actions, .editor-toolbar, .bundle-actions, .media-list) button:is(:focus-visible, :active, [aria-pressed='true']):not(:disabled),
+.file-button:focus-within:not(:has(input:disabled)) {
+  border-color: var(--imx-accent);
+  color: var(--imx-primary-ink);
+  background: var(--imx-primary-bg);
+  box-shadow: inset 0 1px 0 var(--imx-inset-highlight);
+}
+
+@media (hover: hover) {
+  :is(.home-actions, .article-actions, .editor-toolbar, .bundle-actions, .media-list) button:hover:not(:disabled),
+  .file-button:hover:not(:has(input:disabled)) {
+    border-color: var(--imx-accent);
+    color: var(--imx-primary-ink);
+    background: var(--imx-primary-bg);
+    box-shadow: inset 0 1px 0 var(--imx-inset-highlight);
+    transform: none;
+  }
 }
 
 @media (max-width: 720px) {
@@ -152,6 +181,7 @@ body {
   .home-hero,
   .home-section,
   .workspace-panel,
+  .workspace-actions,
   .draft-dashboard {
     border-radius: 20px;
   }

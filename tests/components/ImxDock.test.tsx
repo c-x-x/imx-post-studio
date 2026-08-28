@@ -1,15 +1,12 @@
-import { createRef } from 'react'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ImxDock } from '../../src/app/ImxDock'
 
-function props(view: 'home' | 'dashboard' | 'workspace' = 'workspace') {
+function props(view: 'home' | 'dashboard' | 'workspace' | 'works' = 'workspace') {
   return {
     view,
     disabled: false,
-    previewTrigger: createRef<HTMLButtonElement>(),
-    onPreview: vi.fn(),
     onHome: vi.fn(),
     onArticle: vi.fn(),
     onDashboard: vi.fn(),
@@ -29,21 +26,21 @@ describe('IMX Studio Dock', () => {
 
     expect(screen.getByRole('navigation', { name: 'Studio 导航' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'IMX Post Studio' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'IPS，返回首页' })).toHaveTextContent('IPS')
-    await user.click(screen.getByRole('button', { name: 'IPS，返回首页' }))
+    expect(screen.getByRole('button', { name: 'IPOST，返回首页' })).toHaveTextContent('IPOST')
+    await user.click(screen.getByRole('button', { name: 'IPOST，返回首页' }))
     expect(screen.getByRole('button', { name: '草稿' })).toHaveAttribute('aria-current', 'false')
-    await user.click(screen.getByRole('button', { name: '预览文章' }))
+    await user.click(screen.getByRole('button', { name: '切换到深色主题' }))
     await user.click(screen.getByRole('button', { name: '首页' }))
     await user.click(screen.getByRole('button', { name: '写作' }))
     await user.click(screen.getByRole('button', { name: '草稿' }))
 
-    expect(callbacks.onPreview).toHaveBeenCalledOnce()
+    expect(callbacks.onToggleTheme).toHaveBeenCalledOnce()
     expect(callbacks.onHome).toHaveBeenCalledTimes(2)
     expect(callbacks.onArticle).toHaveBeenCalledOnce()
     expect(callbacks.onDashboard).toHaveBeenCalledOnce()
   })
 
-  it('shows a functional theme toggle outside the workspace and omits preview', async () => {
+  it('shows a functional theme toggle on every view and omits preview', async () => {
     const user = userEvent.setup()
     const callbacks = props('dashboard')
     const dock = render(<ImxDock {...callbacks} />)
@@ -53,8 +50,11 @@ describe('IMX Studio Dock', () => {
     await user.click(screen.getByRole('button', { name: '切换到深色主题' }))
     expect(callbacks.onToggleTheme).toHaveBeenCalledOnce()
 
-    dock.rerender(<ImxDock {...props('workspace')} />)
-    expect(screen.queryByRole('button', { name: /切换到.*主题/ })).not.toBeInTheDocument()
+    for (const view of ['home', 'workspace', 'works'] as const) {
+      dock.rerender(<ImxDock {...props(view)} />)
+      expect(screen.getByRole('button', { name: '切换到深色主题' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: '预览文章' })).not.toBeInTheDocument()
+    }
   })
 
   it('marks the home and article actions current for their views', () => {

@@ -147,7 +147,7 @@ describe('workspace transitions', () => {
     fireEvent.change(screen.getByLabelText('标题'), { target: { value: 'Logo 返回后保留' } })
     put.mockClear()
 
-    fireEvent.click(screen.getByRole('button', { name: 'IPS，返回首页' }))
+    fireEvent.click(screen.getByRole('button', { name: 'IPOST，返回首页' }))
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(put).not.toHaveBeenCalled()
@@ -265,7 +265,7 @@ describe('workspace transitions', () => {
 
     expect(screen.getByRole('button', { name: '新建文章' })).toBeDisabled()
     expect(screen.getByRole('button', { name: '草稿' })).toBeDisabled()
-    expect(screen.getByLabelText('导入 ZIP')).toBeDisabled()
+    expect(screen.getByLabelText('导入文章包')).toBeDisabled()
     await act(async () => { resolveRead?.(png.buffer) })
   })
 
@@ -294,7 +294,7 @@ describe('workspace transitions', () => {
     render(<App />)
     await startWorkspace()
     fireEvent.change(screen.getByLabelText('标题'), { target: { value: '导入前文章' } })
-    const trigger = screen.getByLabelText('导入紧急恢复 ZIP')
+    const trigger = screen.getByLabelText('紧急恢复')
     const recovery = await fileFromBlob(await exportRecoveryBundle(createArticleDraft()), 'recovery.zip')
     fireEvent.change(trigger, { target: { files: [recovery] } })
     await screen.findByRole('dialog', { name: '导入已验证' })

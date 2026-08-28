@@ -1,7 +1,7 @@
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react'
-import type { Editor } from '@tiptap/core'
+import { getMarkRange, type Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from '@tiptap/markdown'
 import { TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
@@ -17,6 +17,8 @@ import { extractEditorOutline } from './outline'
 import { clipboardImages, type PastedImageRequest } from './paste'
 import { RawMarkdownBlock, RawMarkdownInline, SafeCodeBlock, SafeTable } from './markdown-extensions'
 import { TableDialog } from './TableDialog'
+import { LinkDialog } from './LinkDialog'
+import { DeferredMarkdown, editorMarkdown, hasPendingMarkdown } from './deferred-markdown'
 import type { SourceMarkdownEditorHandle } from './SourceMarkdownEditor'
 import './editor.css'
 
@@ -35,6 +37,9 @@ interface MarkdownEditorProps {
   onChange: (value: string) => void
   media: MediaAsset[]
   status?: string
+  statusTone?: 'info' | 'pending' | 'success' | 'error'
+  toolbarTarget?: HTMLElement | null
+  onFormatApplied?: () => void
   preparePastedImages?: (request: PastedImageRequest) => Promise<MediaAsset[]>
   onCommitPastedImages?: (assets: MediaAsset[], body: string) => void
   resolveMediaUrl?: (asset: MediaAsset) => string
@@ -247,6 +252,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   onChange,
   media,
   status,
+  statusTone = 'info',
+  toolbarTarget,
+  onFormatApplied,
   preparePastedImages,
   onCommitPastedImages,
   resolveMediaUrl,
@@ -254,6 +262,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 }, ref) {
   const sourceRef = useRef<SourceMarkdownEditorHandle>(null)
   const tableButtonRef = useRef<HTMLButtonElement>(null)
+  const linkButtonRef = useRef<HTMLButtonElement>(null)
   const latestValueRef = useRef(value)
   const emittedValueRef = useRef(value)
   const onChangeRef = useRef(onChange)
@@ -264,6 +273,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const richCompositionPendingRef = useRef(false)
   const [mode, setMode] = useState<EditorMode>('rich')
   const [tableDialogOpen, setTableDialogOpen] = useState(false)
+  const [linkDialog, setLinkDialog] = useState<{ from: number; to: number; href: string; text: string } | null>(null)
 
   useLayoutEffect(() => {
     if (!richComposingRef.current && !richCompositionPendingRef.current) latestValueRef.current = value
@@ -274,7 +284,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ codeBlock: false }),
+      StarterKit.configure({ codeBlock: false, link: { openOnClick: false, enableClickSelection: true } }),
       SafeCodeBlock.configure({ lowlight }),
       SafeTable.configure({ resizable: false }),
       TableRow,
@@ -286,7 +296,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       RawMarkdownBlock,
       RawMarkdownInline,
       Markdown,
+      DeferredMarkdown,
     ],
+    // Typed headings/inline syntax commit on leaving the line, not mid-input.
+    enableInputRules: ['codeBlock', 'horizontalRule'],
     content: value,
     contentType: 'markdown',
     editable: !disabled,
@@ -325,7 +338,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           if (files.length === 0 || !prepare || !commit) return false
           clipboardEvent.preventDefault()
           const currentEditor = richEditorRef.current
-          const current = currentEditor?.getMarkdown() ?? latestValueRef.current
+          const current = currentEditor ? editorMarkdown(currentEditor) : latestValueRef.current
           const selection = currentEditor?.state.selection
           const from = selection?.from ?? 1
           const to = selection?.to ?? from
@@ -341,7 +354,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                 ...(index < assets.length - 1 ? [{ type: 'hardBreak' }] : []),
               ])
               activeEditor.chain().focus().setTextSelection({ from: safeFrom, to: safeTo }).insertContent(content).run()
-              commit(assets, activeEditor.getMarkdown())
+              commit(assets, editorMarkdown(activeEditor))
             })
             .catch(() => undefined)
           return true
@@ -365,7 +378,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           window.requestAnimationFrame(() => {
             const activeEditor = richEditorRef.current
             if (!activeEditor || activeEditor.isDestroyed) return
-            const next = activeEditor.getMarkdown()
+            const next = editorMarkdown(activeEditor)
             emittedValueRef.current = next
             latestValueRef.current = next
             onChangeRef.current(next)
@@ -376,7 +389,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     },
     onUpdate({ editor: currentEditor }) {
       if (richComposingRef.current || (currentEditor.view as { composing?: boolean }).composing) return
-      const next = currentEditor.getMarkdown()
+      const next = editorMarkdown(currentEditor)
       emittedValueRef.current = next
       latestValueRef.current = next
       onChangeRef.current(next)
@@ -392,8 +405,19 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       codeBlock: Boolean(currentEditor?.isActive('codeBlock')),
       heading: Boolean(currentEditor?.isActive('heading', { level: 2 })),
       italic: Boolean(currentEditor?.isActive('italic')),
+      strike: Boolean(currentEditor?.isActive('strike')),
       link: Boolean(currentEditor?.isActive('link')),
       taskList: Boolean(currentEditor?.isActive('taskList')),
+      hint: !currentEditor ? ''
+        : hasPendingMarkdown(currentEditor) ? '标记暂留在当前段落；回车或移到其他段落后自动排版'
+        : currentEditor.isActive('codeBlock') ? '代码块：Tab 缩进，Shift + Tab 取消缩进；右下角可设置语言'
+        : currentEditor.isActive('table') ? '表格：Tab 切换单元格；浮动工具栏可增删行列、设置对齐'
+        : !currentEditor.state.selection.empty ? '已选中文字，可使用右侧排版工具或快捷键设置样式'
+        : currentEditor.isActive('heading') ? '标题已排版；在末尾回车继续写正文'
+        : currentEditor.isActive('taskList') ? '点击复选框切换完成状态；空任务回车可退出列表'
+        : currentEditor.isActive('bulletList') || currentEditor.isActive('orderedList') ? '回车继续列表；空条目再次回车可退出列表'
+        : currentEditor.isEmpty ? '从这里开始：## 标题、**加粗**、*斜体*、~~删除线~~'
+        : '可直接粘贴图片；文字自动折行，不会改变 Markdown 源码',
     }),
   })
 
@@ -417,7 +441,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       return
     }
     if (value === emittedValueRef.current) return
-    const current = editor.getMarkdown()
+    const current = editorMarkdown(editor)
     if (current === value) return
     editor.commands.setContent(value, { contentType: 'markdown', emitUpdate: false })
     emittedValueRef.current = value
@@ -464,6 +488,32 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const insertTable = ({ dataRows, columns }: MarkdownTableDimensions) => {
     if (!editor || disabled) return
     editor.chain().focus().insertTable({ rows: dataRows + 1, cols: columns, withHeaderRow: true }).run()
+    onFormatApplied?.()
+  }
+
+  const openLinkDialog = () => {
+    if (!editor || disabled || mode !== 'rich') return
+    const selection = editor.state.selection
+    const linkRange = selection.empty ? getMarkRange(selection.$from, editor.schema.marks.link) : undefined
+    const { from, to } = linkRange ?? selection
+    setLinkDialog({ from, to, href: String(editor.getAttributes('link').href ?? ''), text: editor.state.doc.textBetween(from, to, '\n') })
+  }
+
+  const applyLink = (href: string, text: string) => {
+    if (!editor || !linkDialog || disabled) return
+    const { from, to } = linkDialog
+    if (from < to && text === linkDialog.text) {
+      editor.chain().focus().setTextSelection({ from, to }).setLink({ href }).run()
+    } else {
+      editor.chain().focus().insertContentAt({ from, to }, { type: 'text', text, marks: [{ type: 'link', attrs: { href } }] }).run()
+    }
+    onFormatApplied?.()
+  }
+
+  const removeLink = () => {
+    if (!editor || !linkDialog || disabled) return
+    editor.chain().focus().setTextSelection({ from: linkDialog.from, to: linkDialog.to }).unsetLink().run()
+    onFormatApplied?.()
   }
 
   useImperativeHandle(ref, () => ({
@@ -493,24 +543,42 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     },
   }), [disabled, editor, mode])
 
-  return <>
-    <section className="markdown-editor" data-mode={mode} aria-label="Markdown 编辑">
-      <div className="editor-toolbar" role="toolbar" aria-label="Markdown 格式">
+  const toolbar = <div className="editor-toolbar" role="toolbar" aria-label="Markdown 格式" onClick={(event) => {
+    const button = (event.target as HTMLElement).closest('button')
+    if (button && button !== tableButtonRef.current && button !== linkButtonRef.current && !button.disabled) onFormatApplied?.()
+  }}>
+      <div className="editor-tool-group" role="group" aria-label="文字样式">
+        <h3>文字样式</h3>
         <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.bold)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleBold().run()}>加粗</button>
         <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.italic)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleItalic().run()}>斜体</button>
-        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.heading)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>标题</button>
-        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.bulletList)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleBulletList().run()}>列表</button>
-        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.taskList)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleTaskList().run()}>任务</button>
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.strike)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleStrike().run()}>删除线</button>
+      </div>
+      <div className="editor-tool-group" role="group" aria-label="段落结构">
+        <h3>段落结构</h3>
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.heading)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>二级标题</button>
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.bulletList)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleBulletList().run()}>无序列表</button>
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.taskList)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleTaskList().run()}>任务列表</button>
         <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.blockquote)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleBlockquote().run()}>引用</button>
-        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.codeBlock)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleCodeBlock().run()}>代码</button>
-        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.link)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => {
-          const href = window.prompt('请输入链接地址')
-          if (href) editor?.chain().focus().extendMarkRange('link').setLink({ href }).run()
-        }}>链接</button>
+      </div>
+      <div className="editor-tool-group" role="group" aria-label="插入内容">
+        <h3>插入内容</h3>
+        <button ref={linkButtonRef} type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.link)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={openLinkDialog}>链接</button>
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.codeBlock)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleCodeBlock().run()}>代码块</button>
         <button ref={tableButtonRef} type="button" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => setTableDialogOpen(true)}>表格</button>
-        <span className="editor-toolbar-spacer" aria-hidden="true" />
-        {status ? <p className="editor-save-status" role="status">{status}</p> : null}
+      </div>
+      <div className="editor-tool-group" role="group" aria-label="编辑模式">
+        <h3>编辑模式</h3>
         <button className="editor-mode-toggle" type="button" aria-pressed={mode === 'source'} disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={switchMode}>{mode === 'rich' ? '源代码' : '即时排版'}</button>
+      </div>
+      </div>
+
+  return <>
+    {toolbarTarget ? createPortal(toolbar, toolbarTarget) : null}
+    <section className="markdown-editor" data-mode={mode} aria-label="Markdown 编辑">
+      {toolbarTarget === undefined ? toolbar : null}
+      <div className="editor-status-bar">
+        {status ? <p className="editor-save-status" data-tone={statusTone} role="status">{status}</p> : null}
+        <p className="editor-context-hint">{mode === 'source' ? '源代码模式：保留所有 Markdown 标记，切回即时排版查看效果' : activeFormats?.hint}</p>
       </div>
       <div className="editor-scroll-region">
         {mode === 'rich'
@@ -536,5 +604,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       </div>
     </section>
     {tableDialogOpen && <TableDialog onClose={() => setTableDialogOpen(false)} onInsert={insertTable} returnFocus={() => tableButtonRef.current} />}
+    {linkDialog && <LinkDialog initialHref={linkDialog.href} initialText={linkDialog.text} onClose={() => setLinkDialog(null)} onApply={applyLink} onRemove={removeLink} returnFocus={() => linkButtonRef.current} />}
   </>
 })

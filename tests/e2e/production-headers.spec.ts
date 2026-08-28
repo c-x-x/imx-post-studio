@@ -175,7 +175,7 @@ test('exports a valid WebP cover under production CSP and forces the WASM fallba
   }
 
   const downloadPromise = page.waitForEvent('download')
-  await page.getByRole('button', { name: '导出草稿' }).click()
+  await page.getByRole('button', { name: '备份草稿' }).click()
   const coverBytes = await readZipEntry(await downloadPromise, 'production-csp-webp-fallback/images/cover.webp')
   expect(coverBytes.byteLength).toBeGreaterThan(12)
   expect(isWebp(coverBytes)).toBe(true)

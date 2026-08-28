@@ -1,6 +1,24 @@
 import { expect, test } from '@playwright/test'
 
-test('follows the system theme, persists a manual choice, and keeps the workspace action focused on preview', async ({ page }) => {
+test('renders the IPOST logo with continuous strokes after hovering', async ({ page }, testInfo) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await page.goto('/')
+  const brand = page.getByRole('button', { name: 'IPOST，返回首页' })
+  await brand.hover()
+  await expect(brand.locator('.imx-dock__logo')).toHaveCSS('opacity', '0')
+  const strokes = brand.locator('.imx-dock__logo-ink path')
+  await expect(strokes.last()).toHaveCSS('stroke-dashoffset', '0px')
+  expect(await strokes.evaluateAll((paths) => paths.every((path) =>
+    !path.hasAttribute('pathLength') &&
+    Number.parseFloat(getComputedStyle(path).strokeDasharray) > (path as SVGPathElement).getTotalLength(),
+  ))).toBe(true)
+  await brand.screenshot({ path: testInfo.outputPath('logo-hover.png') })
+  await page.mouse.move(700, 500)
+  await expect(brand.locator('.imx-dock__logo')).toHaveCSS('opacity', '0.92')
+  await expect(brand.locator('.imx-dock__logo-ink')).toHaveCSS('opacity', '0')
+})
+
+test('follows the system theme and keeps theme switching in the Dock on the workspace', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'dark' })
   await page.goto('/')
 
@@ -16,8 +34,8 @@ test('follows the system theme, persists a manual choice, and keeps the workspac
   await page.getByRole('button', { name: '切换到深色主题' }).click()
 
   await page.getByRole('button', { name: '写作', exact: true }).click()
-  await expect(page.getByRole('button', { name: /切换到.*主题/ })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: '预览文章' })).toBeVisible()
+  await expect(page.getByRole('navigation', { name: 'Studio 导航' }).getByRole('button', { name: '切换到浅色主题' })).toBeVisible()
+  await expect(page.locator('#panel-actions').getByRole('button', { name: '预览文章' })).toBeVisible()
 })
 
 test('warns on browser exit only until the current changes reach the draft library', async ({ page }) => {
@@ -85,11 +103,16 @@ test('collapses the action rail, expands the editor, and restores it independent
   const editor = page.locator('.workspace-editor')
   const initial = await editor.boundingBox()
   expect(initial).not.toBeNull()
-  await expect(actions.locator('.media-panel')).toBeVisible()
+  await expect(actions.locator('.media-panel')).toBeHidden()
   await expect(actions.locator('.bundle-actions')).toBeVisible()
   await expect(settings.getByLabel('选择封面')).toBeVisible()
   await expect(actions.getByLabel('选择封面')).toHaveCount(0)
+  await actions.getByRole('tab', { name: '排版' }).click()
   await expect(actions.getByLabel('添加正文图片')).toBeVisible()
+  await actions.getByRole('tab', { name: '文档' }).click()
+  for (const property of ['background-color', 'border-top-width', 'border-top-left-radius', 'box-shadow', 'padding-top']) {
+    await expect(actions).toHaveCSS(property, await settings.evaluate((element, name) => getComputedStyle(element).getPropertyValue(name), property))
+  }
   expect(await actions.evaluate((element) => getComputedStyle(element).scrollbarWidth)).toBe('none')
 
   await page.getByRole('button', { name: '折叠文章操作' }).click()
@@ -103,6 +126,21 @@ test('collapses the action rail, expands the editor, and restores it independent
   await page.getByRole('button', { name: '写作', exact: true }).click()
   await expect(page.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-actions-collapsed', 'true')
   await expect(page.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-inspector-collapsed', 'false')
+  for (const width of [1117, 390]) {
+    await page.setViewportSize({ width, height: 763 })
+    if (width > 1023) {
+      await page.getByRole('button', { name: '展开文章操作' }).click()
+    } else {
+      await page.getByRole('tab', { name: '工具', exact: true }).click()
+    }
+    await expect(actions).toBeVisible()
+    if (width > 1023) {
+      await expect.poll(async () => Math.abs((await actions.boundingBox())!.width - (await settings.boundingBox())!.width)).toBeLessThan(1)
+      await expect(actions.getByRole('tab', { name: '文档' })).toHaveCSS('white-space', 'nowrap')
+    }
+    await expect(actions).toHaveCSS('border-top-left-radius', await settings.evaluate((element) => getComputedStyle(element).borderTopLeftRadius))
+    await expect.poll(() => actions.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1)
+  }
 })
 
 test('synchronizes preview theme with the app and persists changes after closing', async ({ page }) => {
@@ -171,18 +209,94 @@ test('uses the compact IMX menu and existing workspace tabs on mobile without ov
   await expect(page.getByRole('tab', { name: '写作' })).toBeVisible()
   await expect(page.getByRole('button', { name: '折叠文章设置' })).toBeHidden()
   await expect(page.getByRole('button', { name: '折叠文章操作' })).toBeHidden()
-  await expect(page.getByRole('button', { name: '新建文章' })).toBeVisible()
-  await expect(page.getByRole('button', { name: '推送' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: '媒体' })).toBeVisible()
   await expect(page.locator('#panel-settings').getByRole('heading', { name: '文章封面' })).toBeVisible()
   await expect(page.locator('#panel-settings').getByLabel('选择封面')).toBeVisible()
+  await page.getByRole('tab', { name: '工具', exact: true }).click()
+  await expect(page.getByRole('button', { name: '新建文章' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '推送' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '导入文章包' })).toBeVisible()
+  await page.getByRole('tab', { name: '排版' }).click()
+  await expect(page.getByRole('heading', { name: '正文图片' })).toBeVisible()
   await expect(page.locator('#panel-actions').getByLabel('选择封面')).toHaveCount(0)
   await expect(page.locator('#panel-actions').getByLabel('添加正文图片')).toBeVisible()
-  await expect(page.getByRole('button', { name: '导入 ZIP' })).toBeVisible()
   await page.getByRole('tab', { name: '写作' }).click()
   await expect(page.locator('#panel-actions')).toBeHidden()
   await expect(page.locator('#panel-write')).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
+test('formats the selected text from the right sidebar without resetting the editor', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '写作', exact: true }).click()
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  const actions = page.locator('#panel-actions')
+  const status = page.locator('.editor-save-status')
+  await expect(status).toHaveCSS('text-align', 'center')
+  await expect(status).toHaveAttribute('data-tone', 'info')
+  const infoColor = await status.evaluate((element) => getComputedStyle(element).color)
+  await editor.fill('保留选区')
+  await expect(status).toHaveAttribute('data-tone', 'success')
+  expect(await status.evaluate((element) => getComputedStyle(element).color)).not.toBe(infoColor)
+  await editor.press('ControlOrMeta+a')
+  await actions.getByRole('tab', { name: '排版' }).click()
+  await expect(page.locator('#panel-write').getByRole('button')).toHaveCount(0)
+  await actions.getByRole('button', { name: '加粗', exact: true }).click()
+  await expect(editor.locator('strong')).toHaveText('保留选区')
+  await expect(actions.getByRole('button', { name: '加粗', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await editor.press('ControlOrMeta+z')
+  await expect(editor.locator('strong')).toHaveCount(0)
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole('tab', { name: '写作', exact: true }).click()
+  await expect(status).toHaveCSS('text-align', 'center')
+  await editor.press('ControlOrMeta+a')
+  await page.getByRole('tab', { name: '工具', exact: true }).click()
+  await expect(actions.getByRole('button', { name: '斜体' })).toBeVisible()
+  expect(await actions.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+  await actions.getByRole('button', { name: '斜体' }).click()
+  await expect(editor).toBeVisible()
+  await expect(editor.locator('em')).toHaveText('保留选区')
+  await page.getByRole('tab', { name: '工具', exact: true }).click()
+  await actions.getByRole('button', { name: '源代码' }).click()
+  await expect(page.locator('.cm-line').first()).toContainText('保留选区')
+  await page.getByRole('tab', { name: '工具', exact: true }).click()
+  await actions.getByRole('button', { name: '即时排版' }).click()
+  await expect(editor.locator('em')).toHaveText('保留选区')
+})
+
+test('inserts, edits and removes links from the sidebar on desktop and mobile', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '写作', exact: true }).click()
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await editor.fill('链接文字')
+  await editor.press('ControlOrMeta+a')
+  await page.getByRole('tab', { name: '排版', exact: true }).click()
+  const linkButton = page.getByRole('button', { name: '链接', exact: true })
+  await linkButton.click()
+  await expect(page.getByRole('dialog', { name: '插入链接' })).toBeVisible()
+  await expect(page.getByLabel('链接文字')).toHaveValue('链接文字')
+  await page.getByLabel('链接地址').fill('https://example.com')
+  await page.getByRole('button', { name: '插入链接', exact: true }).click()
+  await expect(editor.getByRole('link')).toHaveAttribute('href', 'https://example.com')
+  await editor.getByRole('link').click()
+  await linkButton.click()
+  await expect(page.getByRole('dialog', { name: '编辑链接' })).toBeVisible()
+  await page.getByLabel('链接地址').fill('https://example.com/changed')
+  await page.getByRole('button', { name: '保存链接' }).click()
+  await expect(editor.getByRole('link')).toHaveAttribute('href', 'https://example.com/changed')
+  await editor.press('ControlOrMeta+z')
+  await expect(editor.getByRole('link')).toHaveAttribute('href', 'https://example.com')
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole('tab', { name: '写作', exact: true }).click()
+  await editor.getByRole('link').click()
+  await page.getByRole('tab', { name: '工具', exact: true }).click()
+  await linkButton.click()
+  await expect(page.getByLabel('链接地址')).toHaveValue('https://example.com')
+  await page.getByRole('button', { name: '移除链接' }).click()
+  await expect(editor).toBeVisible()
+  await expect(editor.getByRole('link')).toHaveCount(0)
+  await expect(editor).toHaveText('链接文字')
 })
 
 test('keeps the preview table of contents controllable on desktop and mobile without navigating away', { tag: ['@critical', '@webkit-smoke'] }, async ({ page }) => {

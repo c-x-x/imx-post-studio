@@ -73,10 +73,13 @@ describe('article workspace', () => {
     expect(within(settings).getByRole('heading', { name: '文章封面' })).toBeInTheDocument()
     expect(within(settings).getByLabelText('选择封面')).toBeInTheDocument()
     expect(within(tools).getByRole('group', { name: '文章操作' })).toBeInTheDocument()
-    expect(within(tools).getByRole('heading', { name: '媒体' })).toBeInTheDocument()
+    expect(within(tools).getByRole('group', { name: '文章包操作' })).toBeInTheDocument()
+    expect(within(tools).queryByRole('heading', { name: '正文图片' })).not.toBeInTheDocument()
+    await user.click(within(tools).getByRole('tab', { name: '排版' }))
+    expect(within(tools).getByRole('heading', { name: '正文图片' })).toBeInTheDocument()
     expect(within(tools).queryByLabelText('选择封面')).not.toBeInTheDocument()
     expect(within(tools).getByLabelText('添加正文图片')).toBeInTheDocument()
-    expect(within(tools).getByRole('group', { name: '文章包操作' })).toBeInTheDocument()
+    expect(within(tools).queryByRole('group', { name: '文章包操作' })).not.toBeInTheDocument()
   })
 
   it('switches the left sidebar to a live outline and focuses the selected heading', async () => {
@@ -84,11 +87,12 @@ describe('article workspace', () => {
     render(<App />)
 
     await user.click(screen.getByRole('button', { name: '写作' }))
-    expect(screen.getByRole('tab', { name: '文章设置' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: '属性' })).toHaveAttribute('aria-selected', 'true')
 
     await user.click(screen.getByRole('tab', { name: '大纲' }))
     expect(screen.getByText('正文中暂无标题')).toBeInTheDocument()
 
+    await user.click(screen.getByRole('tab', { name: '排版' }))
     await user.click(screen.getByRole('button', { name: '源代码' }))
     const textbox = await screen.findByRole('textbox', { name: 'Markdown 编辑器' })
     const editor = EditorView.findFromDOM(textbox)
@@ -153,7 +157,7 @@ describe('article workspace', () => {
 
     await user.click(screen.getByRole('button', { name: '写作' }))
     const trigger = screen.getByRole('button', { name: '预览文章' })
-    expect(within(screen.getByRole('tablist', { name: '工作区视图' })).getAllByRole('tab')).toHaveLength(2)
+    expect(within(screen.getByRole('tablist', { name: '工作区视图' })).getAllByRole('tab')).toHaveLength(3)
     expect(screen.queryByTitle('IMX 文章预览')).not.toBeInTheDocument()
     expect(document.body).not.toHaveClass('preview-open')
 
@@ -175,11 +179,13 @@ describe('article workspace', () => {
     await user.click(screen.getByRole('button', { name: '写作' }))
 
     const png = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], '封面 图.PNG', { type: 'image/png' })
+    await user.click(screen.getByRole('tab', { name: '排版' }))
     await user.upload(screen.getByLabelText('添加正文图片'), png)
     expect(screen.getByRole('listitem', { name: /feng-mian-tu\.png/ })).toBeInTheDocument()
 
     await user.type(screen.getByLabelText('标题'), 'Exportable title')
     await user.type(screen.getByLabelText('Slug'), 'Invalid slug')
+    await user.click(screen.getByRole('tab', { name: '文档' }))
     const exportArea = screen.getByRole('group', { name: '文章包操作' })
     expect(within(exportArea).getByRole('button', { name: '导出文章' })).toBeDisabled()
     expect(within(exportArea).getByText('Slug 只能包含小写英文、数字和单个连字符')).toBeInTheDocument()

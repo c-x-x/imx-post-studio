@@ -102,8 +102,8 @@ export function MediaPanel({ draftId = 'default-draft', media, body, onAddBatch,
 
   const closeRemoval = () => setRemoval(undefined)
 
-  return <section ref={panelRef} className="media-panel" aria-label="媒体" tabIndex={-1}>
-    <h2>媒体</h2>
+  return <section ref={panelRef} className="media-panel" aria-label="正文图片" tabIndex={-1}>
+    <h2>正文图片</h2>
     <div className="media-actions" onDragOver={(event: DragEvent<HTMLDivElement>) => event.preventDefault()} onDrop={(event: DragEvent<HTMLDivElement>) => {
       event.preventDefault()
       queueFiles(Array.from(event.dataTransfer.files))

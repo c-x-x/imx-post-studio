@@ -116,22 +116,27 @@ export function BundleActions({ draft, onReplace, onNew, onStatus, onImportFocus
   }
 
   return <section className="bundle-actions" role="group" aria-label="文章包操作">
+    <h3>导入与导出</h3>
     <div className="bundle-row">
-      <label className="file-button">导入 ZIP<input disabled={disabled} ref={importTrigger} aria-label="导入 ZIP" type="file" accept="application/zip,.zip" onChange={(event) => {
+      <label className="file-button">导入文章包<input disabled={disabled} ref={importTrigger} aria-label="导入文章包" type="file" accept="application/zip,.zip" onChange={(event) => {
         const file = event.target.files?.[0]
         event.currentTarget.value = ''
         if (file) { pendingImportTrigger.current = event.currentTarget; void stageImport(() => importArticleBundle(file)) }
       }} /></label>
-      <label className="file-button">导入紧急恢复 ZIP<input disabled={disabled} ref={recoveryImportTrigger} aria-label="导入紧急恢复 ZIP" type="file" accept="application/zip,.zip" onChange={(event) => {
-        const file = event.target.files?.[0]
-        event.currentTarget.value = ''
-        if (file) { pendingImportTrigger.current = event.currentTarget; void stageImport(() => importRecoveryBundle(file)) }
-      }} /></label>
-      <button type="button" disabled={disabled} onClick={() => void exportDraft()}>导出草稿</button>
+      <button type="button" disabled={disabled} onClick={() => void exportDraft()}>备份草稿</button>
       <button ref={productionTrigger} type="button" disabled={disabled || Boolean(exportError)} aria-describedby={exportError ? 'production-export-error' : undefined} onClick={() => setProductionDialog(true)}>导出文章</button>
     </div>
+    <p className="sidebar-tool-hint">文章包为 ZIP，包含 Markdown 与图片；备份草稿无需填全属性。</p>
     {exportError ? <p id="production-export-error" className="field-error">{exportError}</p> : null}
+    <details className="advanced-import"><summary>其他导入方式</summary>
     <details className="loose-import"><summary>从 index.md 和图片导入</summary><label>index.md<input disabled={disabled} aria-label="导入 index.md" type="file" accept="text/markdown,.md" onChange={(event) => setLooseIndex(event.target.files?.[0])} /></label><label>图片<input disabled={disabled} aria-label="导入图片文件" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={(event) => setLooseImages(Array.from(event.target.files ?? []))} /></label><button type="button" disabled={disabled || !looseIndex} onClick={() => void stageImport(() => importLooseArticle(looseIndex!, looseImages))}>验证并导入文件</button></details>
+    <label className="file-button">紧急恢复<input disabled={disabled} ref={recoveryImportTrigger} aria-label="紧急恢复" type="file" accept="application/zip,.zip" onChange={(event) => {
+      const file = event.target.files?.[0]
+      event.currentTarget.value = ''
+      if (file) { pendingImportTrigger.current = event.currentTarget; void stageImport(() => importRecoveryBundle(file)) }
+    }} /></label>
+    <p className="sidebar-tool-hint">仅用于故障时下载的紧急恢复 ZIP；普通备份请使用“导入文章包”。</p>
+    </details>
     {error ? <p role="alert" className="field-error">{error}</p> : null}
     {pendingImport ? <AccessibleDialog title="导入已验证" onClose={() => setPendingImport(undefined)} returnFocus={() => pendingImportTrigger.current}><p>ZIP 已完整验证。请选择替换当前文章，或作为一篇新草稿打开。</p><div className="dialog-actions"><DialogClose>{(close) => <button type="button" disabled={disabled} onClick={close}>取消</button>}</DialogClose><DialogClose>{(close) => <button type="button" disabled={disabled} onClick={() => void completeImport(onReplace, close)}>替换当前文章</button>}</DialogClose><DialogClose>{(close) => <button type="button" disabled={disabled} onClick={() => void completeImport(onNew, close)}>作为新草稿打开</button>}</DialogClose></div></AccessibleDialog> : null}
     {productionDialog ? <AccessibleDialog title="导出 Hugo 文章包" onClose={() => setProductionDialog(false)} returnFocus={() => productionTrigger.current}>{warnings.length > 0 ? <><p>导出前请确认这些提醒：</p><ul>{warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></> : <p>验证通过，准备下载 Hugo leaf bundle。</p>}<div className="dialog-actions"><DialogClose>{(close) => <button type="button" disabled={disabled} onClick={close}>取消</button>}</DialogClose><button type="button" disabled={disabled} onClick={() => void exportProduction(false)}>保留 draft = true</button><button type="button" disabled={disabled} onClick={() => void exportProduction(true)}>设为 draft = false</button></div></AccessibleDialog> : null}

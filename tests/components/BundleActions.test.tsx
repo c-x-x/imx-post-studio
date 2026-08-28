@@ -41,7 +41,7 @@ describe('BundleActions production choices', () => {
     render(<BundleActions draft={draft()} onReplace={() => undefined} onNew={onNew} onStatus={() => undefined} />)
 
     const recovery = await fileFromBlob(await exportRecoveryBundle(draft()), 'recovery.zip')
-    await user.upload(screen.getByLabelText('导入紧急恢复 ZIP'), recovery)
+    await user.upload(screen.getByLabelText('紧急恢复'), recovery)
     expect(await screen.findByRole('dialog', { name: '导入已验证' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '作为新草稿打开' }))
     expect(onNew).toHaveBeenCalledWith(expect.objectContaining({ id: 'export' }))
@@ -56,7 +56,7 @@ describe('BundleActions production choices', () => {
     const onNew = vi.fn().mockResolvedValue(true)
     render(<BundleActions draft={draft()} onReplace={onReplace} onNew={onNew} onStatus={() => undefined} />)
 
-    const trigger = screen.getByLabelText('导入紧急恢复 ZIP')
+    const trigger = screen.getByLabelText('紧急恢复')
     const recovery = await fileFromBlob(await exportRecoveryBundle(draft()), 'recovery.zip')
     await user.upload(trigger, recovery)
     await screen.findByRole('dialog', { name: '导入已验证' })
@@ -71,7 +71,7 @@ describe('BundleActions production choices', () => {
     render(<BundleActions draft={draft()} onReplace={() => false} onNew={() => true} onStatus={() => undefined} />)
 
     const recovery = await fileFromBlob(await exportRecoveryBundle(draft()), 'recovery.zip')
-    await user.upload(screen.getByLabelText('导入紧急恢复 ZIP'), recovery)
+    await user.upload(screen.getByLabelText('紧急恢复'), recovery)
     await screen.findByRole('dialog', { name: '导入已验证' })
     await user.click(screen.getByRole('button', { name: '替换当前文章' }))
 

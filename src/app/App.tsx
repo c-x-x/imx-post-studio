@@ -35,7 +35,7 @@ import './app.css'
 const GithubPanel = lazy(() => import('../github/GithubPanel'))
 
 type View = 'home' | 'dashboard' | 'workspace' | 'works'
-type WorkspaceTab = 'settings' | 'write'
+type WorkspaceTab = 'settings' | 'write' | 'actions'
 type InspectorView = 'settings' | 'outline'
 
 interface FailedTransition {
@@ -71,6 +71,8 @@ export function App() {
   const [view, setView] = useState<View>(() => new URLSearchParams(window.location.search).has('github') ? 'works' : 'home')
   const [tab, setTab] = useState<WorkspaceTab>('settings')
   const [inspectorView, setInspectorView] = useState<InspectorView>('settings')
+  const [actionsView, setActionsView] = useState<'article' | 'format'>('article')
+  const [formatToolbarTarget, setFormatToolbarTarget] = useState<HTMLDivElement | null>(null)
   const [outlineFocusVersion, setOutlineFocusVersion] = useState(0)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [rendered, setRendered] = useState<RenderedMarkdown>(emptyRendered)
@@ -344,13 +346,18 @@ export function App() {
     }
   }
 
-  const status = saveStatus.state === 'saving'
+  const status = saveStatus.state === 'failed'
+    ? `保存失败：${saveStatus.message}`
+    : saveStatus.state === 'saving'
     ? '正在保存…'
     : intakeBusy
       ? '正在读取媒体…'
     : saveStatus.state === 'saved' && draftStarted
       ? pendingWorkId === draft.id ? '已保存到待提交作品' : '已保存到本地草稿'
       : notice
+  const statusTone = saveStatus.state === 'failed' ? 'error'
+    : saveStatus.state === 'saving' || intakeBusy ? 'pending'
+    : saveStatus.state === 'saved' && draftStarted ? 'success' : 'info'
   const recoveryNeeded = saveStatus.state === 'failed' || Boolean(failedTransition)
   const workspaceLocked = transitioning || intakeBusy || githubOpen
   const openPreview = () => {
@@ -484,16 +491,16 @@ export function App() {
   }
 
   return <main className="app-shell" data-view={view}>
-    <ImxDock view={view} disabled={workspaceLocked} previewTrigger={previewTrigger} theme={theme} onToggleTheme={toggleTheme} onPreview={openPreview} onHome={() => void showHome()} onArticle={showWorkspace} onDashboard={() => void showDashboard()} onWorks={() => void showWorks()} />
+    <ImxDock view={view} disabled={workspaceLocked} theme={theme} onToggleTheme={toggleTheme} onHome={() => void showHome()} onArticle={showWorkspace} onDashboard={() => void showDashboard()} onWorks={() => void showWorks()} />
     <Notifications alert={alerts.length > 0 ? <>{alerts}</> : undefined} />
     {view === 'home' ? <HomePage disabled={workspaceLocked} onArticle={showWorkspace} onDashboard={() => void showDashboard()} onGithub={() => void showWorks()} /> : view === 'dashboard' ? <DraftDashboard onOpen={openDraft} disabled={workspaceLocked} onDelete={(id) => { if (draftRef.current.id === id) { executeNewArticle(); setView('dashboard') } }} /> : view === 'works' ? <Suspense fallback={<p role="status">正在加载作品…</p>}><GithubPanel mode="works" draft={draft} onOpen={openDraft} onClose={showWorkspace} returnFocus={() => null} /></Suspense> : <section className="workspace" aria-label="文章工作区" aria-busy={workspaceLocked} data-inspector-collapsed={settingsCollapsed} data-actions-collapsed={actionsCollapsed}>
       <nav className="workspace-tabs" role="tablist" aria-label="工作区视图">
-        {([['settings', '设置'], ['write', '写作']] as const).map(([id, label]) => <button key={id} id={`tab-${id}`} type="button" disabled={workspaceLocked} role="tab" aria-selected={tab === id} aria-controls={`panel-${id}`} onClick={() => setTab(id)}>{label}</button>)}
+        {([['settings', '设置'], ['write', '写作'], ['actions', '工具']] as const).map(([id, label]) => <button key={id} id={`tab-${id}`} type="button" disabled={workspaceLocked} role="tab" aria-selected={tab === id} aria-controls={`panel-${id}`} onClick={() => setTab(id)}>{label}</button>)}
       </nav>
       <div className="workspace-grid" data-tab={tab}>
         <aside id="panel-settings" className="workspace-panel workspace-inspector" role="tabpanel" aria-labelledby="tab-settings">
           <nav className="inspector-view-tabs" role="tablist" aria-label="左侧栏视图">
-            <button id="inspector-tab-settings" type="button" role="tab" aria-selected={inspectorView === 'settings'} aria-controls="inspector-settings" onClick={() => setInspectorView('settings')}>文章设置</button>
+            <button id="inspector-tab-settings" type="button" role="tab" aria-selected={inspectorView === 'settings'} aria-controls="inspector-settings" onClick={() => setInspectorView('settings')}>属性</button>
             <button id="inspector-tab-outline" type="button" role="tab" aria-selected={inspectorView === 'outline'} aria-controls="inspector-outline" onClick={() => setInspectorView('outline')}>大纲</button>
           </nav>
           {inspectorView === 'settings'
@@ -504,17 +511,31 @@ export function App() {
             : <OutlinePanel markdown={draft.body} onSelect={focusOutlineHeading} />}
         </aside>
         <button className="inspector-toggle" type="button" aria-controls="panel-settings" aria-expanded={!settingsCollapsed} aria-label={settingsCollapsed ? '展开文章设置' : '折叠文章设置'} title={settingsCollapsed ? '展开文章设置' : '折叠文章设置'} onClick={toggleSettings}><span aria-hidden="true">{settingsCollapsed ? '›' : '‹'}</span></button>
-        <section id="panel-write" className="workspace-panel workspace-editor" role="tabpanel" aria-labelledby="tab-write"><h2 className="visually-hidden">写作</h2><MarkdownEditor key={draft.id} disabled={workspaceLocked} ref={editorRef} value={draft.body} media={draft.media} status={status} preparePastedImages={preparePastedImages} onCommitPastedImages={(assets, body) => dispatchDraft({ type: 'paste-body-media', assets, body })} resolveMediaUrl={resolveEditorMediaUrl} onChange={(body) => {
+        <section id="panel-write" className="workspace-panel workspace-editor" role="tabpanel" aria-labelledby="tab-write"><h2 className="visually-hidden">写作</h2><MarkdownEditor key={draft.id} disabled={workspaceLocked} ref={editorRef} value={draft.body} media={draft.media} status={status} statusTone={statusTone} toolbarTarget={formatToolbarTarget} onFormatApplied={() => setTab('write')} preparePastedImages={preparePastedImages} onCommitPastedImages={(assets, body) => dispatchDraft({ type: 'paste-body-media', assets, body })} resolveMediaUrl={resolveEditorMediaUrl} onChange={(body) => {
           if (draft.id !== draftRef.current.id) return
           if (body === draftRef.current.body) return
           dispatchDraft({ type: 'set-body', body })
         }} /></section>
         <button className="actions-toggle" type="button" aria-controls="panel-actions" aria-expanded={!actionsCollapsed} aria-label={actionsCollapsed ? '展开文章操作' : '折叠文章操作'} title={actionsCollapsed ? '展开文章操作' : '折叠文章操作'} onClick={toggleActions}><span aria-hidden="true">{actionsCollapsed ? '‹' : '›'}</span></button>
         <aside id="panel-actions" className="workspace-actions" aria-label="文章工具">
+          <nav className="inspector-view-tabs" role="tablist" aria-label="右侧栏视图">
+            <button id="actions-tab-article" type="button" role="tab" aria-selected={actionsView === 'article'} aria-controls="actions-article" onClick={() => setActionsView('article')}>文档</button>
+            <button id="actions-tab-format" type="button" role="tab" aria-selected={actionsView === 'format'} aria-controls="actions-format" onClick={() => setActionsView('format')}>排版</button>
+          </nav>
+          <div className="article-actions"><button ref={previewTrigger} className="article-save" type="button" disabled={workspaceLocked} onClick={openPreview}>预览文章</button></div>
+          <div id="actions-article" className="actions-article-panel" role="tabpanel" aria-labelledby="actions-tab-article" hidden={actionsView !== 'article'}>
+          <section className="sidebar-tool-group" aria-label="文档操作">
+          <h3>文档操作</h3>
           <ArticleActions disabled={workspaceLocked} onNew={() => void startNew()} />
           <div className="article-actions github-entry"><button type="button" disabled={workspaceLocked || !hasDraftContent(draft)} onClick={() => void openGithub()}>推送</button></div>
-          <MediaPanel draftId={draft.id} disabled={transitioning} media={draft.media} body={draft.body} onAddBatch={(assets) => dispatchDraft({ type: 'add-media-batch', assets })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onInsertImage={(asset) => editorRef.current?.insertImage(asset.name, mediaAlt(asset.name))} onIntakeBusyChange={(busy) => setIntakeSourceBusy('body', busy)} />
+          <p className="sidebar-tool-hint">自动保存到本地；推送将更新 GitHub 博客。</p>
+          </section>
           <BundleActions disabled={workspaceLocked} draft={draft} onReplace={replaceImportedDraft} onNew={openImportedAsNew} onStatus={setNotice} onImportFocusRequest={(target) => { importFocusTarget.current = target; setImportFocusVersion((current) => current + 1) }} />
+          </div>
+          <div id="actions-format" className="actions-format-panel" role="tabpanel" aria-labelledby="actions-tab-format" hidden={actionsView !== 'format'}>
+          <div ref={setFormatToolbarTarget} />
+          <MediaPanel draftId={draft.id} disabled={transitioning} media={draft.media} body={draft.body} onAddBatch={(assets) => dispatchDraft({ type: 'add-media-batch', assets })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onInsertImage={(asset) => { editorRef.current?.insertImage(asset.name, mediaAlt(asset.name)); setTab('write') }} onIntakeBusyChange={(busy) => setIntakeSourceBusy('body', busy)} />
+          </div>
         </aside>
       </div>
     </section>}

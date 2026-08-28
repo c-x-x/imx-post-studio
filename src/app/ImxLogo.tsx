@@ -9,7 +9,7 @@ function Snowflake({ animated }: { animated: boolean }) {
       {['M0-5.5v-25', 'M0-11.2l-6.1-4.8', 'M0-11.2l6.1-4.8', 'M0-18.8l-6.7-5.1', 'M0-18.8l6.7-5.1'].map((path) => {
         const pathIndex = index
         index += 1
-        return <path key={path} d={path} pathLength={animated ? 1 : undefined} style={animated ? ({ '--i': pathIndex } as CSSProperties) : undefined} />
+        return <path key={path} d={path} style={animated ? ({ '--i': pathIndex } as CSSProperties) : undefined} />
       })}
     </g>)}
     <circle className={animated ? 'imx-dock__logo-ink-dot' : undefined} cx="0" cy="0" r="5.1" />

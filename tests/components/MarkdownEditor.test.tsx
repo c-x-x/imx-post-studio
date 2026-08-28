@@ -12,6 +12,25 @@ function ControlledEditor({ initial = '' }: { initial?: string }) {
 }
 
 describe('MarkdownEditor', () => {
+  it('inserts visible links using an accessible dialog and rejects unsafe addresses', async () => {
+    const user = userEvent.setup()
+    render(<ControlledEditor />)
+    await user.click(screen.getByRole('button', { name: '链接' }))
+    let dialog = screen.getByRole('dialog', { name: '插入链接' })
+    await user.type(within(dialog).getByLabelText('链接地址'), 'javascript:alert(1)')
+    await user.click(within(dialog).getByRole('button', { name: '插入链接' }))
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('有效地址')
+    await user.click(within(dialog).getByRole('button', { name: '取消' }))
+    expect(screen.getByTestId('markdown')).toBeEmptyDOMElement()
+    expect(screen.getByRole('button', { name: '链接' })).toHaveFocus()
+    await user.click(screen.getByRole('button', { name: '链接' }))
+    dialog = screen.getByRole('dialog', { name: '插入链接' })
+    await user.type(within(dialog).getByLabelText('链接地址'), 'https://example.com')
+    await user.click(within(dialog).getByRole('button', { name: '插入链接' }))
+    expect(within(screen.getByRole('textbox', { name: 'Markdown 编辑器' })).getByRole('link', { name: 'https://example.com' })).toHaveAttribute('href', 'https://example.com')
+    expect(screen.getByTestId('markdown')).toHaveTextContent('[https://example.com](https://example.com)')
+  })
+
   it('renders Markdown as structured editable content', () => {
     render(<ControlledEditor initial={'# 标题\n\n正文'} />)
     const editor = screen.getByRole('textbox', { name: 'Markdown 编辑器' })
@@ -22,7 +41,7 @@ describe('MarkdownEditor', () => {
   it('exposes the active format as a pressed toolbar control', async () => {
     const user = userEvent.setup()
     render(<ControlledEditor />)
-    const heading = screen.getByRole('button', { name: '标题' })
+    const heading = screen.getByRole('button', { name: '二级标题' })
     expect(heading).toHaveAttribute('aria-pressed', 'false')
     await user.click(heading)
     expect(heading).toHaveAttribute('aria-pressed', 'true')

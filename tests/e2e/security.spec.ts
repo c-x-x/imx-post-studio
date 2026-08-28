@@ -22,11 +22,13 @@ async function beginArticle(page: Page): Promise<void> {
 }
 
 async function setMarkdown(page: Page, value: string): Promise<void> {
+  await page.getByRole('tab', { name: '排版' }).click()
   await page.getByRole('button', { name: '源代码' }).click()
   const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
   await expect(editor.locator('.cm-line').first()).toBeVisible()
   await editor.fill(value)
   await page.getByRole('button', { name: '即时排版' }).click()
+  await page.getByRole('tab', { name: '文档' }).click()
 }
 
 async function zipBuffer(entries: Array<{ name: string; contents: string }>): Promise<Buffer> {
@@ -48,7 +50,7 @@ function sha256(bytes: Uint8Array): string {
 
 async function currentDraftFingerprint(page: Page): Promise<unknown> {
   const download = page.waitForEvent('download')
-  await page.getByRole('button', { name: '导出草稿' }).click()
+  await page.getByRole('button', { name: '备份草稿' }).click()
   const path = await (await download).path()
   if (!path) throw new Error('The draft download path is unavailable')
   const reader = new ZipReader(new BlobReader(new Blob([await readFile(path)])))
@@ -92,6 +94,7 @@ test('sanitizes hostile preview HTML inside the script-free Shadow DOM contract'
 
 test('rejects SVG and oversized media, blocks missing media export, and keeps current content after hostile ZIP imports', { tag: '@critical' }, async ({ page }) => {
   await beginArticle(page)
+  await page.getByRole('tab', { name: '排版' }).click()
   const imageInput = page.getByLabel('添加正文图片')
   await imageInput.setInputFiles({
     name: 'dangerous.svg',
@@ -117,7 +120,7 @@ test('rejects SVG and oversized media, blocks missing media export, and keeps cu
 
   const corruptToml = await zipBuffer([{ name: 'bad/index.md', contents: '+++\ntitle = [\n+++' }])
   const beforeCorruptToml = await currentDraftFingerprint(page)
-  await page.getByLabel('导入 ZIP').setInputFiles({ name: 'corrupt.toml.zip', mimeType: 'application/zip', buffer: corruptToml })
+  await page.getByLabel('导入文章包').setInputFiles({ name: 'corrupt.toml.zip', mimeType: 'application/zip', buffer: corruptToml })
   await expect(page.getByText(/无法导入文章：Front Matter 解析失败/)).toBeVisible()
   expect(await currentDraftFingerprint(page)).toEqual(beforeCorruptToml)
 
@@ -126,7 +129,7 @@ test('rejects SVG and oversized media, blocks missing media export, and keeps cu
     { name: '../escaped.md', contents: 'outside article root' },
   ])
   const beforeZipSlip = await currentDraftFingerprint(page)
-  await page.getByLabel('导入 ZIP').setInputFiles({ name: 'zip-slip.zip', mimeType: 'application/zip', buffer: zipSlip })
+  await page.getByLabel('导入文章包').setInputFiles({ name: 'zip-slip.zip', mimeType: 'application/zip', buffer: zipSlip })
   await expect(page.getByText('ZIP 导入失败：不安全的条目路径：../escaped.md')).toBeVisible()
   expect(await currentDraftFingerprint(page)).toEqual(beforeZipSlip)
 
@@ -135,7 +138,7 @@ test('rejects SVG and oversized media, blocks missing media export, and keeps cu
     contents: '+++\ntitle = "Missing"\ndate = "2026-08-04T09:00:00+08:00"\ndraft = true\n+++\n![lost](images/lost.png)',
   }])
   const beforeMissingImage = await currentDraftFingerprint(page)
-  await page.getByLabel('导入 ZIP').setInputFiles({ name: 'missing-image.zip', mimeType: 'application/zip', buffer: missingImage })
+  await page.getByLabel('导入文章包').setInputFiles({ name: 'missing-image.zip', mimeType: 'application/zip', buffer: missingImage })
   await expect(page.getByText('无法导入文章：缺少正文图片：images/lost.png')).toBeVisible()
   expect(await currentDraftFingerprint(page)).toEqual(beforeMissingImage)
 })
@@ -152,7 +155,7 @@ test('keeps a verified ZIP dialog viewport-bound while its workspace rail is tra
     contents: '+++\ntitle = "Responsive import"\ndate = "2026-08-07T09:00:00+08:00"\ndraft = true\n+++\n\n正文。',
   }])
 
-  await page.getByLabel('导入 ZIP').setInputFiles({
+  await page.getByLabel('导入文章包').setInputFiles({
     name: 'responsive-import.zip',
     mimeType: 'application/zip',
     buffer: archive,
@@ -200,6 +203,7 @@ test('retries a transient IndexedDB open failure and clears the page alert after
 
 test('renders a real Blob body image inside the script-free Shadow DOM preview', async ({ page }) => {
   await beginArticle(page)
+  await page.getByRole('tab', { name: '排版' }).click()
   await page.getByLabel('添加正文图片').setInputFiles(pngFile('blob-proof.png', 64, 36, [64, 158, 112, 255]))
   const image = page.getByRole('listitem', { name: 'blob-proof.png' })
   await image.getByRole('button', { name: '插入' }).click()

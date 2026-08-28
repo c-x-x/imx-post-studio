@@ -24,6 +24,7 @@ describe('App', () => {
     render(<App />)
 
     await user.click(screen.getByRole('button', { name: '写作' }))
+    await user.click(screen.getByRole('tab', { name: '排版' }))
     await user.click(screen.getByRole('button', { name: '源代码' }))
     const editor = await screen.findByRole('textbox', { name: 'Markdown 编辑器' })
     await user.type(editor, '保留当前文章')
