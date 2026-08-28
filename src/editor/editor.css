@@ -36,37 +36,63 @@
 }
 
 .editor-toolbar button {
+  position: relative;
   min-height: 34px;
-  padding: .4rem .68rem;
-  border-color: transparent;
+  padding: .4rem 1.05rem;
+  border: 1px solid var(--imx-line);
+  border-radius: 999px;
   color: var(--imx-ink-secondary);
-  background: transparent;
-  box-shadow: none;
+  background: var(--imx-control);
+  box-shadow: inset 0 1px 0 var(--imx-inset-highlight), 0 2px 2px var(--imx-line);
   font-size: .78rem;
+  font-weight: 640;
+  transition: background-color .12s ease, box-shadow .12s ease, border-color .12s ease, transform .08s ease;
 }
 
 .editor-toolbar button:hover:not(:disabled) {
   border-color: rgba(122, 90, 50, .14);
   background: var(--imx-accent-soft);
-  box-shadow: none;
+  box-shadow: inset 0 1px 0 var(--imx-inset-highlight), 0 2px 3px var(--imx-line-strong);
   transform: none;
 }
 
 .editor-toolbar button[aria-pressed='true']:not(:disabled) {
   border-color: var(--imx-line-strong);
   color: var(--imx-accent-hover);
-  background: var(--imx-accent-soft);
-  box-shadow: inset 0 2px 5px rgba(75, 64, 52, .18);
-  transform: translateY(1px);
+  background: color-mix(in srgb, var(--imx-accent-soft) 60%, var(--imx-gutter));
+  box-shadow: inset 0 3px 5px var(--imx-line-strong), inset 0 -1px 0 var(--imx-inset-highlight);
+  font-weight: 800;
+}
+
+.editor-toolbar button[aria-pressed='true']:not(:disabled)::after {
+  content: '';
+  position: absolute;
+  inset-inline-end: .45rem;
+  top: 50%;
+  width: 5px;
+  height: 9px;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  transform: translateY(-65%) rotate(45deg);
 }
 
 .editor-toolbar button:active:not(:disabled) {
   border-color: var(--imx-line-strong);
   color: var(--imx-accent-hover);
   background: var(--imx-accent-soft);
-  box-shadow: inset 0 2px 6px rgba(75, 64, 52, .22);
-  transform: translateY(1px) scale(.97);
+  box-shadow: inset 0 4px 7px var(--imx-line-strong);
+  transform: translateY(2px) scale(.96);
   transition-duration: .06s;
+}
+
+.editor-toolbar button:focus-visible {
+  outline: 2px solid var(--imx-accent-hover);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editor-toolbar button { transition: none; }
+  .editor-toolbar button:active:not(:disabled) { transform: none; }
 }
 
 .editor-status-bar {

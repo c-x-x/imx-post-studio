@@ -145,7 +145,7 @@ body {
 }
 
 /* Action buttons share a neutral idle state; Dock/tab sliders remain separate. */
-:is(.home-actions, .article-actions, .editor-toolbar, .bundle-actions, .media-list) button,
+:is(.home-actions, .article-actions, .bundle-actions, .media-list) button,
 .file-button {
   border-color: var(--imx-line);
   color: var(--imx-ink-secondary);
@@ -154,7 +154,7 @@ body {
   transition: border-color .18s ease, color .18s ease, box-shadow .18s ease;
 }
 
-:is(.home-actions, .article-actions, .editor-toolbar, .bundle-actions, .media-list) button:is(:focus-visible, :active, [aria-pressed='true']):not(:disabled),
+:is(.home-actions, .article-actions, .bundle-actions, .media-list) button:is(:focus-visible, :active, [aria-pressed='true']):not(:disabled),
 .file-button:focus-within:not(:has(input:disabled)) {
   border-color: var(--imx-accent);
   color: var(--imx-primary-ink);
@@ -163,7 +163,7 @@ body {
 }
 
 @media (hover: hover) {
-  :is(.home-actions, .article-actions, .editor-toolbar, .bundle-actions, .media-list) button:hover:not(:disabled),
+  :is(.home-actions, .article-actions, .bundle-actions, .media-list) button:hover:not(:disabled),
   .file-button:hover:not(:has(input:disabled)) {
     border-color: var(--imx-accent);
     color: var(--imx-primary-ink);

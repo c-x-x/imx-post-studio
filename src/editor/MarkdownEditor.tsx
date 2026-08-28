@@ -1,7 +1,7 @@
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react'
-import { getMarkRange, type Editor } from '@tiptap/core'
+import { getMarkRange, type ChainedCommands, type Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from '@tiptap/markdown'
 import { TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
@@ -408,6 +408,14 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       strike: Boolean(currentEditor?.isActive('strike')),
       link: Boolean(currentEditor?.isActive('link')),
       taskList: Boolean(currentEditor?.isActive('taskList')),
+      canBold: Boolean(currentEditor?.can().toggleBold()),
+      canItalic: Boolean(currentEditor?.can().toggleItalic()),
+      canStrike: Boolean(currentEditor?.can().toggleStrike()),
+      canHeading: Boolean(currentEditor?.can().toggleHeading({ level: 2 })),
+      canBulletList: Boolean(currentEditor?.can().toggleBulletList()),
+      canTaskList: Boolean(currentEditor?.can().toggleTaskList()),
+      canBlockquote: Boolean(currentEditor?.can().toggleBlockquote()),
+      canCodeBlock: Boolean(currentEditor?.can().toggleCodeBlock()),
     }),
   })
 
@@ -534,32 +542,38 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     },
   }), [disabled, editor, mode])
 
-  const toolbar = <div className="editor-toolbar" role="toolbar" aria-label="Markdown 格式" onClick={(event) => {
-    const button = (event.target as HTMLElement).closest('button')
-    if (button && button !== tableButtonRef.current && button !== linkButtonRef.current && !button.disabled) onFormatApplied?.()
-  }}>
+  const runFormat = (command: (chain: ChainedCommands) => ChainedCommands) => {
+    if (!editor || editor.isDestroyed || disabled || mode !== 'rich') return
+    if (command(editor.chain().focus()).run()) onFormatApplied?.()
+  }
+
+  const toolbar = <div className="editor-toolbar" data-editor-controls role="toolbar" aria-label="Markdown 格式">
       <div className="editor-tool-group" role="group" aria-label="文字样式">
         <h3>文字样式</h3>
-        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.bold)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleBold().run()}>加粗</button>
-        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.italic)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleItalic().run()}>斜体</button>
-        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.strike)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleStrike().run()}>删除线</button>
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.bold)} disabled={disabled || mode === 'source' || !activeFormats?.canBold} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleBold())}>加粗</button>
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.italic)} disabled={disabled || mode === 'source' || !activeFormats?.canItalic} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleItalic())}>斜体</button>
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.strike)} disabled={disabled || mode === 'source' || !activeFormats?.canStrike} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleStrike())}>删除线</button>
       </div>
       <div className="editor-tool-group" role="group" aria-label="段落结构">
         <h3>段落结构</h3>
-        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.heading)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>二级标题</button>
-        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.bulletList)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleBulletList().run()}>无序列表</button>
-        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.taskList)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleTaskList().run()}>任务列表</button>
-        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.blockquote)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleBlockquote().run()}>引用</button>
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.heading)} disabled={disabled || mode === 'source' || !activeFormats?.canHeading} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleHeading({ level: 2 }))}>二级标题</button>
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.bulletList)} disabled={disabled || mode === 'source' || !activeFormats?.canBulletList} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleBulletList())}>无序列表</button>
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.taskList)} disabled={disabled || mode === 'source' || !activeFormats?.canTaskList} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleTaskList())}>任务列表</button>
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.blockquote)} disabled={disabled || mode === 'source' || !activeFormats?.canBlockquote} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleBlockquote())}>引用</button>
       </div>
       <div className="editor-tool-group" role="group" aria-label="插入内容">
         <h3>插入内容</h3>
-        <button ref={linkButtonRef} type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.link)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={openLinkDialog}>链接</button>
-        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.codeBlock)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => editor?.chain().focus().toggleCodeBlock().run()}>代码块</button>
-        <button ref={tableButtonRef} type="button" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => setTableDialogOpen(true)}>表格</button>
+        <button ref={linkButtonRef} type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.link)} disabled={disabled || mode === 'source' || activeFormats?.codeBlock} onMouseDown={(event) => event.preventDefault()} onClick={openLinkDialog}>链接</button>
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.codeBlock)} disabled={disabled || mode === 'source' || !activeFormats?.canCodeBlock} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleCodeBlock())}>代码块</button>
+        <button ref={tableButtonRef} type="button" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => {
+          if (!editor) return
+          pauseDeferredMarkdown(editor, true)
+          setTableDialogOpen(true)
+        }}>表格</button>
       </div>
       <div className="editor-tool-group" role="group" aria-label="编辑模式">
         <h3>编辑模式</h3>
-        <button className="editor-mode-toggle" type="button" aria-pressed={mode === 'source'} disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={switchMode}>{mode === 'rich' ? '源代码' : '即时排版'}</button>
+        <button className="editor-mode-toggle" type="button" aria-pressed={mode === 'source'} disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={() => { switchMode(); onFormatApplied?.() }}>{mode === 'rich' ? '源代码' : '即时排版'}</button>
       </div>
       </div>
 
@@ -593,7 +607,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           : <Suspense fallback={<div className="editor-loading" role="status">正在加载源代码编辑器…</div>}><SourceMarkdownEditor ref={sourceRef} value={value} disabled={disabled} onChange={handleSourceChange} preparePastedImages={preparePastedImages} onCommitPastedImages={onCommitPastedImages} /></Suspense>}
       </div>
     </section>
-    {tableDialogOpen && <TableDialog onClose={() => setTableDialogOpen(false)} onInsert={insertTable} returnFocus={() => tableButtonRef.current} />}
+    {tableDialogOpen && <TableDialog onClose={() => {
+      setTableDialogOpen(false)
+      if (editor && !editor.isDestroyed) pauseDeferredMarkdown(editor, false)
+    }} onInsert={insertTable} returnFocus={() => tableButtonRef.current} />}
     {linkDialog && <LinkDialog initialHref={linkDialog.href} initialText={linkDialog.text} onClose={() => {
       setLinkDialog(null)
       if (editor && !editor.isDestroyed) pauseDeferredMarkdown(editor, false)

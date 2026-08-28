@@ -19,6 +19,21 @@ function setup(content = '') {
 }
 
 describe('deferred Markdown input', () => {
+  it('keeps the selected text while opening formatting controls', () => {
+    setup().commands.insertContent({ type: 'text', text: '**粗体** 链接 尾部' })
+    editor.commands.setTextSelection({ from: 8, to: 10 })
+    const control = document.createElement('button')
+    control.setAttribute('data-editor-controls', '')
+    editor.view.dom.dispatchEvent(new FocusEvent('blur', { relatedTarget: control }))
+    expect(editor.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to)).toBe('链接')
+    editor.commands.toggleItalic()
+    expect(editor.view.dom.querySelector('em')).toHaveTextContent('链接')
+    editor.commands.setTextSelection(editor.state.doc.content.size - 1)
+    editor.view.dom.dispatchEvent(new FocusEvent('blur'))
+    expect(editor.view.dom.querySelector('strong')).toHaveTextContent('粗体')
+    expect(editor.view.dom.querySelector('em')).toHaveTextContent('链接')
+  })
+
   it('can finish incomplete syntax after leaving and returning to the editor', () => {
     setup().commands.insertContent({ type: 'text', text: '**尚未完成' })
     editor.view.dom.dispatchEvent(new FocusEvent('blur'))

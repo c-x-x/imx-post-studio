@@ -161,7 +161,6 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
 .draft-actions button,
 .dialog-actions button,
 .dashboard-heading button,
-.editor-toolbar button,
 .slug-control button,
 .media-list button {
   min-height: 38px;
@@ -178,7 +177,6 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
 .bundle-actions button:hover:not(:disabled),
 .draft-actions button:hover:not(:disabled),
 .dialog-actions button:hover:not(:disabled),
-.editor-toolbar button:hover:not(:disabled),
 .slug-control button:hover:not(:disabled),
 .media-list button:hover:not(:disabled) {
   border-color: rgba(122, 90, 50, .35);

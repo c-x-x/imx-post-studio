@@ -64,6 +64,16 @@ describe('MarkdownEditor', () => {
     expect(screen.getAllByRole('columnheader')).toHaveLength(2)
   })
 
+  it('disables unsupported text formatting inside code instead of silently doing nothing', async () => {
+    const user = userEvent.setup()
+    render(<ControlledEditor />)
+    await user.click(screen.getByRole('button', { name: '代码块' }))
+    expect(screen.getByRole('button', { name: '加粗' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '斜体' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: '代码块' }))
+    expect(screen.getByRole('button', { name: '加粗' })).toBeEnabled()
+  })
+
   it('renders and round-trips centered table columns', async () => {
     const user = userEvent.setup()
     render(<ControlledEditor initial={'| 名称 | 状态 |\n| :---: | --- |\n| A | B |'} />)

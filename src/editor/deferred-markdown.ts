@@ -231,8 +231,14 @@ export const DeferredMarkdown = Extension.create({
         },
         handleDOMEvents: {
           focus() { blurred = false; return false },
-          blur(view) {
-            blurred = true
+          blur(view, event) {
+            // Formatting controls are part of editing, not a request to parse
+            // the active line. Replacing that line here collapses its selection
+            // before the toolbar command can use it. Some browsers omit the
+            // related target, so preserve non-empty selections in that case too.
+            const target = (event as FocusEvent).relatedTarget
+            blurred = (view.state.selection.empty || Boolean(pendingKey.getState(view.state)?.paused))
+              && !(target instanceof Element && target.closest('[data-editor-controls]'))
             view.dispatch(view.state.tr.setMeta('deferredMarkdownBlur', true))
             return false
           },

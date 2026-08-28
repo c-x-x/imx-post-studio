@@ -496,7 +496,7 @@ export function App() {
     <ImxDock view={view} disabled={workspaceLocked} theme={theme} onToggleTheme={toggleTheme} onHome={() => void showHome()} onArticle={showWorkspace} onDashboard={() => void showDashboard()} onWorks={() => void showWorks()} />
     <Notifications alert={alerts.length > 0 ? <>{alerts}</> : undefined} />
     {view === 'home' ? <HomePage disabled={workspaceLocked} onArticle={showWorkspace} onDashboard={() => void showDashboard()} onGithub={() => void showWorks()} /> : view === 'dashboard' ? <DraftDashboard onOpen={openDraft} disabled={workspaceLocked} onDelete={(id) => { if (draftRef.current.id === id) { executeNewArticle(); setView('dashboard') } }} /> : view === 'works' ? <Suspense fallback={<p role="status">正在加载作品…</p>}><GithubPanel mode="works" draft={draft} onOpen={openDraft} onClose={showWorkspace} returnFocus={() => null} /></Suspense> : <section className="workspace" aria-label="文章工作区" aria-busy={workspaceLocked} data-inspector-collapsed={settingsCollapsed} data-actions-collapsed={actionsCollapsed}>
-      <nav className="workspace-tabs" role="tablist" aria-label="工作区视图">
+      <nav className="workspace-tabs" data-editor-controls role="tablist" aria-label="工作区视图">
         {([['settings', '设置'], ['write', '写作'], ['actions', '工具']] as const).map(([id, label]) => <button key={id} id={`tab-${id}`} type="button" disabled={workspaceLocked} role="tab" aria-selected={tab === id} aria-controls={`panel-${id}`} onClick={() => setTab(id)}>{label}</button>)}
       </nav>
       <div className="workspace-grid" data-tab={tab}>
@@ -520,7 +520,7 @@ export function App() {
         }} /></section>
         <button className="actions-toggle" type="button" aria-controls="panel-actions" aria-expanded={!actionsCollapsed} aria-label={actionsCollapsed ? '展开文章操作' : '折叠文章操作'} title={actionsCollapsed ? '展开文章操作' : '折叠文章操作'} onClick={toggleActions}><span aria-hidden="true">{actionsCollapsed ? '‹' : '›'}</span></button>
         <aside id="panel-actions" className="workspace-actions" aria-label="文章工具">
-          <nav className="inspector-view-tabs" role="tablist" aria-label="右侧栏视图">
+          <nav className="inspector-view-tabs" data-editor-controls role="tablist" aria-label="右侧栏视图">
             <button id="actions-tab-article" type="button" role="tab" aria-selected={actionsView === 'article'} aria-controls="actions-article" onClick={() => setActionsView('article')}>文档</button>
             <button id="actions-tab-format" type="button" role="tab" aria-selected={actionsView === 'format'} aria-controls="actions-format" onClick={() => setActionsView('format')}>排版</button>
           </nav>
