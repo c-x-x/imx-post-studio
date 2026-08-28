@@ -430,6 +430,9 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
 .actions-article-panel,
 .actions-format-panel {
   display: grid;
+  grid-auto-rows: max-content;
+  align-content: start;
+  align-items: start;
   gap: 22px;
   min-width: 0;
 }

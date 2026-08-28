@@ -1,21 +1,52 @@
 import { expect, test } from '@playwright/test'
 
-test('renders the IPOST logo with continuous strokes after hovering', async ({ page }, testInfo) => {
+test('keeps a single complete IPOST logo before, during and after hovering', async ({ page }, testInfo) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await page.goto('/')
   const brand = page.getByRole('button', { name: 'IPOST，返回首页' })
-  await brand.hover()
-  await expect(brand.locator('.imx-dock__logo')).toHaveCSS('opacity', '0')
-  const strokes = brand.locator('.imx-dock__logo-ink path')
-  await expect(strokes.last()).toHaveCSS('stroke-dashoffset', '0px')
-  expect(await strokes.evaluateAll((paths) => paths.every((path) =>
-    !path.hasAttribute('pathLength') &&
-    Number.parseFloat(getComputedStyle(path).strokeDasharray) > (path as SVGPathElement).getTotalLength(),
-  ))).toBe(true)
+  await expect(brand.locator('svg')).toHaveCount(1)
+  const strokes = brand.locator('.imx-dock__logo path')
+  await expect(strokes).toHaveCount(6)
+  for (const hovered of [false, true, false, true]) {
+    if (hovered) await brand.hover()
+    else await page.mouse.move(700, 500)
+    await expect(brand.locator('.imx-dock__logo')).toHaveCSS('opacity', '0.92')
+    expect(await strokes.evaluateAll((paths) => paths.every((path) =>
+      getComputedStyle(path).strokeDasharray === 'none' && getComputedStyle(path).animationName === 'none',
+    ))).toBe(true)
+  }
   await brand.screenshot({ path: testInfo.outputPath('logo-hover.png') })
   await page.mouse.move(700, 500)
   await expect(brand.locator('.imx-dock__logo')).toHaveCSS('opacity', '0.92')
-  await expect(brand.locator('.imx-dock__logo-ink')).toHaveCSS('opacity', '0')
+})
+
+test('keeps formatting controls compact after resizing and reopening the rail', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await page.goto('/')
+  await page.getByRole('button', { name: '写作', exact: true }).click()
+  const rail = page.locator('#panel-actions')
+  await rail.getByRole('tab', { name: '排版', exact: true }).click()
+  const buttons = rail.locator('.editor-toolbar button')
+  const checkHeights = async () => {
+    await expect(buttons.first()).toBeVisible()
+    expect(await buttons.evaluateAll((items) => items.every((item) =>
+      Math.abs(item.getBoundingClientRect().height - 40) < 1,
+    ))).toBe(true)
+  }
+  for (const width of [1440, 1117, 1280]) {
+    await page.setViewportSize({ width, height: 763 })
+    await page.getByRole('button', { name: '折叠文章操作' }).click()
+    await expect.poll(async () => (await rail.boundingBox())?.width).toBe(0)
+    await page.getByRole('button', { name: '展开文章操作' }).click()
+    await expect.poll(async () => (await rail.boundingBox())?.width ?? 0).toBeGreaterThan(270)
+    await checkHeights()
+    await buttons.first().hover()
+    await checkHeights()
+  }
+  await page.setViewportSize({ width: 390, height: 763 })
+  await page.getByRole('tab', { name: '工具', exact: true }).click()
+  await checkHeights()
+  expect(await rail.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
 })
 
 test('follows the system theme and keeps theme switching in the Dock on the workspace', async ({ page }) => {

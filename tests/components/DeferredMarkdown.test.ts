@@ -17,6 +17,23 @@ function setup(content = '') {
 }
 
 describe('deferred Markdown input', () => {
+  it('recognizes typed inline syntax inside inherited formatting', () => {
+    setup('**已有加粗**')
+    editor.commands.setTextSelection(editor.state.doc.content.size - 1)
+    editor.view.dispatch(editor.state.tr.insertText(' *继续斜体* ~~删除~~'))
+    editor.commands.splitBlock()
+    expect(editor.view.dom.querySelector('em')).toHaveTextContent('继续斜体')
+    expect(editor.view.dom.querySelector('s')).toHaveTextContent('删除')
+    expect(editor.view.dom.querySelector('strong')).toHaveTextContent('已有加粗')
+  })
+
+  it('commits a complete line when focus leaves the editor', () => {
+    setup().commands.insertContent({ type: 'text', text: '**粗体** *斜体*' })
+    editor.view.dom.dispatchEvent(new FocusEvent('blur'))
+    expect(editor.view.dom.querySelector('strong')).toHaveTextContent('粗体')
+    expect(editor.view.dom.querySelector('em')).toHaveTextContent('斜体')
+  })
+
   it('keeps typed heading markers until Enter, without escaping the saved source', () => {
     setup().commands.insertContent({ type: 'text', text: '## 中文标题' })
     expect(editor.state.doc.firstChild?.type.name).toBe('paragraph')

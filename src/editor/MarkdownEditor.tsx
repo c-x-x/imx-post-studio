@@ -18,7 +18,7 @@ import { clipboardImages, type PastedImageRequest } from './paste'
 import { RawMarkdownBlock, RawMarkdownInline, SafeCodeBlock, SafeTable } from './markdown-extensions'
 import { TableDialog } from './TableDialog'
 import { LinkDialog } from './LinkDialog'
-import { DeferredMarkdown, editorMarkdown, hasPendingMarkdown } from './deferred-markdown'
+import { DeferredMarkdown, editorMarkdown } from './deferred-markdown'
 import type { SourceMarkdownEditorHandle } from './SourceMarkdownEditor'
 import './editor.css'
 
@@ -408,16 +408,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       strike: Boolean(currentEditor?.isActive('strike')),
       link: Boolean(currentEditor?.isActive('link')),
       taskList: Boolean(currentEditor?.isActive('taskList')),
-      hint: !currentEditor ? ''
-        : hasPendingMarkdown(currentEditor) ? '标记暂留在当前段落；回车或移到其他段落后自动排版'
-        : currentEditor.isActive('codeBlock') ? '代码块：Tab 缩进，Shift + Tab 取消缩进；右下角可设置语言'
-        : currentEditor.isActive('table') ? '表格：Tab 切换单元格；浮动工具栏可增删行列、设置对齐'
-        : !currentEditor.state.selection.empty ? '已选中文字，可使用右侧排版工具或快捷键设置样式'
-        : currentEditor.isActive('heading') ? '标题已排版；在末尾回车继续写正文'
-        : currentEditor.isActive('taskList') ? '点击复选框切换完成状态；空任务回车可退出列表'
-        : currentEditor.isActive('bulletList') || currentEditor.isActive('orderedList') ? '回车继续列表；空条目再次回车可退出列表'
-        : currentEditor.isEmpty ? '从这里开始：## 标题、**加粗**、*斜体*、~~删除线~~'
-        : '可直接粘贴图片；文字自动折行，不会改变 Markdown 源码',
     }),
   })
 
@@ -576,10 +566,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     {toolbarTarget ? createPortal(toolbar, toolbarTarget) : null}
     <section className="markdown-editor" data-mode={mode} aria-label="Markdown 编辑">
       {toolbarTarget === undefined ? toolbar : null}
-      <div className="editor-status-bar">
-        {status ? <p className="editor-save-status" data-tone={statusTone} role="status">{status}</p> : null}
-        <p className="editor-context-hint">{mode === 'source' ? '源代码模式：保留所有 Markdown 标记，切回即时排版查看效果' : activeFormats?.hint}</p>
-      </div>
+      {status ? <div className="editor-status-bar">
+        <p className="editor-save-status" data-tone={statusTone} role="status">{status}</p>
+      </div> : null}
       <div className="editor-scroll-region">
         {mode === 'rich'
           ? <>
