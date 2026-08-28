@@ -33,6 +33,12 @@ export interface ArticleDraft {
   media: MediaAsset[]
 }
 
+export const UNTITLED_DRAFT_MESSAGE = '文章未命名，未保存至本地草稿'
+
+export function hasDraftTitle(draft: ArticleDraft): boolean {
+  return Boolean(draft.meta.title.trim())
+}
+
 export function hasDraftContent(draft: ArticleDraft): boolean {
   return Boolean(
     draft.body.trim()

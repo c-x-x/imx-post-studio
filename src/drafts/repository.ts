@@ -1,4 +1,4 @@
-import { hasDraftContent, type ArticleDraft, type MediaAsset, type MediaKind, type MediaMime } from '../metadata/article'
+import { hasDraftContent, hasDraftTitle, UNTITLED_DRAFT_MESSAGE, type ArticleDraft, type MediaAsset, type MediaKind, type MediaMime } from '../metadata/article'
 import { assertSafeImageName } from '../bundles/media-validation'
 import { getDraftDatabase, type StoredArticleDraft, type StoredMediaAsset } from './database'
 
@@ -184,6 +184,7 @@ async function readDraft(id: string): Promise<ArticleDraft | undefined> {
 }
 
 async function saveDraft(draft: ArticleDraft): Promise<void> {
+  if (!hasDraftTitle(draft)) throw new Error(UNTITLED_DRAFT_MESSAGE)
   // Take every mutable value before opening IndexedDB. Blob contents are
   // immutable, so retaining the Blob long enough to copy its bytes is safe.
   const storedDraft = serializeDraft(draft)

@@ -18,7 +18,7 @@ import { clipboardImages, type PastedImageRequest } from './paste'
 import { RawMarkdownBlock, RawMarkdownInline, SafeCodeBlock, SafeTable } from './markdown-extensions'
 import { TableDialog } from './TableDialog'
 import { LinkDialog } from './LinkDialog'
-import { DeferredMarkdown, editorMarkdown } from './deferred-markdown'
+import { DeferredMarkdown, editorMarkdown, pauseDeferredMarkdown } from './deferred-markdown'
 import type { SourceMarkdownEditorHandle } from './SourceMarkdownEditor'
 import './editor.css'
 
@@ -483,6 +483,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 
   const openLinkDialog = () => {
     if (!editor || disabled || mode !== 'rich') return
+    pauseDeferredMarkdown(editor, true)
     const selection = editor.state.selection
     const linkRange = selection.empty ? getMarkRange(selection.$from, editor.schema.marks.link) : undefined
     const { from, to } = linkRange ?? selection
@@ -593,6 +594,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       </div>
     </section>
     {tableDialogOpen && <TableDialog onClose={() => setTableDialogOpen(false)} onInsert={insertTable} returnFocus={() => tableButtonRef.current} />}
-    {linkDialog && <LinkDialog initialHref={linkDialog.href} initialText={linkDialog.text} onClose={() => setLinkDialog(null)} onApply={applyLink} onRemove={removeLink} returnFocus={() => linkButtonRef.current} />}
+    {linkDialog && <LinkDialog initialHref={linkDialog.href} initialText={linkDialog.text} onClose={() => {
+      setLinkDialog(null)
+      if (editor && !editor.isDestroyed) pauseDeferredMarkdown(editor, false)
+    }} onApply={applyLink} onRemove={removeLink} returnFocus={() => linkButtonRef.current} />}
   </>
 })

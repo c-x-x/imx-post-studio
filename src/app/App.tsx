@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import type { ArticleDraft, MediaAsset } from '../metadata/article'
-import { createArticleDraft, hasDraftContent } from '../metadata/article'
+import { createArticleDraft, hasDraftContent, hasDraftTitle, UNTITLED_DRAFT_MESSAGE } from '../metadata/article'
 import { MarkdownEditor, type MarkdownEditorHandle, type PastedImageRequest } from '../editor/MarkdownEditor'
 import { OutlinePanel } from '../editor/OutlinePanel'
 import { MetadataPanel } from '../metadata/MetadataPanel'
@@ -194,6 +194,7 @@ export function App() {
     }
     let savedRevision: number
     do {
+      if (!hasDraftTitle(draftRef.current)) throw new Error(UNTITLED_DRAFT_MESSAGE)
       savedRevision = draftRevision.current
       await draftRepository.put(draftRef.current)
     } while (savedRevision !== draftRevision.current)
@@ -201,7 +202,7 @@ export function App() {
     return true
   }
 
-  const requestTransition = async (continueTransition: () => void | Promise<void>, label: string): Promise<boolean> => {
+  const requestTransition = async (continueTransition: () => void | Promise<void>, label: string, retainsCurrent = false): Promise<boolean> => {
     if (intakeBusyRef.current) {
       setNotice('正在读取媒体，请完成后再切换文章')
       return false
@@ -213,7 +214,7 @@ export function App() {
       // Any mutation that somehow reaches the reducer during the asynchronous put
       // increments this revision. In that case persist the newest snapshot before
       // allowing a view or identity change to discard the outgoing reducer value.
-      if (draftStartedRef.current) await persistLatestDraft()
+      if (draftStartedRef.current && (!retainsCurrent || hasDraftTitle(draftRef.current))) await persistLatestDraft()
       setTransitionFailure(undefined)
       await continueTransition()
       return true
@@ -291,12 +292,12 @@ export function App() {
   const showDashboard = () => requestTransition(() => {
     setView('dashboard')
     setNotice('已打开草稿')
-  }, '打开草稿')
+  }, '打开草稿', true)
 
   const showWorks = () => requestTransition(() => {
     setView('works')
     setNotice('已打开作品')
-  }, '打开作品')
+  }, '打开作品', true)
 
   const showHome = () => {
     setView('home')
@@ -346,7 +347,8 @@ export function App() {
     }
   }
 
-  const status = saveStatus.state === 'failed'
+  const unnamed = !hasDraftTitle(draft)
+  const status = unnamed ? UNTITLED_DRAFT_MESSAGE : saveStatus.state === 'failed'
     ? `保存失败：${saveStatus.message}`
     : saveStatus.state === 'saving'
     ? '正在保存…'
@@ -355,7 +357,7 @@ export function App() {
     : saveStatus.state === 'saved' && draftStarted
       ? pendingWorkId === draft.id ? '已保存到待提交作品' : '已保存到本地草稿'
       : notice
-  const statusTone = saveStatus.state === 'failed' ? 'error'
+  const statusTone = unnamed || saveStatus.state === 'failed' ? 'error'
     : saveStatus.state === 'saving' || intakeBusy ? 'pending'
     : saveStatus.state === 'saved' && draftStarted ? 'success' : 'info'
   const recoveryNeeded = saveStatus.state === 'failed' || Boolean(failedTransition)

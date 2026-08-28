@@ -45,6 +45,16 @@ beforeAll(async () => {
 })
 
 describe('draftRepository', () => {
+  it('rejects unnamed writes without creating a record or overwriting a saved draft', async () => {
+    const unnamed = draft({ id: 'unnamed-write' })
+    unnamed.meta.title = '  '
+    await expect(draftRepository.put(unnamed)).rejects.toThrow('文章未命名，未保存至本地草稿')
+    expect(await draftRepository.get(unnamed.id)).toBeUndefined()
+    const named = draft({ id: 'keep-named-revision' })
+    await draftRepository.put(named)
+    await expect(draftRepository.put({ ...named, meta: { ...named.meta, title: '' } })).rejects.toThrow('文章未命名')
+    expect((await draftRepository.get(named.id))?.meta.title).toBe(named.meta.title)
+  })
   it('actually deletes a pushed draft and prevents delayed writes from resurrecting it', async () => {
     const pushed = draft({ id: 'published-draft' })
     await draftRepository.put(pushed)
@@ -156,7 +166,7 @@ describe('draftRepository', () => {
   })
 
   it('does not expose historical empty records in the draft library', async () => {
-    await draftRepository.put(draft({
+    const historical = draft({
       id: 'historical-empty',
       body: '   ',
       media: [],
@@ -170,7 +180,8 @@ describe('draftRepository', () => {
         description: '',
         toc: true,
       },
-    }))
+    })
+    await (await getDraftDatabase()).put('drafts', { ...historical, media: [] })
 
     expect((await draftRepository.list()).map((item) => item.id)).not.toContain('historical-empty')
   })

@@ -62,6 +62,31 @@ describe('workspace transitions', () => {
     expect(screen.queryByRole('button', { name: '保存到草稿库' })).not.toBeInTheDocument()
   })
 
+  it('shows an unnamed warning, retains content across navigation and saves after naming', async () => {
+    render(<App />)
+    await startWorkspace()
+    fireEvent.change(screen.getByLabelText('摘要'), { target: { value: '尚未命名的内容' } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    expect(put).not.toHaveBeenCalled()
+    expect(screen.getByRole('status')).toHaveTextContent('文章未命名，未保存至本地草稿')
+    expect(screen.getByRole('status')).toHaveAttribute('data-tone', 'error')
+    fireEvent.click(screen.getByRole('button', { name: '草稿' }))
+    await act(async () => { await Promise.resolve() })
+    expect(put).not.toHaveBeenCalled()
+    await startWorkspace()
+    expect(screen.getByLabelText('摘要')).toHaveValue('尚未命名的内容')
+    fireEvent.click(screen.getByRole('button', { name: '新建文章' }))
+    fireEvent.click(screen.getByRole('button', { name: '保存草稿并新建' }))
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getByRole('dialog')).toHaveTextContent('文章未命名，未保存至本地草稿')
+    fireEvent.click(screen.getByRole('button', { name: '取消' }))
+    expect(screen.getByLabelText('摘要')).toHaveValue('尚未命名的内容')
+    fireEvent.change(screen.getByLabelText('标题'), { target: { value: '现在有标题' } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(800) })
+    expect(put).toHaveBeenCalledOnce()
+    expect(screen.getByRole('status')).toHaveTextContent('已保存到本地草稿')
+  })
+
   it('saves a started article before creating a fresh unsaved article', async () => {
     render(<App />)
     await startWorkspace()
@@ -120,7 +145,7 @@ describe('workspace transitions', () => {
     expect(remove).toHaveBeenCalledWith(outgoing.id)
     expect(put).not.toHaveBeenCalled()
     expect(screen.getByLabelText('标题')).toHaveValue('')
-    expect(screen.getByText('已创建新文章')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('文章未命名，未保存至本地草稿')
   })
 
   it('keeps the current article and decision open when draft deletion fails', async () => {

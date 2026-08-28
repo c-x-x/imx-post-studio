@@ -1,5 +1,39 @@
 import { expect, test } from '@playwright/test'
 
+test('applies a link to the selected text while other Markdown in the line is pending', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '写作', exact: true }).click()
+  await page.getByRole('tab', { name: '排版' }).click()
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await editor.click()
+  await editor.pressSequentially('**粗体** 链接 尾部')
+  await editor.evaluate((element) => {
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+    while (walker.nextNode()) {
+      const node = walker.currentNode
+      const start = node.textContent?.indexOf('链接') ?? -1
+      if (start < 0) continue
+      const range = document.createRange()
+      range.setStart(node, start)
+      range.setEnd(node, start + 2)
+      window.getSelection()?.removeAllRanges()
+      window.getSelection()?.addRange(range)
+      document.dispatchEvent(new Event('selectionchange'))
+      return
+    }
+    throw new Error('Link text is missing')
+  })
+  await page.getByRole('button', { name: '链接', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: '插入链接' })
+  await expect(dialog.getByLabel('链接文字')).toHaveValue('链接')
+  await dialog.getByLabel('链接地址').fill('https://example.com')
+  await dialog.getByRole('button', { name: '插入链接' }).click()
+  await expect(editor.locator('a')).toHaveText('链接')
+  await page.getByLabel('标题', { exact: true }).click()
+  await expect(editor.locator('strong')).toHaveText('粗体')
+  await expect(editor).toContainText('尾部')
+})
+
 test('defers typed Markdown until leaving the paragraph and keeps toolbar formatting immediate', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: '写作', exact: true }).click()

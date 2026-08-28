@@ -37,8 +37,8 @@ export function LinkDialog({ initialHref, initialText, onClose, onApply, onRemov
           setError('请输入有效地址，例如 https://example.com、mailto:邮箱 或 /站内路径。')
           return
         }
-        close({ restoreFocus: false })
         onApply(address, text.trim() ? text : address)
+        close({ restoreFocus: false })
       }
       return <form onSubmit={submit}>
         <div className="link-dialog-fields">
@@ -48,7 +48,7 @@ export function LinkDialog({ initialHref, initialText, onClose, onApply, onRemov
         {error ? <p id={errorId} className="field-error" role="alert">{error}</p> : null}
         <div className="dialog-actions">
           <button type="button" onClick={() => close()}>取消</button>
-          {initialHref ? <button type="button" onClick={() => { close({ restoreFocus: false }); onRemove() }}>移除链接</button> : null}
+          {initialHref ? <button type="button" onClick={() => { onRemove(); close({ restoreFocus: false }) }}>移除链接</button> : null}
           <button type="submit">{initialHref ? '保存链接' : '插入链接'}</button>
         </div>
       </form>

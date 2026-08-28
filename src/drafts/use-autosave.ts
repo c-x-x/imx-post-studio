@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { hasDraftContent, type ArticleDraft } from '../metadata/article'
+import { hasDraftContent, hasDraftTitle, type ArticleDraft } from '../metadata/article'
 import { draftRepository } from './repository'
 
 export type SaveStatus =
@@ -29,7 +29,7 @@ export function useAutosave(draft: ArticleDraft | null, onSaved?: (draft: Articl
     generation.current += 1
     const activeGeneration = generation.current
 
-    if (!draft || !hasDraftContent(draft)) {
+    if (!draft || !hasDraftTitle(draft) || !hasDraftContent(draft)) {
       return () => {
         generation.current += 1
       }
@@ -67,6 +67,7 @@ export function useAutosave(draft: ArticleDraft | null, onSaved?: (draft: Articl
     }
   }, [draft])
 
+  if (draft && !hasDraftTitle(draft)) return IDLE_STATUS
   return !draft || !hasDraftContent(draft) || revisionStatus.status.state === 'failed' || revisionStatus.draft === draft
     ? revisionStatus.status
     : IDLE_STATUS

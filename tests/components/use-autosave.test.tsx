@@ -78,6 +78,34 @@ describe('useAutosave', () => {
     expect(put).toHaveBeenLastCalledWith(expect.objectContaining({ body: 'changed after 500 ms' }))
   })
 
+  it('does not write unnamed content and resumes only after naming it', async () => {
+    const unnamed = { ...draft('正文已经写好'), meta: { ...draft().meta, title: '  ' } }
+    const onSaved = vi.fn()
+    const { result, rerender } = renderHook(({ current }) => useAutosave(current, onSaved), {
+      initialProps: { current: unnamed },
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(1000))
+    expect(put).not.toHaveBeenCalled()
+    expect(onSaved).not.toHaveBeenCalled()
+    rerender({ current: { ...unnamed, meta: { ...unnamed.meta, title: '已命名' } } })
+    await act(async () => vi.advanceTimersByTimeAsync(800))
+    expect(put).toHaveBeenCalledOnce()
+    expect(result.current.state).toBe('saved')
+    rerender({ current: unnamed })
+    await act(async () => vi.advanceTimersByTimeAsync(800))
+    expect(put).toHaveBeenCalledOnce()
+    expect(result.current.state).toBe('idle')
+  })
+
+  it('cancels a scheduled write when the title is removed', async () => {
+    const named = draft()
+    const { rerender } = renderHook(({ current }) => useAutosave(current), { initialProps: { current: named } })
+    act(() => vi.advanceTimersByTime(799))
+    rerender({ current: { ...named, meta: { ...named.meta, title: '' } } })
+    await act(async () => vi.advanceTimersByTimeAsync(1000))
+    expect(put).not.toHaveBeenCalled()
+  })
+
   it('exposes saving then saved after the repository resolves', async () => {
     const save = deferred<void>()
     put.mockReturnValueOnce(save.promise)

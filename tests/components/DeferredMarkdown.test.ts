@@ -1,8 +1,10 @@
 import { Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from '@tiptap/markdown'
+import TaskList from '@tiptap/extension-task-list'
+import TaskItem from '@tiptap/extension-task-item'
 import { afterEach, describe, expect, it } from 'vitest'
-import { DeferredMarkdown, editorMarkdown } from '../../src/editor/deferred-markdown'
+import { DeferredMarkdown, editorMarkdown, pauseDeferredMarkdown } from '../../src/editor/deferred-markdown'
 import { RawMarkdownBlock } from '../../src/editor/markdown-extensions'
 
 let editor: Editor
@@ -10,13 +12,67 @@ afterEach(() => editor?.destroy())
 
 function setup(content = '') {
   editor = new Editor({
-    extensions: [StarterKit, Markdown, RawMarkdownBlock, DeferredMarkdown],
+    extensions: [StarterKit, TaskList, TaskItem, Markdown, RawMarkdownBlock, DeferredMarkdown],
     content, contentType: 'markdown', enableInputRules: ['codeBlock', 'horizontalRule'],
   })
   return editor
 }
 
 describe('deferred Markdown input', () => {
+  it('can finish incomplete syntax after leaving and returning to the editor', () => {
+    setup().commands.insertContent({ type: 'text', text: '**尚未完成' })
+    editor.view.dom.dispatchEvent(new FocusEvent('blur'))
+    editor.view.dom.dispatchEvent(new FocusEvent('focus'))
+    editor.commands.insertContent({ type: 'text', text: '**' })
+    editor.commands.splitBlock()
+    expect(editor.view.dom.querySelector('strong')).toHaveTextContent('尚未完成')
+  })
+
+  it('preserves existing literal Markdown while parsing new syntax in the same paragraph', () => {
+    setup('\\*原样星号\\* \\~\\~原样删除线\\~\\~')
+    editor.commands.setTextSelection(editor.state.doc.content.size - 1)
+    editor.commands.insertContent({ type: 'text', text: ' **新增加粗**' })
+    const saved = editorMarkdown(editor)
+    editor.commands.splitBlock()
+    expect(editor.view.dom.querySelector('em, s')).toBeNull()
+    expect(editor.view.dom.querySelector('strong')).toHaveTextContent('新增加粗')
+    expect(editor.view.dom.textContent).toContain('*原样星号* ~~原样删除线~~')
+    editor.commands.setContent(saved, { contentType: 'markdown', emitUpdate: false })
+    expect(editor.view.dom.querySelector('em, s')).toBeNull()
+    expect(editor.view.dom.querySelector('strong')).toHaveTextContent('新增加粗')
+  })
+
+  it('does not move the link target when a dialog blurs pending Markdown', () => {
+    setup().commands.insertContent({ type: 'text', text: '**粗体** 链接 尾部' })
+    editor.commands.setTextSelection({ from: 8, to: 10 })
+    pauseDeferredMarkdown(editor, true)
+    editor.view.dom.dispatchEvent(new FocusEvent('blur'))
+    expect(editor.state.doc.textBetween(8, 10)).toBe('链接')
+    editor.chain().setTextSelection({ from: 8, to: 10 }).setLink({ href: 'https://example.com' }).run()
+    pauseDeferredMarkdown(editor, false)
+    expect(editor.view.dom.querySelector('strong')).toHaveTextContent('粗体')
+    expect(editor.view.dom.querySelector('a')).toHaveTextContent('链接')
+    expect(editor.view.dom.textContent).toContain('尾部')
+  })
+
+  it.each([
+    ['- 列表项', 'bulletList', 'listItem'],
+    ['1. 列表项', 'orderedList', 'listItem'],
+    ['- [ ] 待办', 'taskList', 'taskItem'],
+    ['> 引用', 'blockquote', 'blockquote'],
+  ])('continues %s with native Enter behavior', (source, container, parent) => {
+    setup().commands.insertContent({ type: 'text', text: source })
+    editor.view.someProp('handleKeyDown', (handler) => handler(editor.view, new KeyboardEvent('keydown', { key: 'Enter' })))
+    expect(editor.state.doc.firstChild?.type.name).toBe(container)
+    expect(editor.state.selection.$from.node(-1).type.name).toBe(parent)
+    expect(editor.state.selection.$from.parent.textContent).toBe('')
+    editor.commands.insertContent({ type: 'text', text: '继续写' })
+    expect(editor.state.doc.firstChild?.textContent).toContain('继续写')
+    expect(editor.commands.undo()).toBe(true)
+    expect(editor.commands.redo()).toBe(true)
+    expect(editor.state.doc.firstChild?.textContent).toContain('继续写')
+  })
+
   it('recognizes typed inline syntax inside inherited formatting', () => {
     setup('**已有加粗**')
     editor.commands.setTextSelection(editor.state.doc.content.size - 1)
