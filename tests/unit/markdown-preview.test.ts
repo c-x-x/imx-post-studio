@@ -2,6 +2,18 @@ import { describe, expect, it } from 'vitest'
 import { renderMarkdown } from '../../src/preview/markdown'
 
 describe('renderMarkdown', () => {
+  it.each(['constructor', '__proto__', 'toString', 'unknown-language'])('renders unregistered language %s safely', async (language) => {
+    const result = await renderMarkdown(`\`\`\`${language}\nhello\n\`\`\``, () => undefined)
+    expect(result.html).toContain('hello')
+    expect(result.html).toContain('code-block-header')
+  })
+
+  it('keeps safe links and rewrites forward heading anchors', async () => {
+    const result = await renderMarkdown('[跳转](#section) [站内](/posts/a/) [电话](tel:123)\n\n## Section', () => undefined)
+    expect(result.html).toContain('href="#imx-heading-section"')
+    expect(result.html).toContain('href="/posts/a/"')
+    expect(result.html).toContain('href="tel:123"')
+  })
   it('preserves semantic emphasis and strikethrough elements for preview styling', async () => {
     const rendered = await renderMarkdown('**粗体**、*斜体*、~~删除线~~', () => undefined)
 
@@ -10,7 +22,7 @@ describe('renderMarkdown', () => {
     expect(rendered.html).toContain('<del>删除线</del>')
   })
 
-  it('renders GFM, safe duplicate h2 ids, nested h2-h5 TOC, highlighting, and resolved local images', async () => {
+  it('renders GFM, unique heading ids, nested h1-h6 TOC, highlighting, and resolved local images', async () => {
     const rendered = await renderMarkdown(
       '# Excluded\n\n## Guide\n\n### Child\n\n## Guide\n\n###### Excluded\n\n| left | right |\n| --- | --- |\n| a | b |\n\n```ts\nconst answer = 42\n```\n\n![Example](images/example.png)',
       (path) => (path === 'images/example.png' ? 'blob:example' : undefined),
@@ -28,15 +40,15 @@ describe('renderMarkdown', () => {
     expect(rendered.html).toContain('class="copy-code-button"')
     expect(rendered.html).toContain('aria-label="复制代码"')
     expect(rendered.html).toContain('src="blob:example"')
-    expect(rendered.toc).toEqual([
+    expect(rendered.toc).toEqual([{ id: 'imx-heading-excluded', depth: 1, text: 'Excluded', children: [
       {
         id: 'imx-heading-guide',
         depth: 2,
         text: 'Guide',
         children: [{ id: 'imx-heading-child', depth: 3, text: 'Child', children: [] }],
       },
-      { id: 'imx-heading-guide-1', depth: 2, text: 'Guide', children: [] },
-    ])
+      { id: 'imx-heading-guide-1', depth: 2, text: 'Guide', children: [{ id: 'imx-heading-excluded-1', depth: 6, text: 'Excluded', children: [] }] },
+    ] }])
   })
 
   it('rewrites only normalized local images, preserves safe external images, and rejects hostile resolver URLs', async () => {

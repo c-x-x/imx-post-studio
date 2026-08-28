@@ -72,7 +72,11 @@ const codeLanguages: Record<string, { key: string; label: string }> = {
   cpp: { key: 'cpp', label: 'C++' },
 }
 
-const previewSanitizeSchema = { ...defaultSchema, clobberPrefix: '' }
+const previewSanitizeSchema = {
+  ...defaultSchema,
+  clobberPrefix: '',
+  protocols: { ...defaultSchema.protocols, href: [...(defaultSchema.protocols?.href ?? []), 'tel'] },
+}
 
 function codeLanguage(code: Element): { key: string; label: string } {
   const classes = Array.isArray(code.properties.className) ? code.properties.className : []
@@ -82,7 +86,7 @@ function codeLanguage(code: Element): { key: string; label: string } {
     ?.slice('language-'.length)
     .toLowerCase()
   if (!source) return { key: 'code', label: 'Code' }
-  return codeLanguages[source] ?? {
+  return Object.hasOwn(codeLanguages, source) ? codeLanguages[source] : {
     key: /^[a-z0-9-]+$/.test(source) ? source : 'code',
     label: source.replace(/(^|-)([a-z])/g, (_, separator: string, letter: string) => `${separator ? ' ' : ''}${letter.toUpperCase()}`),
   }
@@ -143,12 +147,16 @@ function renderedText(node: Root | Root['children'][number], skip = false): stri
 function collectHeadingsRewriteImagesAndMeasure(resolveLocalImage: (path: string) => string | undefined, headings: TocHeading[], metrics: { wordCount: number }) {
   return (tree: Root) => {
     const slugger = new GithubSlugger()
+    const anchors = new Map<string, string>()
     visit(tree, 'element', (node: Element) => {
-      if (/^h[2-5]$/.test(node.tagName)) {
+      if (/^h[1-6]$/.test(node.tagName)) {
         const existingId = typeof node.properties.id === 'string' ? node.properties.id : ''
         if (existingId === 'footnote-label' || existingId.endsWith('footnote-label')) return
         const text = elementText(node).trim()
-        const id = `imx-heading-${slugger.slug(text)}`
+        const slug = slugger.slug(text)
+        const id = `imx-heading-${slug}`
+        if (!anchors.has(slug)) anchors.set(slug, id)
+        if (existingId && !anchors.has(existingId)) anchors.set(existingId, id)
         node.properties.id = id
         headings.push({ id, depth: Number(node.tagName[1]), text })
       }
@@ -162,9 +170,17 @@ function collectHeadingsRewriteImagesAndMeasure(resolveLocalImage: (path: string
           } else delete node.properties.src
         }
       }
-      if (node.tagName === 'a' && typeof node.properties.href === 'string' && !/^(https?:|mailto:|#)/i.test(node.properties.href)) {
+      if (node.tagName === 'a' && typeof node.properties.href === 'string' && !/^(https?:|mailto:|tel:|#|\/(?!\/)|\.{1,2}\/)/i.test(node.properties.href)) {
         delete node.properties.href
       }
+    })
+    // Resolve links after collecting all headings, including forward links.
+    visit(tree, 'element', (node: Element) => {
+      if (node.tagName !== 'a' || typeof node.properties.href !== 'string' || !node.properties.href.startsWith('#')) return
+      try {
+        const target = anchors.get(decodeURIComponent(node.properties.href.slice(1)))
+        if (target) node.properties.href = `#${target}`
+      } catch { delete node.properties.href }
     })
     metrics.wordCount = estimateWords(renderedText(tree))
   }

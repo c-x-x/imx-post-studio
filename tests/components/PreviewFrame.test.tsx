@@ -46,6 +46,19 @@ describe('PreviewFrame', () => {
     expect(preview.shadowRoot?.querySelector('.preview-html')).toHaveAttribute('data-preview-viewport', 'mobile')
   })
 
+  it('navigates body and footnote anchors inside the preview without leaving the editor', () => {
+    render(<PreviewFrame meta={meta} rendered={{ html: '<a href="#imx-heading-a">跳转正文</a><h2 id="imx-heading-a">A</h2><a href="#fn-1">脚注</a><p id="fn-1">注释</p>', toc: [], wordCount: 1, readingMinutes: 1 }} css="" theme="light" onThemeChange={vi.fn()} onClose={vi.fn()} />)
+    const root = screen.getByTitle('IMX 文章预览').shadowRoot!
+    const scroll = vi.fn()
+    screen.getByTitle('IMX 文章预览').scrollTo = scroll
+    for (const link of root.querySelectorAll('.article-content a')) {
+      const event = new MouseEvent('click', { bubbles: true, cancelable: true })
+      fireEvent(link, event)
+      expect(event.defaultPrevented).toBe(true)
+    }
+    expect(scroll).toHaveBeenCalledTimes(2)
+  })
+
   it('builds sanitized Shadow DOM content with the Studio-owned TOC contract', () => {
     const content = buildPreviewDocument({
       meta,

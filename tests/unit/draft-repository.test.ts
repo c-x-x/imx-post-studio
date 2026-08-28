@@ -45,6 +45,31 @@ beforeAll(async () => {
 })
 
 describe('draftRepository', () => {
+  it('rejects stale writes from another window and keeps deleted drafts deleted', async () => {
+    const original = draft({ id: 'cross-window-conflict' })
+    await draftRepository.put(original)
+    const stale = (await draftRepository.get(original.id))!
+    const db = await getDraftDatabase()
+    const stored = (await db.get('drafts', original.id))!
+    await db.put('drafts', { ...stored, body: 'saved in another window', storageRevision: 'external-revision', storageWriter: 'other-window' })
+    await expect(draftRepository.put({ ...stale, body: 'stale text' })).rejects.toThrow('其他窗口修改')
+    expect((await draftRepository.get(original.id))?.body).toBe('saved in another window')
+    const refreshed = (await draftRepository.get(original.id))!
+    await expect(draftRepository.put({ ...refreshed, body: 'explicitly reopened' })).resolves.toBeUndefined()
+    await draftRepository.delete(original.id)
+    await expect(draftRepository.put(refreshed)).rejects.toThrow('已删除')
+    expect(await draftRepository.get(original.id)).toBeUndefined()
+  })
+
+  it('does not let the old editor title overwrite a rename', async () => {
+    const original = draft({ id: 'rename-conflict' })
+    await draftRepository.put(original)
+    const renamed = await draftRepository.rename(original.id, 'New title')
+    await expect(draftRepository.put(original)).rejects.toThrow('其他窗口修改')
+    await draftRepository.put({ ...renamed, body: 'continue writing' })
+    expect((await draftRepository.get(original.id))?.meta.title).toBe('New title')
+    await draftRepository.delete(original.id)
+  })
   it('rejects unnamed writes without creating a record or overwriting a saved draft', async () => {
     const unnamed = draft({ id: 'unnamed-write' })
     unnamed.meta.title = '  '

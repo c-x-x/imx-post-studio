@@ -26,6 +26,8 @@ export interface ArticleMeta {
 
 export interface ArticleDraft {
   id: string
+  /** Local persistence version; not part of exported Markdown. */
+  storageRevision?: string
   createdAt: string
   updatedAt: string
   meta: ArticleMeta

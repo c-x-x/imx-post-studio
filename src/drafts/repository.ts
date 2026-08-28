@@ -5,6 +5,8 @@ import { getDraftDatabase, type StoredArticleDraft, type StoredMediaAsset } from
 const MEDIA_MIMES = new Set<MediaMime>(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 const MEDIA_KINDS = new Set<MediaKind>(['cover', 'body'])
 const draftMutations = new Map<string, Promise<void>>()
+// A new identity per page, never persisted in localStorage or shared across tabs.
+const writerId = crypto.randomUUID()
 
 interface MediaSnapshot extends Omit<MediaAsset, 'blob'> {
   blob: Blob
@@ -193,10 +195,21 @@ async function saveDraft(draft: ArticleDraft): Promise<void> {
       const database = await getDraftDatabase()
       const snapshot = await storedDraft
       const tx = database.transaction(['drafts', 'published'], 'readwrite')
-      if (await tx.objectStore('published').get(draft.id)) {
+      const receipt = await tx.objectStore('published').get(draft.id)
+      if (receipt) {
         await tx.done
+        if (receipt === 'deleted') throw new Error('此草稿已删除，不能由旧窗口重新保存；请先导出当前内容备份')
         throw new Error('此草稿已推送，请从作品页重新读取；当前窗口的内容可先导出备份')
       }
+      const current = await tx.objectStore('drafts').get(draft.id)
+      // Queued autosaves from this page may share a base revision. A write from
+      // another page must match the version explicitly read by this editor.
+      if (current && current.storageRevision !== snapshot.storageRevision && current.storageWriter !== writerId) {
+        await tx.done
+        throw new Error('草稿已被其他窗口修改，未覆盖较新内容；请先导出当前内容备份，再重新打开草稿')
+      }
+      snapshot.storageRevision = crypto.randomUUID()
+      snapshot.storageWriter = writerId
       await tx.objectStore('drafts').put(snapshot)
       await tx.done
     } catch (error) {
@@ -247,6 +260,7 @@ export const draftRepository = {
     const duplicate: ArticleDraft = {
       ...source,
       id: crypto.randomUUID(),
+      storageRevision: undefined,
       createdAt: timestamp,
       updatedAt: timestamp,
       meta: { ...source.meta, categories: [...source.meta.categories], tags: [...source.meta.tags] },
@@ -269,6 +283,9 @@ export const draftRepository = {
 
       const renamed: StoredArticleDraft = {
         ...source,
+        storageRevision: crypto.randomUUID(),
+        // A rename invalidates stale autosaves, including this page's old title.
+        storageWriter: undefined,
         updatedAt: currentTimestamp(),
         meta: { ...source.meta, title: nextTitle },
         media: source.media.map((asset) => ({ ...asset })),
@@ -286,7 +303,10 @@ export const draftRepository = {
     return enqueueDraftMutation(id, async () => {
       try {
         const database = await getDraftDatabase()
-        await database.delete('drafts', id)
+        const tx = database.transaction(['drafts', 'published'], 'readwrite')
+        await tx.objectStore('published').put('deleted', id)
+        await tx.objectStore('drafts').delete(id)
+        await tx.done
       } catch (error) {
         throw storageError('删除草稿', error)
       }

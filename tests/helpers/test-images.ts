@@ -1,5 +1,7 @@
 import { deflateSync } from 'node:zlib'
 
+export const tinyWebpBytes = new Uint8Array(Buffer.from("UklGRjgAAABXRUJQVlA4ICwAAADQAQCdASoBAAEAAUAmJaACdLoB+AADsAD+8U2v/OJY6nd0H//MEr8g3KgAAA==", "base64"))
+
 export interface TestFilePayload {
   name: string
   mimeType: string

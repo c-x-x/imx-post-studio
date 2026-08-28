@@ -289,6 +289,26 @@ test('keeps keyboard focus in the export dialog', async ({ page }) => {
 test('keeps responsive workspace panels mounted and opens preview without horizontal overflow', async ({ page }) => {
   await beginArticle(page)
   await fillMetadata(page)
+  await page.getByRole('tab', { name: '排版' }).click()
+  await page.getByRole('button', { name: '源代码' }).click()
+  const source = page.locator('.source-markdown-editor')
+  await expect(source.locator('.cm-gutters')).toBeVisible()
+  for (const viewport of [{ width: 1117, height: 763 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport)
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate((value) => { document.documentElement.dataset.theme = value }, theme)
+      await expect.poll(() => source.evaluate((element) => {
+        const gutter = element.querySelector('.cm-gutters')!
+        const editor = element.querySelector('.cm-editor')!
+        const scroller = element.querySelector('.cm-scroller')!
+        return getComputedStyle(gutter).backgroundColor === getComputedStyle(editor).backgroundColor
+          && gutter.getBoundingClientRect().height >= scroller.clientHeight - 1
+      })).toBe(true)
+    }
+  }
+  await page.evaluate(() => { document.documentElement.dataset.theme = 'light' })
+  await page.getByRole('tab', { name: '工具', exact: true }).click()
+  await page.getByRole('button', { name: '即时排版' }).click()
   await page.setViewportSize({ width: 390, height: 844 })
   const workspaceTabs = page.getByRole('tablist', { name: '工作区视图' })
   await expect(workspaceTabs).toBeVisible()

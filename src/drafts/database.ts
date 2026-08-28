@@ -14,6 +14,7 @@ export interface StoredMediaAsset extends Omit<MediaAsset, 'blob'> {
 
 export interface StoredArticleDraft extends Omit<ArticleDraft, 'media'> {
   media: StoredMediaAsset[]
+  storageWriter?: string
 }
 
 interface DraftDatabaseSchema extends DBSchema {

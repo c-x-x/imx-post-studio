@@ -261,6 +261,10 @@
   }
 }
 
+.source-markdown-editor {
+  height: 100%;
+}
+
 .markdown-editor .cm-editor {
   min-height: 100%;
   border: 0;
@@ -677,7 +681,7 @@
 .markdown-editor .cm-gutters {
   border-right-color: var(--imx-line);
   color: var(--imx-ink-muted);
-  background: var(--imx-gutter);
+  background: var(--imx-paper);
 }
 
 .markdown-editor .cm-activeLine,

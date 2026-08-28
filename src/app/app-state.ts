@@ -35,7 +35,7 @@ function touched(draft: ArticleDraft): ArticleDraft {
 
 export function createImportedDraft(draft: ArticleDraft, now = new Date()): ArticleDraft {
   const createdAt = beijingTimestamp(now)
-  return { ...cloneDraft(draft), id: crypto.randomUUID(), createdAt, updatedAt: createdAt }
+  return { ...cloneDraft(draft), id: crypto.randomUUID(), storageRevision: undefined, createdAt, updatedAt: createdAt }
 }
 
 export function appReducer(state: ArticleDraft, action: AppAction): ArticleDraft {
@@ -47,6 +47,7 @@ export function appReducer(state: ArticleDraft, action: AppAction): ArticleDraft
       return {
         ...touched(action.draft),
         id: state.id,
+        storageRevision: state.storageRevision,
         createdAt: state.createdAt,
       }
     case 'set-meta':

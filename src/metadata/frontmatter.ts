@@ -131,6 +131,7 @@ export function serializeArticle(draft: ArticleDraft, draftOverride?: boolean): 
   const cover = draft.media.find((asset) => asset.kind === 'cover')
   const values = [
     `title = ${tomlBasicString(draft.meta.title)}`,
+    `slug = ${tomlBasicString(draft.meta.slug)}`,
     `date = ${tomlBasicString(draft.meta.date)}`,
     `draft = ${draftOverride ?? draft.meta.draft}`,
     `categories = ${tomlStringArray(draft.meta.categories)}`,

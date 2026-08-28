@@ -2,3 +2,7 @@ export const MAX_SOURCE_BYTES = 25 * 1024 * 1024
 export const MAX_ARCHIVE_ENTRIES = 500
 export const MAX_ARCHIVE_FILE_BYTES = 25 * 1024 * 1024
 export const MAX_ARCHIVE_TOTAL_BYTES = 250 * 1024 * 1024
+export const MAX_IMAGE_PIXELS = 40_000_000
+export const MAX_IMAGE_DIMENSION = 16_384
+export const MAX_IMAGE_BATCH_COUNT = 50
+export const MAX_IMAGE_BATCH_BYTES = 100 * 1024 * 1024

@@ -1,11 +1,12 @@
+import { createPngBuffer, tinyWebpBytes } from '../helpers/test-images'
 import { useState } from 'react'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { MediaAsset } from '../../src/metadata/article'
 import { MediaPanel } from '../../src/media/MediaPanel'
 
-const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
-const webp = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0x04, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50])
+const png = new Uint8Array(createPngBuffer(1, 1))
+const webp = tinyWebpBytes
 
 function Harness() {
   const [media, setMedia] = useState<MediaAsset[]>([])

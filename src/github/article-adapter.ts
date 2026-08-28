@@ -1,7 +1,8 @@
 import { parse, stringify } from 'smol-toml'
 import { createArticleDraft, assertCompleteArticleMeta, assertPublishableArticle, type ArticleDraft, type ArticleMeta, type MediaAsset } from '../metadata/article'
 import { parseArticle, serializeArticle } from '../metadata/frontmatter'
-import { assertExportableMedia, assertImageBytes } from '../bundles/media-validation'
+import { assertExportableMedia } from '../bundles/media-validation'
+import { validateBrowserImage } from '../media/validate-image'
 import { validateMediaReferences } from '../media/references'
 import { GITHUB_IMAGE_COUNT, GITHUB_IMAGE_LIMIT, GITHUB_SOURCE_LIMIT, type GithubArticle, type GithubSaveInput, type GithubRepository } from './contracts'
 
@@ -17,7 +18,7 @@ export async function articleToDraft(article: GithubArticle, loadImage: (name: s
   const media: MediaAsset[] = []
   for (const image of article.images) {
     const blob = await loadImage(image.name)
-    const mime = assertImageBytes(image.name, new Uint8Array(await blob.arrayBuffer()))
+    const mime = await validateBrowserImage(image.name, new Uint8Array(await blob.arrayBuffer()))
     media.push({ id: crypto.randomUUID(), name: image.name, kind: image.name === 'cover.webp' ? 'cover' : 'body', mime, blob: new Blob([blob], { type: mime }) })
   }
   if (Boolean(parsed.coverPath) !== media.some((asset) => asset.kind === 'cover')) throw new Error('封面文件与 Front Matter 不一致，未打开')

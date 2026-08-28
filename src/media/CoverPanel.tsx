@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { MediaAsset, MediaMime } from '../metadata/article'
-import { assertImageBytes } from '../bundles/media-validation'
+import { validateBrowserImage } from './validate-image'
 import { MAX_SOURCE_BYTES } from '../shared/limits'
 import { safeMediaName } from './names'
 import { CoverCropDialog } from './CoverCropDialog'
@@ -27,7 +27,7 @@ async function prevalidateCover(file: File): Promise<void> {
   if (file.size > MAX_SOURCE_BYTES) throw new Error('单个图片不能超过 25 MiB')
   const name = safeMediaName(file.name)
   const bytes = new Uint8Array(await file.arrayBuffer())
-  const detected = assertImageBytes(name, bytes)
+  const detected = await validateBrowserImage(name, bytes)
   if (detected !== mime) throw new Error(`图片 MIME 与内容不一致：${file.name}`)
 }
 

@@ -1,3 +1,4 @@
+import { createPngBuffer } from '../helpers/test-images'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { EditorView } from '@uiw/react-codemirror'
@@ -178,10 +179,10 @@ describe('article workspace', () => {
     render(<App />)
     await user.click(screen.getByRole('button', { name: '写作' }))
 
-    const png = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], '封面 图.PNG', { type: 'image/png' })
+    const png = new File([new Uint8Array(createPngBuffer(1, 1))], '封面 图.PNG', { type: 'image/png' })
     await user.click(screen.getByRole('tab', { name: '排版' }))
     await user.upload(screen.getByLabelText('添加正文图片'), png)
-    expect(screen.getByRole('listitem', { name: /feng-mian-tu\.png/ })).toBeInTheDocument()
+    expect(await screen.findByRole('listitem', { name: /feng-mian-tu\.png/ })).toBeInTheDocument()
 
     await user.type(screen.getByLabelText('标题'), 'Exportable title')
     await user.type(screen.getByLabelText('Slug'), 'Invalid slug')

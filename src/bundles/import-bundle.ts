@@ -11,7 +11,8 @@ import {
   MAX_SOURCE_BYTES,
 } from '../shared/limits'
 import { validateArchiveEntries, validateArchivePath } from './archive-path'
-import { assertImageBytes, assertSafeImageName } from './media-validation'
+import { assertSafeImageName } from './media-validation'
+import { validateBrowserImage } from '../media/validate-image'
 
 function importError(message: string): Error {
   return new Error(`无法导入文章：${message}`)
@@ -50,10 +51,10 @@ function isMacOsMetadataPath(filename: string): boolean {
   return segments[0] === '__MACOSX' || basename === '.DS_Store' || basename.startsWith('._')
 }
 
-function createMedia(name: string, bytes: Uint8Array): MediaAsset {
+async function createMedia(name: string, bytes: Uint8Array): Promise<MediaAsset> {
   validateImageName(name)
   let mime
-  try { mime = assertImageBytes(name, bytes) } catch { throw importError(`图片内容不是与扩展名匹配的受支持图片：${name}`) }
+  try { mime = await validateBrowserImage(name, bytes) } catch (cause) { throw importError(cause instanceof Error ? cause.message : `图片无效：${name}`) }
   if (name === 'cover.webp' && mime !== 'image/webp') {
     throw importError('封面必须为 WebP 图片')
   }
@@ -137,12 +138,13 @@ export async function importArticleBundle(blob: Blob): Promise<ArticleDraft> {
     const { root, index, images } = inspectArchiveEntries(entries)
     const source = await index.getData(new TextWriter(), readOptions)
     const parsed = parseImportedArticle(source)
-    const media = await Promise.all(images.map(async (entry) => {
+    const media: MediaAsset[] = []
+    for (const entry of images) {
       const writer = new BlobWriter()
       await entry.getData(writer, readOptions)
       const bytes = new Uint8Array(await (await writer.getData()).arrayBuffer())
-      return createMedia(validateArchivePath(entry.filename).relative.slice('images/'.length), bytes)
-    }))
+      media.push(await createMedia(validateArchivePath(entry.filename).relative.slice('images/'.length), bytes))
+    }
     return draftFromParsed(parsed, root, media.sort((left, right) => left.name.localeCompare(right.name)))
   } finally {
     await reader.close().catch(() => undefined)
@@ -172,9 +174,7 @@ export async function importLooseArticle(indexFile: File, images: File[]): Promi
   if (!parsed.meta.slug) {
     throw importError('无封面时，独立导入的 index.md 必须声明 slug')
   }
-  const media = await Promise.all(images.map(async (image) => createMedia(
-    image.name,
-    new Uint8Array(await image.arrayBuffer()),
-  )))
+  const media: MediaAsset[] = []
+  for (const image of images) media.push(await createMedia(image.name, new Uint8Array(await image.arrayBuffer())))
   return draftFromParsed(parsed, parsed.meta.slug, media.sort((left, right) => left.name.localeCompare(right.name)))
 }

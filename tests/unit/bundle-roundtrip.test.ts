@@ -2,14 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { exportArticleBundle } from '../../src/bundles/export-bundle'
 import { importArticleBundle, importLooseArticle } from '../../src/bundles/import-bundle'
 import type { ArticleDraft } from '../../src/metadata/article'
+import { serializeArticle } from '../../src/metadata/frontmatter'
+import { createPngBuffer, tinyWebpBytes } from '../helpers/test-images'
 
-const coverBytes = new Uint8Array([
-  0x52, 0x49, 0x46, 0x46, 0x04, 0x00, 0x00, 0x00,
-  0x57, 0x45, 0x42, 0x50,
-])
-const pngBytes = new Uint8Array([
-  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
-])
+const coverBytes = tinyWebpBytes
+const pngBytes = new Uint8Array(createPngBuffer(1, 1))
 
 function draft(): ArticleDraft {
   return {
@@ -47,6 +44,12 @@ function draft(): ArticleDraft {
 }
 
 describe('Hugo article bundle', () => {
+  it('can independently reimport an exported article without a cover', async () => {
+    const original = { ...draft(), media: [], body: 'No cover needed' }
+    const imported = await importLooseArticle(new File([serializeArticle(original)], 'index.md'), [])
+    expect(imported.meta.slug).toBe(original.meta.slug)
+    expect(imported.body).toBe(original.body)
+  })
   it('exports then transactionally imports a production bundle without mutating the draft', async () => {
     const source = draft()
     const zip = await exportArticleBundle(source, { production: true, publish: true })

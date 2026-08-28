@@ -1,6 +1,7 @@
 import type { MediaAsset, MediaMime } from '../metadata/article.js'
 import { safeMediaName } from '../media/names.js'
-import { MAX_SOURCE_BYTES } from '../shared/limits.js'
+import { MAX_SOURCE_BYTES, MAX_IMAGE_PIXELS, MAX_IMAGE_DIMENSION } from '../shared/limits.js'
+import { readImageDimensions } from './image-dimensions.js'
 
 const MIME_BY_EXTENSION: Record<string, MediaMime> = {
   jpg: 'image/jpeg',
@@ -44,7 +45,19 @@ export function assertImageBytes(name: string, bytes: Uint8Array): MediaMime {
   if (!detected || detected !== expected) {
     throw new Error(`图片内容不是与扩展名匹配的受支持图片：${name}`)
   }
+  let dimensions
+  try { dimensions = readImageDimensions(bytes, detected) } catch {
+    throw new Error(`图片数据不完整或已损坏：${name}`)
+  }
+  assertImageDimensions(dimensions.width, dimensions.height, name)
   return detected
+}
+
+export function assertImageDimensions(width: number, height: number, name: string): void {
+  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0
+    || width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION || width * height > MAX_IMAGE_PIXELS) {
+    throw new Error(`图片尺寸超限或无效：${name}，最多 4000 万像素，单边不超过 ${MAX_IMAGE_DIMENSION}`)
+  }
 }
 
 export async function assertExportableMedia(asset: MediaAsset): Promise<void> {

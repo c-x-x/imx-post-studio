@@ -29,7 +29,7 @@ function wirePreviewFrameScroll(host: HTMLElement, root: ShadowRoot, dock: HTMLE
   const toc = root.querySelector<HTMLElement>('.article-page .toc')
   const sidebar = root.querySelector<HTMLElement>('.article-page .sidebar')
   const layout = root.querySelector<HTMLElement>('.article-page .layout-with-sidebar')
-  const headings = [...root.querySelectorAll<HTMLElement>('.article-content h2, .article-content h3, .article-content h4, .article-content h5, .article-content h6')]
+  const headings = [...root.querySelectorAll<HTMLElement>('.article-content h1, .article-content h2, .article-content h3, .article-content h4, .article-content h5, .article-content h6')]
   const tocLinkById = new Map<string, HTMLAnchorElement>()
   root.querySelectorAll<HTMLAnchorElement>('.toc a').forEach((link) => {
     try {
@@ -100,9 +100,10 @@ function wirePreviewFrameScroll(host: HTMLElement, root: ShadowRoot, dock: HTMLE
     if (!animationFrame) animationFrame = requestAnimationFrame(sync)
   }
   const followDirectoryLink = (event: Event) => {
-    const link = (event.target as Element | null)?.closest<HTMLAnchorElement>('.toc a[href^="#"]')
+    const link = (event.target as Element | null)?.closest<HTMLAnchorElement>('a[href^="#"]')
     if (!link || !root.contains(link)) return
-    const id = decodeURIComponent((link.getAttribute('href') ?? '').slice(1))
+    let id: string
+    try { id = decodeURIComponent((link.getAttribute('href') ?? '').slice(1)) } catch { return }
     const heading = root.getElementById(id)
     if (!heading) return
     event.preventDefault()

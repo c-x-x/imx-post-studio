@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
-import { assertImageBytes, assertSafeImageName } from '../../src/bundles/media-validation.js'
+import { assertSafeImageName } from '../../src/bundles/media-validation.js'
+import { validateDecodedImage } from './image-validation.js'
 import { assertPublishableArticle } from '../../src/metadata/article.js'
 import { parseArticle } from '../../src/metadata/frontmatter.js'
 import { validateMediaReferences } from '../../src/media/references.js'
@@ -98,7 +99,7 @@ export async function readImage(config: GithubConfig, client: GithubClient, path
   const image = bundleImages(path, entries).find((item) => item.name === name)
   if (!image) throw new GithubError(404, '图片不在当前文章包中')
   const bytes = await readBlob(config, client, image.sha, GITHUB_IMAGE_LIMIT)
-  return { bytes, mime: assertImageBytes(name, bytes) }
+  return { bytes, mime: await validateDecodedImage(name, bytes) }
 }
 
 export async function uploadImage(config: GithubConfig, client: GithubClient, input: Record<string, unknown>) {
@@ -109,7 +110,7 @@ export async function uploadImage(config: GithubConfig, client: GithubClient, in
   }
   const bytes = Buffer.from(input.base64, 'base64')
   if (bytes.length > GITHUB_IMAGE_LIMIT || bytes.toString('base64') !== input.base64) throw new GithubError(400, '图片编码无效或超过 2 MiB')
-  assertImageBytes(input.name, bytes)
+  await validateDecodedImage(input.name, bytes)
   const { sha } = await client<{ sha: string }>(`${repositoryApi(config)}/git/blobs`, 'POST', { encoding: 'base64', content: input.base64 })
   return { sha, ticket: seal(config, 'upload', { path: input.path, name: input.name, sha, userId: config.userId } satisfies UploadTicket) }
 }

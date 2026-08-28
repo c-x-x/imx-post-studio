@@ -57,6 +57,7 @@ describe('article TOML front matter', () => {
     expect(serialized).toBe([
       '+++',
       'title = "“Hugo” 图片：\\"处理\\""',
+      'slug = "hugo-tu-pian-chu-li-zhi-nan"',
       'date = "2026-06-13T09:00:00+08:00"',
       'draft = true',
       'categories = ["技术", "教程"]',
