@@ -13,7 +13,7 @@ interface PreviewFrameProps {
   rendered: RenderedMarkdown
   css: string
   theme: AppTheme
-  onThemeChange: (theme: AppTheme) => void
+  onToggleTheme: () => void
   onClose: () => void
 }
 
@@ -198,7 +198,7 @@ function wirePreviewCodeCopy(root: ShadowRoot): () => void {
   }
 }
 
-export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClose }: PreviewFrameProps) {
+export function PreviewFrame({ meta, rendered, css, theme, onToggleTheme, onClose }: PreviewFrameProps) {
   const [viewport, setViewport] = useState<'desktop' | 'mobile'>(() => (
     typeof window !== 'undefined'
     && typeof window.matchMedia === 'function'
@@ -211,6 +211,16 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
   const frameScrollTop = useRef(0)
   const [documentTheme] = useState(theme)
   useSharedDock(dockRef)
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return
+    const query = window.matchMedia('(max-width: 720px)')
+    const syncViewport = () => setViewport(query.matches ? 'mobile' : 'desktop')
+    syncViewport()
+    query.addEventListener?.('change', syncViewport)
+    return () => query.removeEventListener?.('change', syncViewport)
+  }, [])
+
   const documentHtml = useMemo(
     () => buildPreviewDocument({ meta, rendered, css, theme: documentTheme }),
     [css, documentTheme, meta, rendered],
@@ -288,28 +298,21 @@ export function PreviewFrame({ meta, rendered, css, theme, onThemeChange, onClos
     }
   }, [documentHtml, documentTheme, viewport])
 
-  const frameWidth = viewport === 'desktop' ? 'min(1180px, 100%)' : 'min(390px, 100%)'
   return <section className="preview-surface" data-theme={theme} data-viewport={viewport} data-shared-dock-scroll aria-label="IMX 文章预览内容">
     <header ref={dockRef} className="preview-dock has-shared-dock">
       <div className="preview-dock__container" data-shared-dock="container">
         <span className="preview-dock__shell" data-shared-dock="shell" aria-hidden="true" />
         <button className="preview-back" data-shared-dock="left" type="button" onClick={onClose}><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6" /></svg></span>返回编辑</button>
         <p className="preview-stats" data-shared-dock="center">约 {rendered.wordCount} 字，预计 {rendered.readingMinutes} 分钟阅读</p>
-        <div className="preview-controls" data-shared-dock="right" role="group" aria-label="预览设置">
-        <div className="preview-control-group" data-selection={theme}>
-          <button type="button" aria-label="浅色预览" title="浅色预览" aria-pressed={theme === 'light'} onClick={() => onThemeChange('light')}><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5" /><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42" /></svg></button>
-          <button type="button" aria-label="深色预览" title="深色预览" aria-pressed={theme === 'dark'} onClick={() => onThemeChange('dark')}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20.2 15.2A8.6 8.6 0 0 1 8.8 3.8 8.6 8.6 0 1 0 20.2 15.2Z" /></svg></button>
-        </div>
-        <span className="preview-control-divider" aria-hidden="true" />
-        <div className="preview-control-group" data-selection={viewport}>
-          <button type="button" data-shared-dock="action-control" aria-label="桌面预览" title="桌面预览" aria-pressed={viewport === 'desktop'} onClick={() => setViewport('desktop')}><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></svg></button>
-          <button type="button" aria-label="移动预览" title="移动预览" aria-pressed={viewport === 'mobile'} onClick={() => setViewport('mobile')}><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2" /><path d="M10 5h4M11 19h2" /></svg></button>
-        </div>
+        <div className="preview-controls" data-shared-dock="right">
+          <button type="button" data-shared-dock="action-control" aria-label={theme === 'light' ? '切换到深色主题' : '切换到浅色主题'} title={theme === 'light' ? '切换到深色主题' : '切换到浅色主题'} onClick={onToggleTheme}>{theme === 'light'
+            ? <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20.2 15.2A8.6 8.6 0 0 1 8.8 3.8 8.6 8.6 0 1 0 20.2 15.2Z" /></svg>
+            : <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5" /><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42" /></svg>}</button>
         </div>
       </div>
     </header>
-    <div className={`preview-viewport preview-viewport-${viewport}`} tabIndex={0} aria-label="文章预览画布">
-      <div ref={frameRef} className="preview-frame" title="IMX 文章预览" role="document" aria-label="IMX 文章预览" data-theme={theme} style={{ width: frameWidth }} />
+    <div className="preview-viewport" tabIndex={0} aria-label="文章预览画布">
+      <div ref={frameRef} className="preview-frame" title="IMX 文章预览" role="document" aria-label="IMX 文章预览" data-theme={theme} style={{ width: 'min(1180px, 100%)' }} />
     </div>
   </section>
 }

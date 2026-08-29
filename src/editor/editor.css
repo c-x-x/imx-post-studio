@@ -155,6 +155,29 @@
 .editor-save-status[data-tone='success'] { color: var(--imx-success); }
 .editor-save-status[data-tone='error'] { color: var(--imx-danger); }
 
+.editor-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.editor-status-actions button {
+  min-height: 30px;
+  padding: .3rem .8rem;
+  border: 1px solid var(--imx-line);
+  border-radius: 999px;
+  color: var(--imx-ink-secondary);
+  background: var(--imx-control);
+  font-size: .72rem;
+}
+
+.editor-status-actions button:hover:not(:disabled) {
+  color: var(--imx-accent-hover);
+  background: var(--imx-accent-soft);
+}
+
 .imx-rich-content .editor-markdown-marker { color: var(--imx-ink-muted); }
 .imx-rich-content s { text-decoration: line-through; }
 

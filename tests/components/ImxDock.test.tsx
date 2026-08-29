@@ -25,9 +25,9 @@ describe('IMX Studio Dock', () => {
     render(<ImxDock {...callbacks} />)
 
     expect(screen.getByRole('navigation', { name: 'Studio 导航' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'IMX Post Studio' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'IPOST，返回首页' })).toHaveTextContent('IPOST')
-    await user.click(screen.getByRole('button', { name: 'IPOST，返回首页' }))
+    expect(screen.getByRole('heading', { name: 'I M P S' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'I M P S，返回首页' })).toHaveTextContent('I M P S')
+    await user.click(screen.getByRole('button', { name: 'I M P S，返回首页' }))
     expect(screen.getByRole('button', { name: '草稿' })).toHaveAttribute('aria-current', 'false')
     await user.click(screen.getByRole('button', { name: '切换到深色主题' }))
     await user.click(screen.getByRole('button', { name: '首页' }))
@@ -38,6 +38,19 @@ describe('IMX Studio Dock', () => {
     expect(callbacks.onHome).toHaveBeenCalledTimes(2)
     expect(callbacks.onArticle).toHaveBeenCalledOnce()
     expect(callbacks.onDashboard).toHaveBeenCalledOnce()
+  })
+
+  it('groups settings beside the theme control and opens the placeholder dialog', async () => {
+    const user = userEvent.setup()
+    render(<ImxDock {...props()} />)
+
+    const actions = screen.getByRole('button', { name: '打开设置' }).parentElement
+    expect(actions).toContainElement(screen.getByRole('button', { name: '切换到深色主题' }))
+    await user.click(screen.getByRole('button', { name: '打开设置' }))
+    expect(screen.getByRole('dialog', { name: '设置' })).toHaveTextContent('功能开发中')
+    await user.click(screen.getByRole('button', { name: '关闭' }))
+    expect(screen.queryByRole('dialog', { name: '设置' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '打开设置' })).toHaveFocus()
   })
 
   it('shows a functional theme toggle on every view and omits preview', async () => {

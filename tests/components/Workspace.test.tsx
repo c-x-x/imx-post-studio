@@ -36,7 +36,7 @@ describe('article workspace', () => {
     expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
     expect(preview.shadowRoot?.querySelector('.preview-html')).toHaveAttribute('data-theme', 'dark')
 
-    await user.click(screen.getByRole('button', { name: '浅色预览' }))
+    await user.click(within(screen.getByRole('region', { name: 'IMX 文章预览内容' })).getByRole('button', { name: '切换到浅色主题' }))
     await waitFor(() => expect(document.documentElement).toHaveAttribute('data-theme', 'light'))
     expect(preview.shadowRoot?.querySelector('.preview-html')).toHaveAttribute('data-theme', 'light')
     expect(localStorage.getItem('imx-post-studio-theme')).toBe('light')
@@ -201,7 +201,7 @@ describe('article workspace', () => {
 
     pasteImage(editor, invalid)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('图片')
+    expect(await screen.findByRole('status')).toHaveTextContent('图片处理失败')
     await waitFor(() => expect(screen.queryByRole('listitem', { name: 'broken.png' })).not.toBeInTheDocument())
     expect(editor).not.toHaveTextContent('images/broken.png')
   })

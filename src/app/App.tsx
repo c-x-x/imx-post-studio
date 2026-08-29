@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, type MouseEvent, type ReactNode } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, type MouseEvent } from 'react'
 import type { ArticleDraft, MediaAsset } from '../metadata/article'
 import { createArticleDraft, hasDraftContent, hasDraftTitle, UNTITLED_DRAFT_MESSAGE } from '../metadata/article'
 import { MarkdownEditor, type MarkdownEditorHandle, type PastedImageRequest } from '../editor/MarkdownEditor'
@@ -25,7 +25,6 @@ import { AccessibleDialog, DialogClose } from './AccessibleDialog'
 import { readActionsCollapsed, writeActionsCollapsed } from './action-rail-preference'
 import { ArticleActions } from './ArticleActions'
 import { ImxDock } from './ImxDock'
-import { Notifications } from './notifications'
 import { readSettingsCollapsed, writeSettingsCollapsed } from './sidebar-preference'
 import { applyTheme, resolveInitialTheme, writeThemePreference, type AppTheme } from './theme-preference'
 import { TransitionConfirmDialog } from './TransitionConfirmDialog'
@@ -76,10 +75,8 @@ export function App() {
   const [outlineFocusVersion, setOutlineFocusVersion] = useState(0)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [rendered, setRendered] = useState<RenderedMarkdown>(emptyRendered)
-  const [notice, setNotice] = useState('')
-  const [previewError, setPreviewError] = useState<string>()
-  const [editorMediaError, setEditorMediaError] = useState<string>()
-  const [recoveryError, setRecoveryError] = useState<string>()
+  const [notice, setNoticeText] = useState('')
+  const [noticeTone, setNoticeTone] = useState<'info' | 'pending' | 'success' | 'error'>('info')
   const [failedTransition, setFailedTransition] = useState<FailedTransition>()
   const [transitioning, setTransitioning] = useState(false)
   const [intakeBusy, setIntakeBusy] = useState(false)
@@ -112,6 +109,11 @@ export function App() {
     draftStarted && hasUnsavedChanges && !newArticlePromptOpen && !githubOpen && !transitioning ? draft : null,
     () => setHasUnsavedChanges(false),
   )
+
+  const setNotice = useCallback((message: string, tone: 'info' | 'pending' | 'success' | 'error' = 'info') => {
+    setNoticeText(message)
+    setNoticeTone(tone)
+  }, [])
 
   useUnsavedChangesWarning(hasUnsavedChanges)
 
@@ -154,15 +156,17 @@ export function App() {
       (next) => {
         if (!cancelled) {
           setRendered(next)
-          setPreviewError(undefined)
         }
       },
       (cause: unknown) => {
-        if (!cancelled) setPreviewError(`预览更新失败：${errorMessage(cause)}`)
+        if (!cancelled) {
+          setPreviewOpen(false)
+          setNotice(`预览失败：${errorMessage(cause)}`, 'error')
+        }
       },
     )
     return () => { cancelled = true }
-  }, [draft.body, draft.media, previewOpen])
+  }, [draft.body, draft.media, previewOpen, setNotice])
   useEffect(() => {
     if (!previewOpen) return
     document.body.classList.add('preview-open')
@@ -180,6 +184,7 @@ export function App() {
 
   const dispatchDraft = (action: Parameters<typeof appReducer>[1], allowDuringTransition = false) => {
     if ((transitionInFlight.current || githubOpen) && !allowDuringTransition) return
+    setNotice('')
     draftRevision.current += 1
     setDraftStarted(true)
     setHasUnsavedChanges(true)
@@ -317,7 +322,10 @@ export function App() {
     try {
       await persistLatestDraft()
       setGithubOpen(true)
-    } catch (cause) { setRecoveryError(`打开 GitHub 前保存本地草稿失败：${errorMessage(cause)}`) }
+    } catch (cause) {
+      const detail = errorMessage(cause)
+      setNotice(`推送失败：${detail === UNTITLED_DRAFT_MESSAGE ? '文章未命名' : detail}`, 'error')
+    }
     finally { transitionInFlight.current = false; setTransitioning(false) }
   }
 
@@ -338,39 +346,23 @@ export function App() {
 
   const exportRecovery = async () => {
     if (transitionInFlight.current || intakeBusyRef.current) return
-    setRecoveryError(undefined)
+    setNotice('正在生成紧急恢复 ZIP…', 'pending')
     try {
       downloadRecovery(await exportRecoveryBundle(draft))
-      setNotice('紧急恢复 ZIP 已下载')
+      setNotice('紧急恢复 ZIP 已下载', 'success')
     } catch (cause) {
-      setRecoveryError(`紧急备份失败：${errorMessage(cause)}`)
+      setNotice(`紧急备份失败：${errorMessage(cause)}`, 'error')
     }
   }
 
-  const unnamed = !hasDraftTitle(draft)
-  const status = unnamed ? UNTITLED_DRAFT_MESSAGE : saveStatus.state === 'failed'
-    ? `保存失败：${saveStatus.message}`
-    : saveStatus.state === 'saving'
-    ? '正在保存…'
-    : intakeBusy
-      ? '正在读取媒体…'
-    : saveStatus.state === 'saved' && draftStarted
-      ? pendingWorkId === draft.id ? '已保存到待提交作品' : '已保存到本地草稿'
-      : notice
-  const statusTone = unnamed || saveStatus.state === 'failed' ? 'error'
-    : saveStatus.state === 'saving' || intakeBusy ? 'pending'
-    : saveStatus.state === 'saved' && draftStarted ? 'success' : 'info'
-  const recoveryNeeded = saveStatus.state === 'failed' || Boolean(failedTransition)
   const workspaceLocked = transitioning || intakeBusy || githubOpen
   const openPreview = () => {
     setRendered(emptyRendered)
-    setPreviewError(undefined)
     setPreviewOpen(true)
   }
   const closePreview = () => {
     setPreviewOpen(false)
     setRendered(emptyRendered)
-    setPreviewError(undefined)
   }
   const retryFailedTransition = () => {
     const failure = failedTransitionRef.current
@@ -388,7 +380,7 @@ export function App() {
     try {
       await failure.continue()
     } catch (cause) {
-      setRecoveryError(`切换失败：${errorMessage(cause)}`)
+      setNotice(`切换失败：${errorMessage(cause)}`, 'error')
     } finally {
       transitionInFlight.current = false
       transitionDecisionInFlight.current = false
@@ -436,15 +428,33 @@ export function App() {
       setTransitioning(false)
     }
   }
-  const alerts: ReactNode[] = []
-  if (saveStatus.state === 'failed') alerts.push(<p key="autosave">{saveStatus.message}</p>)
-  if (failedTransition) {
-    alerts.push(<div key="transition"><p>保存当前草稿失败，未执行“{failedTransition.label}”：{failedTransition.message}</p><div className="recovery-actions"><button type="button" disabled={transitioning || intakeBusy} onClick={retryFailedTransition}>重试保存</button><button type="button" disabled={transitioning || intakeBusy} onClick={discardFailedTransition}>放弃未保存更改</button></div></div>)
-  }
-  if (recoveryNeeded) alerts.push(<button key="recovery-export" type="button" disabled={transitioning || intakeBusy} onClick={() => void exportRecovery()}>紧急导出恢复备份</button>)
-  if (previewError) alerts.push(<p key="preview">{previewError}</p>)
-  if (editorMediaError) alerts.push(<p key="editor-media">{editorMediaError}</p>)
-  if (recoveryError) alerts.push(<p key="recovery-error">{recoveryError}</p>)
+  const unnamed = !hasDraftTitle(draft)
+  const transitionMessage = failedTransition
+    ? `保存当前草稿失败，未执行“${failedTransition.label}”：${failedTransition.message}`
+    : ''
+  const status = saveStatus.state === 'saving'
+    ? '正在保存…'
+    : intakeBusy
+      ? '正在读取媒体…'
+      : transitionMessage
+        ? transitionMessage
+        : notice && noticeTone === 'error'
+          ? notice
+          : saveStatus.state === 'failed'
+            ? `保存失败：${saveStatus.message}`
+            : unnamed
+              ? UNTITLED_DRAFT_MESSAGE
+              : saveStatus.state === 'saved' && draftStarted
+                ? pendingWorkId === draft.id ? '已保存到待提交作品' : '已保存到本地草稿'
+                : notice
+  const statusTone = saveStatus.state === 'saving' || intakeBusy ? 'pending'
+    : transitionMessage || (notice && noticeTone === 'error') || saveStatus.state === 'failed' || unnamed ? 'error'
+      : saveStatus.state === 'saved' && draftStarted ? 'success' : noticeTone
+  const statusActions = transitionMessage
+    ? <><button type="button" disabled={transitioning || intakeBusy} onClick={retryFailedTransition}>重试保存</button><button type="button" disabled={transitioning || intakeBusy} onClick={discardFailedTransition}>放弃未保存更改</button><button type="button" disabled={transitioning || intakeBusy} onClick={() => void exportRecovery()}>导出恢复备份</button></>
+    : saveStatus.state === 'failed'
+      ? <button type="button" disabled={transitioning || intakeBusy} onClick={() => void exportRecovery()}>导出恢复备份</button>
+      : undefined
   const toggleSettings = (event: MouseEvent<HTMLButtonElement>) => {
     event.currentTarget.focus()
     setSettingsCollapsed((current) => {
@@ -476,7 +486,7 @@ export function App() {
 
   const preparePastedImages = async (request: PastedImageRequest): Promise<MediaAsset[]> => {
     const draftId = draftRef.current.id
-    setEditorMediaError(undefined)
+    setNotice('正在读取粘贴图片…', 'pending')
     setIntakeSourceBusy('editor', true)
     try {
       const assets = await prepareBodyMediaBatch(
@@ -485,7 +495,7 @@ export function App() {
       )
       return draftRef.current.id === draftId ? assets : []
     } catch (cause) {
-      if (draftRef.current.id === draftId) setEditorMediaError(errorMessage(cause))
+      if (draftRef.current.id === draftId) setNotice(`图片处理失败：${errorMessage(cause)}`, 'error')
       return []
     } finally {
       setIntakeSourceBusy('editor', false)
@@ -494,7 +504,6 @@ export function App() {
 
   return <main className="app-shell" data-view={view}>
     <ImxDock view={view} disabled={workspaceLocked} theme={theme} onToggleTheme={toggleTheme} onHome={() => void showHome()} onArticle={showWorkspace} onDashboard={() => void showDashboard()} onWorks={() => void showWorks()} />
-    <Notifications alert={alerts.length > 0 ? <>{alerts}</> : undefined} />
     {view === 'home' ? <HomePage disabled={workspaceLocked} onArticle={showWorkspace} onDashboard={() => void showDashboard()} onGithub={() => void showWorks()} /> : view === 'dashboard' ? <DraftDashboard onOpen={openDraft} onRename={(renamed) => { if (draftRef.current.id === renamed.id) { draftRef.current = renamed; dispatch({ type: 'replace', draft: renamed }); setNotice('草稿名称已更新') } }} disabled={workspaceLocked} onDelete={(id) => { if (draftRef.current.id === id) { executeNewArticle(); setView('dashboard') } }} /> : view === 'works' ? <Suspense fallback={<p role="status">正在加载作品…</p>}><GithubPanel mode="works" draft={draft} onOpen={openDraft} onClose={showWorkspace} returnFocus={() => null} /></Suspense> : <section className="workspace" aria-label="文章工作区" aria-busy={workspaceLocked} data-inspector-collapsed={settingsCollapsed} data-actions-collapsed={actionsCollapsed}>
       <nav className="workspace-tabs" data-editor-controls role="tablist" aria-label="工作区视图">
         {([['settings', '设置'], ['write', '写作'], ['actions', '工具']] as const).map(([id, label]) => <button key={id} id={`tab-${id}`} type="button" disabled={workspaceLocked} role="tab" aria-selected={tab === id} aria-controls={`panel-${id}`} onClick={() => setTab(id)}>{label}</button>)}
@@ -513,7 +522,7 @@ export function App() {
             : <OutlinePanel markdown={draft.body} onSelect={focusOutlineHeading} />}
         </aside>
         <button className="inspector-toggle" type="button" aria-controls="panel-settings" aria-expanded={!settingsCollapsed} aria-label={settingsCollapsed ? '展开文章设置' : '折叠文章设置'} title={settingsCollapsed ? '展开文章设置' : '折叠文章设置'} onClick={toggleSettings}><span aria-hidden="true">{settingsCollapsed ? '›' : '‹'}</span></button>
-        <section id="panel-write" className="workspace-panel workspace-editor" role="tabpanel" aria-labelledby="tab-write"><h2 className="visually-hidden">写作</h2><MarkdownEditor key={draft.id} disabled={workspaceLocked} ref={editorRef} value={draft.body} media={draft.media} status={status} statusTone={statusTone} toolbarTarget={formatToolbarTarget} onFormatApplied={() => setTab('write')} preparePastedImages={preparePastedImages} onCommitPastedImages={(assets, body) => dispatchDraft({ type: 'paste-body-media', assets, body })} resolveMediaUrl={resolveEditorMediaUrl} onChange={(body) => {
+        <section id="panel-write" className="workspace-panel workspace-editor" role="tabpanel" aria-labelledby="tab-write"><h2 className="visually-hidden">写作</h2><MarkdownEditor key={draft.id} disabled={workspaceLocked} ref={editorRef} value={draft.body} media={draft.media} status={status} statusTone={statusTone} statusActions={statusActions} toolbarTarget={formatToolbarTarget} onFormatApplied={() => setTab('write')} preparePastedImages={preparePastedImages} onCommitPastedImages={(assets, body) => dispatchDraft({ type: 'paste-body-media', assets, body })} resolveMediaUrl={resolveEditorMediaUrl} onChange={(body) => {
           if (draft.id !== draftRef.current.id) return
           if (body === draftRef.current.body) return
           dispatchDraft({ type: 'set-body', body })
@@ -542,7 +551,7 @@ export function App() {
       </div>
     </section>}
     {newArticlePromptOpen ? <TransitionConfirmDialog busy={transitioning || intakeBusy} error={newArticlePromptError} onCancel={cancelNewArticle} onDiscard={() => void deleteAndContinueNewArticle()} onSave={() => void saveAndContinueNewArticle()} returnFocus={() => confirmReturnFocus.current} /> : null}
-    {previewOpen ? <AccessibleDialog title="IMX 文章预览" className="preview-dialog" onClose={closePreview} returnFocus={() => previewTrigger.current}><DialogClose>{(close) => <PreviewFrame meta={draft.meta} rendered={rendered} css={previewCss} theme={theme} onThemeChange={changeTheme} onClose={() => close()} />}</DialogClose></AccessibleDialog> : null}
+    {previewOpen ? <AccessibleDialog title="IMX 文章预览" className="preview-dialog" onClose={closePreview} returnFocus={() => previewTrigger.current}><DialogClose>{(close) => <PreviewFrame meta={draft.meta} rendered={rendered} css={previewCss} theme={theme} onToggleTheme={toggleTheme} onClose={() => close()} />}</DialogClose></AccessibleDialog> : null}
     {githubOpen ? <Suspense fallback={<p role="status">正在准备推送…</p>}><GithubPanel mode="push" draft={draft} onOpen={openDraft} onPushed={completePush} onClose={() => setGithubOpen(false)} returnFocus={() => githubTrigger.current} /></Suspense> : null}
   </main>
 }

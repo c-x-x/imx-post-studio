@@ -1,6 +1,6 @@
-# IMX Post Studio
+# I M P S
 
-IMX Post Studio 是一个浏览器内运行、本地优先的 Markdown 写作工具。它提供结构化
+I M P S 是一个浏览器内运行、本地优先的 Markdown 写作工具。它提供结构化
 写作、源码编辑、本地草稿、图片管理和整屏预览，并可把文章、元数据与图片整理为
 Hugo leaf bundle ZIP。主体是独立的静态 Vite 应用；另有默认关闭的 GitHub 博客后台，
 启用后可读取仓库文章，并确认后直接推送到主分支，不需要服务端数据库。
@@ -196,7 +196,7 @@ Chromium 运行全部 11 条关键流程（含跨窗口草稿冲突保护）；F
 
 ## 许可证与归属
 
-本项目根目录的 [MIT License](LICENSE) 适用于 IMX Post Studio 自有代码。预览视觉
+本项目根目录的 [MIT License](LICENSE) 适用于 I M P S 自有代码。预览视觉
 历史资产的 MIT 许可文本保留在 [docs/licenses](docs/licenses/IMX-PREVIEW-ORIGIN-MIT.txt)；
 自托管 Noto Serif SC 字体继续适用 `public/studio/fonts/` 中保留的 SIL Open Font
 License；源码编辑器和代码块仅使用系统等宽字体栈。

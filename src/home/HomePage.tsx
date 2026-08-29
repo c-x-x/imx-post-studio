@@ -6,9 +6,9 @@ interface HomePageProps {
 }
 
 export function HomePage({ disabled, onArticle, onDashboard, onGithub }: HomePageProps) {
-  return <section className="home-page" aria-label="IMX Post Studio 介绍">
+  return <section className="home-page" aria-label="I M P S 介绍">
     <div className="home-hero">
-      <p className="home-eyebrow">IMX POST STUDIO</p>
+      <p className="home-eyebrow">I M P S</p>
       <h2>I am no bird; and no net ensnares me.</h2>
       <p className="home-quote-source">Charlotte Brontë · Jane Eyre</p>
       <p>一个本地优先的 Markdown 写作工作台。默认在浏览器内保存文字和图片，也可主动连接 GitHub 管理博客文章。</p>

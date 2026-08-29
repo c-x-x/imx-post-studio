@@ -197,14 +197,6 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
   box-shadow: 0 5px 16px rgba(86, 61, 33, .2), inset 0 1px 0 rgba(255, 255, 255, .2);
 }
 
-.notifications {
-  min-height: 36px;
-  margin: 8px 12px 4px;
-  font-size: .82rem;
-}
-
-.notifications:empty { display: none; }
-
 .app-shell[data-view='workspace'] {
   display: grid;
   height: 100dvh;
@@ -213,8 +205,6 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
   padding-bottom: clamp(12px, 1.5vw, 20px);
   overflow: hidden;
 }
-
-.app-shell[data-view='workspace'] .notifications { grid-row: 1; }
 
 .app-shell[data-view='workspace'] .workspace {
   min-height: 0;
@@ -302,9 +292,6 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
 
 .article-actions { display: flex; gap: 10px; }
 
-.notification-status { margin: 0; color: var(--imx-success); }
-
-.notification-alert,
 .field-error { color: var(--imx-danger); }
 
 .workspace-tabs { display: none; }
@@ -949,6 +936,12 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
   white-space: normal;
 }
 
+.settings-dialog__message {
+  margin: 0;
+  color: var(--imx-ink-secondary);
+  line-height: 1.7;
+}
+
 .modal-backdrop:has(.preview-dialog) {
   display: block;
   padding: 0;
@@ -1080,7 +1073,6 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
 
 @media (max-width: 720px) {
   .app-shell { padding: 84px 9px 28px; }
-  .notifications { margin-inline: 8px; }
   .home-principles,
   .home-workflow,
   .markdown-grid { grid-template-columns: 1fr; }

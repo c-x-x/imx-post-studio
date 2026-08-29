@@ -58,7 +58,7 @@ test('renames stay synchronized and stale tabs cannot overwrite or resurrect dra
   await expect(other.getByRole('status')).toContainText('已保存到本地草稿')
 
   await editor.fill('旧窗口未保存的修改')
-  await expect(page.getByRole('alert')).toContainText('草稿已被其他窗口修改')
+  await expect(page.getByRole('status')).toContainText('草稿已被其他窗口修改')
   await navigate(other, '草稿')
   await other.getByRole('button', { name: '打开', exact: true }).click()
   await expect(other.getByRole('textbox', { name: 'Markdown 编辑器' })).toHaveText('另一个窗口的较新正文')
@@ -67,7 +67,7 @@ test('renames stay synchronized and stale tabs cannot overwrite or resurrect dra
   await other.getByRole('button', { name: '删除草稿', exact: true }).click()
   await expect(other.locator('.draft-list li')).toHaveCount(0)
   await editor.fill('删除后旧窗口再次修改')
-  await expect(page.getByRole('alert')).toContainText('此草稿已删除')
+  await expect(page.getByRole('status')).toContainText('此草稿已删除')
   await other.reload()
   await navigate(other, '草稿')
   await expect(other.locator('.draft-list li')).toHaveCount(0)

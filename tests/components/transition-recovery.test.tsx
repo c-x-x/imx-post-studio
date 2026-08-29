@@ -42,7 +42,7 @@ describe('workspace transitions', () => {
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(put).not.toHaveBeenCalled()
-    expect(screen.getByRole('region', { name: 'IMX Post Studio 介绍' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'I M P S 介绍' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '写作' }))
     expect(screen.getByLabelText('标题')).toHaveValue('仍在内存')
   })
@@ -85,6 +85,22 @@ describe('workspace transitions', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(800) })
     expect(put).toHaveBeenCalledOnce()
     expect(screen.getByRole('status')).toHaveTextContent('已保存到本地草稿')
+  })
+
+  it('reports an unnamed push failure only in the editor status area', async () => {
+    render(<App />)
+    await startWorkspace()
+    fireEvent.change(screen.getByLabelText('标题'), { target: { value: '稍后删除标题' } })
+    fireEvent.change(screen.getByLabelText('摘要'), { target: { value: '保留正文内容以启用推送' } })
+    fireEvent.change(screen.getByLabelText('标题'), { target: { value: '' } })
+
+    fireEvent.click(screen.getByRole('button', { name: '推送' }))
+    await act(async () => { await Promise.resolve() })
+
+    expect(screen.getByRole('status')).toHaveTextContent('推送失败：文章未命名')
+    expect(screen.getByRole('status')).toHaveAttribute('data-tone', 'error')
+    expect(screen.queryByText(/打开 GitHub 前保存本地草稿失败/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('saves a started article before creating a fresh unsaved article', async () => {
@@ -172,11 +188,11 @@ describe('workspace transitions', () => {
     fireEvent.change(screen.getByLabelText('标题'), { target: { value: 'Logo 返回后保留' } })
     put.mockClear()
 
-    fireEvent.click(screen.getByRole('button', { name: 'IPOST，返回首页' }))
+    fireEvent.click(screen.getByRole('button', { name: 'I M P S，返回首页' }))
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(put).not.toHaveBeenCalled()
-    expect(screen.getByRole('region', { name: 'IMX Post Studio 介绍' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'I M P S 介绍' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '写作' }))
     expect(screen.getByLabelText('标题')).toHaveValue('Logo 返回后保留')
   })
@@ -221,7 +237,7 @@ describe('workspace transitions', () => {
     await act(async () => { await Promise.resolve() })
 
     expect(screen.getByRole('region', { name: '文章工作区' })).toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent('保存当前草稿失败')
+    expect(screen.getByRole('status')).toHaveTextContent('保存当前草稿失败')
     expect(screen.getByRole('button', { name: '重试保存' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '放弃未保存更改' })).toBeInTheDocument()
   })

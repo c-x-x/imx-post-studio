@@ -22,6 +22,7 @@ describe('preview failure recovery', () => {
     expect(renderMarkdown).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: '写作' }))
     await user.click(screen.getByRole('button', { name: '预览文章' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('预览更新失败：renderer failed')
+    expect(await screen.findByRole('status')).toHaveTextContent('预览失败：renderer failed')
+    expect(screen.queryByRole('dialog', { name: 'IMX 文章预览' })).not.toBeInTheDocument()
   })
 })

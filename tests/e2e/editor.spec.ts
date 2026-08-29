@@ -199,7 +199,7 @@ test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle
   await page.getByRole('button', { name: '草稿', exact: true }).click()
   await expect(page.getByRole('region', { name: '草稿', exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: ARTICLE_TITLE })).toBeVisible()
-  await page.getByRole('button', { name: '打开' }).click()
+  await page.getByRole('button', { name: '打开', exact: true }).click()
   await assertEditorState(page, { draft: true, body: expectedBody })
 
   const reloadDownload = page.waitForEvent('download')

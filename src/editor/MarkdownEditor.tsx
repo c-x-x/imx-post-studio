@@ -37,6 +37,7 @@ interface MarkdownEditorProps {
   media: MediaAsset[]
   status?: string
   statusTone?: 'info' | 'pending' | 'success' | 'error'
+  statusActions?: ReactNode
   toolbarTarget?: HTMLElement | null
   onFormatApplied?: () => void
   preparePastedImages?: (request: PastedImageRequest) => Promise<MediaAsset[]>
@@ -277,6 +278,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   media,
   status,
   statusTone = 'info',
+  statusActions,
   toolbarTarget,
   onFormatApplied,
   preparePastedImages,
@@ -642,6 +644,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       {toolbarTarget === undefined ? toolbar : null}
       {status ? <div className="editor-status-bar">
         <p className="editor-save-status" data-tone={statusTone} role="status">{status}</p>
+        {statusActions ? <div className="editor-status-actions">{statusActions}</div> : null}
       </div> : null}
       <div className="editor-scroll-region">
         {mode === 'rich'

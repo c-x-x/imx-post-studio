@@ -101,7 +101,7 @@ test.describe('Preview typography and contrast', () => {
 
   test('uses the approved dark preview palette', async ({ page }) => {
     await seedPreview(page)
-    await page.getByRole('button', { name: '深色预览' }).click()
+    await page.locator('.preview-surface').getByRole('button', { name: '切换到深色主题' }).click()
     const preview = page.getByTitle('IMX 文章预览')
     await expect(preview.locator('.preview-html')).toHaveAttribute('data-theme', 'dark')
     await expect(preview.locator('.preview-body')).toHaveCSS('background-color', 'rgb(23, 23, 22)')

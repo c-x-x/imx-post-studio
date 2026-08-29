@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test'
 
-test('keeps a single complete IPOST logo before, during and after hovering', async ({ page }, testInfo) => {
+test('keeps a single complete I M P S logo before, during and after hovering', async ({ page }, testInfo) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await page.goto('/')
-  const brand = page.getByRole('button', { name: 'IPOST，返回首页' })
+  const brand = page.getByRole('button', { name: 'I M P S，返回首页' })
   await expect(brand.locator('svg')).toHaveCount(1)
   const strokes = brand.locator('.imx-dock__logo path')
   await expect(strokes).toHaveCount(6)
@@ -92,7 +92,7 @@ test('warns on browser exit only until the current changes reach the draft libra
   }, '首页往返时仍在内存')
 
   expect(dirtyBeforeHome).toBe(true)
-  await expect(page.getByRole('region', { name: 'IMX Post Studio 介绍' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'I M P S 介绍' })).toBeVisible()
   expect(await page.evaluate(() => window.dispatchEvent(new Event('beforeunload', { cancelable: true })))).toBe(false)
 
   await page.getByRole('button', { name: '写作', exact: true }).click()
@@ -182,7 +182,7 @@ test('synchronizes preview theme with the app and persists changes after closing
 
   await expect(page.locator('.preview-surface')).toHaveAttribute('data-theme', 'dark')
   await expect(page.getByTitle('IMX 文章预览').locator('.preview-html')).toHaveAttribute('data-theme', 'dark')
-  await page.getByRole('button', { name: '浅色预览' }).click()
+  await page.locator('.preview-surface').getByRole('button', { name: '切换到浅色主题' }).click()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
   await expect(page.getByTitle('IMX 文章预览').locator('.preview-html')).toHaveAttribute('data-theme', 'light')
   await page.getByRole('button', { name: '返回编辑' }).click()
@@ -388,7 +388,8 @@ test('keeps the preview table of contents controllable on desktop and mobile wit
   expect(afterDirectoryLink.targetTop).toBeGreaterThanOrEqual(0)
   expect(afterDirectoryLink.targetTop).toBeLessThan(afterDirectoryLink.viewportHeight)
 
-  await page.getByRole('button', { name: '移动预览' }).click()
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(preview.locator('.preview-html')).toHaveAttribute('data-preview-viewport', 'mobile')
   const mobileToggle = preview.getByRole('checkbox', { name: '目录' })
   await expect(mobileToggle).toBeVisible()
   await expect(mobileToggle).not.toBeChecked()
@@ -431,7 +432,7 @@ test('preserves the preview reading position, follows the active directory entry
     return Boolean(tocBounds && linkBounds.top >= tocBounds.top && linkBounds.bottom <= tocBounds.bottom)
   })).toBe(true)
 
-  await page.getByRole('button', { name: '深色预览' }).click()
+  await page.locator('.preview-surface').getByRole('button', { name: '切换到深色主题' }).click()
   await expect(preview.locator('.preview-html')).toHaveAttribute('data-theme', 'dark')
   await page.waitForTimeout(500)
   await expect.poll(() => preview.evaluate((host) => host.scrollTop)).toBe(scrollBeforeThemeChange)
