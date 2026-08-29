@@ -97,6 +97,20 @@ describe('MarkdownEditor', () => {
     expect(highlightedCode?.querySelector('.hljs-built_in')).toHaveTextContent('echo')
   })
 
+  it('focuses source mode and exposes working source history controls', async () => {
+    const user = userEvent.setup()
+    render(<ControlledEditor initial="初始内容" />)
+    await user.click(screen.getByRole('button', { name: '源代码' }))
+    const source = await screen.findByRole('textbox', { name: 'Markdown 编辑器' })
+    expect(source).toHaveFocus()
+    expect(screen.getByRole('button', { name: '撤销' })).toBeDisabled()
+    await user.type(source, '新增')
+    expect(screen.getByRole('button', { name: '撤销' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: '撤销' }))
+    expect(screen.getByTestId('markdown')).not.toHaveTextContent('新增')
+    expect(screen.getByRole('button', { name: '重做' })).toBeEnabled()
+  })
+
   it('inserts media into the current source document without restoring stale rich text', async () => {
     const user = userEvent.setup()
     const editorRef = createRef<MarkdownEditorHandle>()

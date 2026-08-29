@@ -43,6 +43,53 @@ describe('deferred Markdown input', () => {
     expect(editor.view.dom.querySelector('strong')).toHaveTextContent('尚未完成')
   })
 
+  it('renders typed bold on Enter and starts the next paragraph without inline toolbar styles', () => {
+    setup().commands.insertContent({ type: 'text', text: '**Markdown 加粗**' })
+    editor.commands.splitBlock()
+    expect(editor.view.dom.querySelector('strong')).toHaveTextContent('Markdown 加粗')
+    expect(editor.state.selection.$from.parent.type.name).toBe('paragraph')
+    expect(editor.isActive('bold')).toBe(false)
+
+    editor.commands.toggleBold()
+    editor.commands.toggleItalic()
+    editor.commands.toggleStrike()
+    editor.commands.insertContent({ type: 'text', text: '工具栏样式' })
+    expect(editor.isActive('bold')).toBe(true)
+    expect(editor.isActive('italic')).toBe(true)
+    expect(editor.isActive('strike')).toBe(true)
+    const handled = editor.view.someProp('handleKeyDown', (handler) => handler(
+      editor.view,
+      new KeyboardEvent('keydown', { key: 'Enter' }),
+    ))
+    expect(handled).toBe(true)
+    expect(editor.isActive('bold')).toBe(false)
+    expect(editor.isActive('italic')).toBe(false)
+    expect(editor.isActive('strike')).toBe(false)
+    editor.commands.insertContent({ type: 'text', text: '普通下一行' })
+    expect(editor.view.dom.querySelectorAll('strong')).toHaveLength(2)
+    expect(editor.view.dom.querySelectorAll('strong')[1]).toHaveTextContent('工具栏样式')
+    expect(editor.view.dom.querySelector('em')).toHaveTextContent('工具栏样式')
+    expect(editor.view.dom.querySelector('s')).toHaveTextContent('工具栏样式')
+    expect(editor.state.selection.$from.parent.textContent).toBe('普通下一行')
+  })
+
+  it('continues lists on Enter without carrying inline toolbar styles', () => {
+    setup()
+    editor.chain().toggleBulletList().toggleBold().toggleItalic().insertContent('带样式列表项').run()
+    const handled = editor.view.someProp('handleKeyDown', (handler) => handler(
+      editor.view,
+      new KeyboardEvent('keydown', { key: 'Enter' }),
+    ))
+    expect(handled).toBe(true)
+    expect(editor.state.selection.$from.node(-1).type.name).toBe('listItem')
+    expect(editor.isActive('bold')).toBe(false)
+    expect(editor.isActive('italic')).toBe(false)
+    editor.commands.insertContent('下一项')
+    expect(editor.view.dom.querySelector('strong')).toHaveTextContent('带样式列表项')
+    expect(editor.view.dom.querySelector('em')).toHaveTextContent('带样式列表项')
+    expect(editor.state.selection.$from.parent.textContent).toBe('下一项')
+  })
+
   it('preserves existing literal Markdown while parsing new syntax in the same paragraph', () => {
     setup('\\*原样星号\\* \\~\\~原样删除线\\~\\~')
     editor.commands.setTextSelection(editor.state.doc.content.size - 1)

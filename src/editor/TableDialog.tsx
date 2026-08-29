@@ -1,6 +1,9 @@
 import { useState, type FormEvent } from 'react'
 import { AccessibleDialog, DialogClose } from '../app/AccessibleDialog'
-import type { MarkdownTableDimensions } from './markdown-commands'
+export interface MarkdownTableDimensions {
+  columns: number
+  dataRows: number
+}
 
 interface TableDialogProps {
   onClose: () => void

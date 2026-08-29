@@ -1,6 +1,10 @@
 import type { MediaAsset } from '../metadata/article'
 import { mediaAlt } from '../media/names'
-import type { MarkdownSelection } from './markdown-commands'
+
+interface MarkdownSelection {
+  from: number
+  to: number
+}
 
 export interface PastedImageRequest {
   files: File[]

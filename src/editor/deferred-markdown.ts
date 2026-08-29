@@ -192,6 +192,35 @@ export const DeferredMarkdown = Extension.create({
         handleKeyDown(view, event) {
           if (event.key !== 'Enter' || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey || composing || view.composing) return false
           const state = view.state
+          const { $from } = state.selection
+          const ancestors = Array.from({ length: $from.depth + 1 }, (_, depth) => $from.node(depth).type.name)
+          const activeInlineStyle = ['bold', 'italic', 'strike', 'code'].some((mark) => editor.isActive(mark))
+          const listItem = ancestors.includes('taskItem') ? 'taskItem' : ancestors.includes('listItem') ? 'listItem' : null
+          const inTable = ancestors.some((name) => name === 'tableCell' || name === 'tableHeader')
+          // Inline toolbar styles describe the current text, not the next paragraph.
+          // Split ordinary paragraphs/headings here so the new caret has no stored marks;
+          // Structural blocks keep their native split command, but the new text
+          // position still starts without toolbar-applied inline styles.
+          if (state.selection.empty && activeInlineStyle && listItem) {
+            return editor.chain().splitListItem(listItem).command(({ tr }) => {
+              tr.setStoredMarks([])
+              return true
+            }).run()
+          }
+          if (state.selection.empty && activeInlineStyle && inTable) {
+            return editor.chain().splitBlock().command(({ tr }) => {
+              tr.setStoredMarks([])
+              return true
+            }).run()
+          }
+          if (state.selection.empty && !ancestors.includes('codeBlock')
+            && ['paragraph', 'heading'].includes($from.parent.type.name)
+            && activeInlineStyle) {
+            return editor.chain().splitBlock().command(({ tr }) => {
+              tr.setStoredMarks([])
+              return true
+            }).run()
+          }
           const position = textblockPosition(state)
           const deferred = pendingKey.getState(state)
           if (position === null || deferred?.paused || !deferred?.pending.has(position) || !editor.markdown || !state.selection.empty) return false

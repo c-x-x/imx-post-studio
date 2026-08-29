@@ -12,11 +12,10 @@ import { common, createLowlight } from 'lowlight'
 import type { MediaAsset } from '../metadata/article'
 import { mediaAlt } from '../media/names'
 import type { EditorMode } from './editor-mode'
-import type { MarkdownTableDimensions } from './markdown-commands'
 import { extractEditorOutline } from './outline'
 import { clipboardImages, type PastedImageRequest } from './paste'
 import { RawMarkdownBlock, RawMarkdownInline, SafeCodeBlock, SafeTable } from './markdown-extensions'
-import { TableDialog } from './TableDialog'
+import { TableDialog, type MarkdownTableDimensions } from './TableDialog'
 import { LinkDialog } from './LinkDialog'
 import { DeferredMarkdown, editorMarkdown, pauseDeferredMarkdown } from './deferred-markdown'
 import type { SourceMarkdownEditorHandle } from './SourceMarkdownEditor'
@@ -85,6 +84,7 @@ function BlockContextMenu({ editor, nodeName, label, children, placement = 'adap
   children: ReactNode
   placement?: 'adaptive-center' | 'below-end'
 }) {
+  const toolbarRef = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState<{ left: number; top: number; below: boolean } | null>(null)
 
   const updatePosition = useCallback(() => {
@@ -99,12 +99,35 @@ function BlockContextMenu({ editor, nodeName, label, children, placement = 'adap
     }
     const rect = reference.getBoundingClientRect()
     const below = placement === 'below-end' || rect.top < 72
-    setPosition({
-      left: placement === 'below-end' ? rect.right : rect.left + rect.width / 2,
-      top: below ? rect.bottom + 10 : rect.top - 10,
+    const toolbar = toolbarRef.current
+    const width = toolbar?.offsetWidth ?? 0
+    const height = toolbar?.offsetHeight ?? 0
+    const margin = 12
+    const visibleLeft = Math.max(margin, rect.left)
+    const visibleRight = Math.min(window.innerWidth - margin, rect.right)
+    const idealLeft = placement === 'below-end' ? visibleRight : (visibleLeft + visibleRight) / 2
+    const minimumLeft = placement === 'below-end' ? width + margin : width / 2 + margin
+    const maximumLeft = placement === 'below-end' ? window.innerWidth - margin : window.innerWidth - width / 2 - margin
+    const idealTop = below ? rect.bottom + 10 : rect.top - 10
+    const minimumTop = below ? margin : height + margin
+    const maximumTop = below ? window.innerHeight - height - margin : window.innerHeight - margin
+    const next = {
+      left: Math.max(minimumLeft, Math.min(maximumLeft, idealLeft)),
+      top: Math.max(minimumTop, Math.min(maximumTop, idealTop)),
       below,
+    }
+    setPosition((current) => {
+      if (current && current.left === next.left && current.top === next.top && current.below === next.below) return current
+      return next
     })
   }, [editor, nodeName, placement])
+
+  const shown = position !== null
+  useLayoutEffect(() => {
+    if (!shown) return
+    const frame = window.requestAnimationFrame(updatePosition)
+    return () => window.cancelAnimationFrame(frame)
+  }, [shown, updatePosition])
 
   useEffect(() => {
     if (!editor) return
@@ -125,6 +148,7 @@ function BlockContextMenu({ editor, nodeName, label, children, placement = 'adap
   if (!position) return null
   return createPortal(
     <div
+      ref={toolbarRef}
       className="editor-context-toolbar"
       data-kind={nodeName}
       data-placement={position.below ? 'below' : 'above'}
@@ -272,15 +296,18 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const richComposingRef = useRef(false)
   const richCompositionPendingRef = useRef(false)
   const [mode, setMode] = useState<EditorMode>('rich')
+  const modeRef = useRef<EditorMode>(mode)
+  const [sourceHistory, setSourceHistory] = useState({ canUndo: false, canRedo: false })
   const [tableDialogOpen, setTableDialogOpen] = useState(false)
   const [linkDialog, setLinkDialog] = useState<{ from: number; to: number; href: string; text: string } | null>(null)
 
   useLayoutEffect(() => {
     if (!richComposingRef.current && !richCompositionPendingRef.current) latestValueRef.current = value
     onChangeRef.current = onChange
+    modeRef.current = mode
     preparePastedImagesRef.current = preparePastedImages
     onCommitPastedImagesRef.current = onCommitPastedImages
-  }, [onChange, onCommitPastedImages, preparePastedImages, value])
+  }, [mode, onChange, onCommitPastedImages, preparePastedImages, value])
 
   const editor = useEditor({
     extensions: [
@@ -345,10 +372,12 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           void prepare({ files, selection: { from, to }, value: current })
             .then((assets) => {
               const activeEditor = richEditorRef.current
-              if (assets.length === 0 || !activeEditor || activeEditor.isDestroyed) return
+              if (assets.length === 0 || modeRef.current !== 'rich' || !activeEditor || activeEditor.isDestroyed) return
               const max = activeEditor.state.doc.content.size
-              const safeFrom = Math.max(1, Math.min(max, from))
-              const safeTo = Math.max(safeFrom, Math.min(max, to))
+              const unchanged = editorMarkdown(activeEditor) === current
+              const target = unchanged ? { from, to } : activeEditor.state.selection
+              const safeFrom = Math.max(1, Math.min(max, target.from))
+              const safeTo = Math.max(safeFrom, Math.min(max, target.to))
               const content = assets.flatMap((asset, index) => [
                 { type: 'image', attrs: { src: `images/${asset.name}`, alt: mediaAlt(asset.name) } },
                 ...(index < assets.length - 1 ? [{ type: 'hardBreak' }] : []),
@@ -411,11 +440,17 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       canBold: Boolean(currentEditor?.can().toggleBold()),
       canItalic: Boolean(currentEditor?.can().toggleItalic()),
       canStrike: Boolean(currentEditor?.can().toggleStrike()),
+      canCode: Boolean(currentEditor?.can().toggleCode()),
       canHeading: Boolean(currentEditor?.can().toggleHeading({ level: 2 })),
       canBulletList: Boolean(currentEditor?.can().toggleBulletList()),
+      canOrderedList: Boolean(currentEditor?.can().toggleOrderedList()),
       canTaskList: Boolean(currentEditor?.can().toggleTaskList()),
       canBlockquote: Boolean(currentEditor?.can().toggleBlockquote()),
       canCodeBlock: Boolean(currentEditor?.can().toggleCodeBlock()),
+      canUndo: Boolean(currentEditor?.can().undo()),
+      canRedo: Boolean(currentEditor?.can().redo()),
+      code: Boolean(currentEditor?.isActive('code')),
+      orderedList: Boolean(currentEditor?.isActive('orderedList')),
     }),
   })
 
@@ -466,11 +501,14 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       latestValueRef.current = next
       emittedValueRef.current = next
       if (next !== value) onChangeRef.current(next)
+      setSourceHistory({ canUndo: false, canRedo: false })
+      modeRef.current = 'source'
       setMode('source')
       return
     }
     editor.commands.setContent(latestValueRef.current, { contentType: 'markdown', emitUpdate: false })
     emittedValueRef.current = latestValueRef.current
+    modeRef.current = 'rich'
     setMode('rich')
     requestAnimationFrame(() => {
       if (!editor.isDestroyed) editor.commands.focus()
@@ -481,6 +519,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     latestValueRef.current = next
     emittedValueRef.current = next
     onChangeRef.current(next)
+  }, [])
+
+  const handleSourceHistoryChange = useCallback((next: { canUndo: boolean, canRedo: boolean }) => {
+    setSourceHistory((current) => current.canUndo === next.canUndo && current.canRedo === next.canRedo ? current : next)
   }, [])
 
   const insertTable = ({ dataRows, columns }: MarkdownTableDimensions) => {
@@ -547,17 +589,28 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     if (command(editor.chain().focus()).run()) onFormatApplied?.()
   }
 
+  const runHistory = (direction: 'undo' | 'redo') => {
+    if (!editor || disabled) return
+    if (mode === 'source') {
+      sourceRef.current?.[direction]()
+      return
+    }
+    editor.chain().focus()[direction]().run()
+  }
+
   const toolbar = <div className="editor-toolbar" data-editor-controls role="toolbar" aria-label="Markdown 格式">
       <div className="editor-tool-group" role="group" aria-label="文字样式">
         <h3>文字样式</h3>
         <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.bold)} disabled={disabled || mode === 'source' || !activeFormats?.canBold} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleBold())}>加粗</button>
         <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.italic)} disabled={disabled || mode === 'source' || !activeFormats?.canItalic} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleItalic())}>斜体</button>
         <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.strike)} disabled={disabled || mode === 'source' || !activeFormats?.canStrike} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleStrike())}>删除线</button>
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.code)} disabled={disabled || mode === 'source' || !activeFormats?.canCode} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleCode())}>行内代码</button>
       </div>
       <div className="editor-tool-group" role="group" aria-label="段落结构">
         <h3>段落结构</h3>
         <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.heading)} disabled={disabled || mode === 'source' || !activeFormats?.canHeading} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleHeading({ level: 2 }))}>二级标题</button>
         <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.bulletList)} disabled={disabled || mode === 'source' || !activeFormats?.canBulletList} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleBulletList())}>无序列表</button>
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.orderedList)} disabled={disabled || mode === 'source' || !activeFormats?.canOrderedList} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleOrderedList())}>有序列表</button>
         <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.taskList)} disabled={disabled || mode === 'source' || !activeFormats?.canTaskList} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleTaskList())}>任务列表</button>
         <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.blockquote)} disabled={disabled || mode === 'source' || !activeFormats?.canBlockquote} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleBlockquote())}>引用</button>
       </div>
@@ -565,11 +618,17 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         <h3>插入内容</h3>
         <button ref={linkButtonRef} type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.link)} disabled={disabled || mode === 'source' || activeFormats?.codeBlock} onMouseDown={(event) => event.preventDefault()} onClick={openLinkDialog}>链接</button>
         <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.codeBlock)} disabled={disabled || mode === 'source' || !activeFormats?.canCodeBlock} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleCodeBlock())}>代码块</button>
+        <button type="button" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.setHorizontalRule())}>分隔线</button>
         <button ref={tableButtonRef} type="button" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => {
           if (!editor) return
           pauseDeferredMarkdown(editor, true)
           setTableDialogOpen(true)
         }}>表格</button>
+      </div>
+      <div className="editor-tool-group" role="group" aria-label="编辑历史">
+        <h3>编辑历史</h3>
+        <button type="button" disabled={disabled || (mode === 'rich' ? !activeFormats?.canUndo : !sourceHistory.canUndo)} onMouseDown={(event) => event.preventDefault()} onClick={() => runHistory('undo')}>撤销</button>
+        <button type="button" disabled={disabled || (mode === 'rich' ? !activeFormats?.canRedo : !sourceHistory.canRedo)} onMouseDown={(event) => event.preventDefault()} onClick={() => runHistory('redo')}>重做</button>
       </div>
       <div className="editor-tool-group" role="group" aria-label="编辑模式">
         <h3>编辑模式</h3>
@@ -604,7 +663,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
             </BlockContextMenu>
             <EditorContent editor={editor} />
           </>
-          : <Suspense fallback={<div className="editor-loading" role="status">正在加载源代码编辑器…</div>}><SourceMarkdownEditor ref={sourceRef} value={value} disabled={disabled} onChange={handleSourceChange} preparePastedImages={preparePastedImages} onCommitPastedImages={onCommitPastedImages} /></Suspense>}
+          : <Suspense fallback={<div className="editor-loading" role="status">正在加载源代码编辑器…</div>}><SourceMarkdownEditor ref={sourceRef} value={value} disabled={disabled} onChange={handleSourceChange} onHistoryStateChange={handleSourceHistoryChange} preparePastedImages={preparePastedImages} onCommitPastedImages={onCommitPastedImages} /></Suspense>}
       </div>
     </section>
     {tableDialogOpen && <TableDialog onClose={() => {
