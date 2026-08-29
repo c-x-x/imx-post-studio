@@ -8,7 +8,7 @@ import { fileFromBlob } from '../helpers/test-files'
 function incompleteDraft(): ArticleDraft {
   return {
     id: 'incomplete', createdAt: '2026-08-04T09:00:00+08:00', updatedAt: '2026-08-04T09:01:00+08:00',
-    meta: { title: '', slug: 'Invalid slug', date: 'not-a-date', draft: false, categories: ['技术'], tags: ['草稿'], description: '', toc: true },
+    meta: { title: '', slug: 'Invalid slug', date: 'not-a-date', draft: false, categories: ['技术'], tags: ['草稿'], description: '', featured: true, toc: true },
     body: '![missing](images/missing.png)\n原始正文',
     media: [{ id: 'raw', name: 'raw.bin', kind: 'body', mime: 'image/png', blob: new Blob([new Uint8Array([1, 2, 3, 4])], { type: 'application/octet-stream' }) }],
   }

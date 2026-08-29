@@ -22,6 +22,7 @@ export interface ArticleMeta {
   tags: string[]
   description: string
   toc: boolean
+  featured: boolean
 }
 
 export interface ArticleDraft {
@@ -92,7 +93,8 @@ export function assertCompleteArticleMeta(meta: ArticleMeta): void {
   if (!Array.isArray(meta.tags) || meta.tags.some((value) => typeof value !== 'string')) {
     throw new Error('tags 必须是字符串数组')
   }
-  if (typeof meta.draft !== 'boolean' || typeof meta.description !== 'string' || typeof meta.toc !== 'boolean') {
+  if (typeof meta.draft !== 'boolean' || typeof meta.description !== 'string'
+    || typeof meta.toc !== 'boolean' || typeof meta.featured !== 'boolean') {
     throw new Error('文章元数据格式无效')
   }
 }
@@ -126,6 +128,7 @@ export function createArticleDraft(now = new Date()): ArticleDraft {
       tags: [],
       description: '',
       toc: true,
+      featured: false,
     },
     body: '',
     media: [],

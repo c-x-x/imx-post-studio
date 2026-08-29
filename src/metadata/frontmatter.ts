@@ -138,6 +138,7 @@ export function serializeArticle(draft: ArticleDraft, draftOverride?: boolean): 
     `tags = ${tomlStringArray(draft.meta.tags)}`,
     ...(cover ? [`image = ${tomlBasicString(coverPathFor(draft.meta.slug))}`] : []),
     `description = ${tomlBasicString(draft.meta.description)}`,
+    `featured = ${draft.meta.featured}`,
     `toc = ${draft.meta.toc}`,
   ]
 
@@ -176,6 +177,7 @@ export function parseArticle(source: string): ParsedArticle {
       categories: stringArrayField(table, 'categories'),
       tags: stringArrayField(table, 'tags'),
       description: stringField(table, 'description', ''),
+      featured: booleanField(table, 'featured', false),
       toc: booleanField(table, 'toc', true),
     },
     body,

@@ -40,7 +40,7 @@ export function serializeForGithub(draft: ArticleDraft, origin?: GithubOrigin): 
   const baseline = parseArticle(origin.source)
   const table = parse(match[2])
   let metaChanged = false
-  const keys: (keyof ArticleMeta)[] = ['title', 'date', 'draft', 'categories', 'tags', 'description', 'toc']
+  const keys: (keyof ArticleMeta)[] = ['title', 'date', 'draft', 'categories', 'tags', 'description', 'featured', 'toc']
   for (const key of keys) {
     if (JSON.stringify(publishedMeta[key]) !== JSON.stringify(baseline.meta[key])) {
       table[key] = publishedMeta[key]

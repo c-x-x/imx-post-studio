@@ -21,6 +21,7 @@ function draft(): ArticleDraft {
       categories: ['技术'],
       tags: ['IMX'],
       description: 'round trip',
+      featured: true,
       toc: true,
     },
     body: '![图](images/diagram.png)\n',
@@ -57,6 +58,7 @@ describe('Hugo article bundle', () => {
 
     expect(imported.meta.slug).toBe('imx-test')
     expect(imported.meta.draft).toBe(false)
+    expect(imported.meta.featured).toBe(true)
     expect(imported.body).toContain('images/diagram.png')
     expect(new Uint8Array(await imported.media[1].blob.arrayBuffer())).toEqual(pngBytes)
     expect(source.meta.draft).toBe(true)

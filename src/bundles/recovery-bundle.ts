@@ -89,15 +89,17 @@ function validDimension(value: unknown): value is number | undefined {
 }
 
 function parseMeta(value: unknown): ArticleMeta {
-  if (!isRecord(value) || !hasExactKeys(value, ['title', 'slug', 'date', 'draft', 'categories', 'tags', 'description', 'toc'])
+  if (!isRecord(value) || !hasExactKeys(value, ['title', 'slug', 'date', 'draft', 'categories', 'tags', 'description', 'toc'], ['featured'])
     || typeof value.title !== 'string' || typeof value.slug !== 'string' || typeof value.date !== 'string'
     || typeof value.draft !== 'boolean' || !isStringArray(value.categories) || !isStringArray(value.tags)
-    || typeof value.description !== 'string' || typeof value.toc !== 'boolean') {
+    || typeof value.description !== 'string' || typeof value.toc !== 'boolean'
+    || (value.featured !== undefined && typeof value.featured !== 'boolean')) {
     throw recoveryError('备份元数据格式无效')
   }
   return {
     title: value.title, slug: value.slug, date: value.date, draft: value.draft,
-    categories: [...value.categories], tags: [...value.tags], description: value.description, toc: value.toc,
+    categories: [...value.categories], tags: [...value.tags], description: value.description,
+    featured: value.featured ?? false, toc: value.toc,
   }
 }
 

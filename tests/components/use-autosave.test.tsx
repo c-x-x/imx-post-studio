@@ -18,7 +18,7 @@ function draft(body = 'original'): ArticleDraft {
     updatedAt: '2026-08-04T09:00:00+08:00',
     meta: {
       title: 'Autosave draft', slug: 'autosave-draft', date: '2026-08-04T09:00:00+08:00',
-      draft: true, categories: [], tags: [], description: '', toc: true,
+      draft: true, categories: [], tags: [], description: '', featured: false, toc: true,
     },
     body,
     media: [],

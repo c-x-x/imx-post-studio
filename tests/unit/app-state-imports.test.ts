@@ -5,7 +5,7 @@ import type { ArticleDraft } from '../../src/metadata/article'
 function draft(id: string, title: string): ArticleDraft {
   return {
     id, createdAt: '2026-08-04T09:00:00+08:00', updatedAt: '2026-08-04T09:00:00+08:00',
-    meta: { title, slug: 'article', date: '2026-08-04T09:00:00+08:00', draft: true, categories: [], tags: [], description: '', toc: true },
+    meta: { title, slug: 'article', date: '2026-08-04T09:00:00+08:00', draft: true, categories: [], tags: [], description: '', featured: false, toc: true },
     body: title, media: [],
   }
 }

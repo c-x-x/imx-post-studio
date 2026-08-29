@@ -21,6 +21,7 @@ function draft(overrides: Partial<ArticleDraft> = {}): ArticleDraft {
       categories: ['技术'],
       tags: ['IMX'],
       description: 'A saved draft',
+      featured: false,
       toc: true,
     },
     body: 'Hello, IMX',
@@ -203,6 +204,7 @@ describe('draftRepository', () => {
         categories: [],
         tags: [],
         description: '',
+        featured: false,
         toc: true,
       },
     })

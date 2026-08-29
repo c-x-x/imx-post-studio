@@ -50,6 +50,14 @@ describe('GitHub article adapter', () => {
     expect(frontmatter.title).toBe('New title')
     expect(frontmatter.draft).toBe(false)
   })
+  it('adds featured to an existing article only when the author enables it', async () => {
+    const draft = await articleToDraft(origin, async () => new Blob())
+    expect(draft.meta.featured).toBe(false)
+    draft.meta.featured = true
+    const frontmatter = parse(serializeForGithub(draft, origin).split('+++')[1])
+    expect(frontmatter.featured).toBe(true)
+    expect(frontmatter.custom).toBe('untouched')
+  })
   it('rejects silent directory renaming and missing images', async () => {
     const draft = await articleToDraft(origin, async () => new Blob())
     draft.meta.slug = 'other'

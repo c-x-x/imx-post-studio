@@ -51,7 +51,8 @@ function assertStoredMeta(value: unknown): void {
   if (!isRecord(value)
     || typeof value.title !== 'string' || typeof value.slug !== 'string' || typeof value.date !== 'string'
     || typeof value.draft !== 'boolean' || !isStringArray(value.categories) || !isStringArray(value.tags)
-    || typeof value.description !== 'string' || typeof value.toc !== 'boolean') {
+    || typeof value.description !== 'string' || typeof value.toc !== 'boolean'
+    || (value.featured !== undefined && typeof value.featured !== 'boolean')) {
     throw corruptDraft('元数据格式无效')
   }
 }
@@ -104,6 +105,7 @@ function snapshotDraft(draft: ArticleDraft): DraftSnapshot {
     ...draft,
     meta: {
       ...draft.meta,
+      featured: draft.meta.featured ?? false,
       categories: [...draft.meta.categories],
       tags: [...draft.meta.tags],
     },
@@ -148,6 +150,7 @@ async function hydrateDraft(draft: StoredArticleDraft): Promise<ArticleDraft> {
     ...draft,
     meta: {
       ...draft.meta,
+      featured: draft.meta.featured ?? false,
       categories: [...draft.meta.categories],
       tags: [...draft.meta.tags],
     },

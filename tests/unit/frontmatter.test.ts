@@ -14,6 +14,7 @@ const draft: ArticleDraft = {
     categories: ['技术', '教程'],
     tags: ['Hugo', '图片'],
     description: '包含 "引号" 的文章描述',
+    featured: true,
     toc: true,
   },
   body: '# 标题\r\n\r\n![示例](images/example.png)\r\n',
@@ -43,6 +44,7 @@ describe('article TOML front matter', () => {
         categories: [],
         tags: [],
         description: '',
+        featured: false,
         toc: true,
       },
       body: '',
@@ -64,6 +66,7 @@ describe('article TOML front matter', () => {
       'tags = ["Hugo", "图片"]',
       'image = "/posts/hugo-tu-pian-chu-li-zhi-nan/images/cover.webp"',
       'description = "包含 \\"引号\\" 的文章描述"',
+      'featured = true',
       'toc = true',
       '+++',
       '# 标题',
@@ -82,6 +85,11 @@ describe('article TOML front matter', () => {
   it('normalizes a TOML date-only value to Beijing midnight', () => {
     expect(parseArticle('+++\ndate = 2026-06-13\n+++\n正文').meta.date)
       .toBe('2026-06-13T00:00:00+08:00')
+  })
+
+  it('defaults legacy articles to non-featured and validates the featured field type', () => {
+    expect(parseArticle('+++\ndate = 2026-06-13\n+++\n正文').meta.featured).toBe(false)
+    expect(() => parseArticle('+++\ndate = 2026-06-13\nfeatured = "true"\n+++\n')).toThrow('featured 必须是布尔值')
   })
 
   it('normalizes offset date-times to Beijing without moving their intended date', () => {
@@ -124,6 +132,7 @@ describe('article TOML front matter', () => {
     ['tags', 'tags = ["Hugo", true]'],
     ['image', 'image = true'],
     ['description', 'description = true'],
+    ['featured', 'featured = "true"'],
     ['toc', 'toc = "true"'],
   ])('rejects %s with an invalid known-field type', (_field, line) => {
     const date = line.startsWith('date =') ? '' : 'date = "2026-06-13T09:00:00+08:00"\n'

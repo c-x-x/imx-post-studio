@@ -65,6 +65,10 @@ export function MetadataPanel({ meta, onChange, disabled = false, compactHeading
       <textarea id="description" disabled={disabled} rows={3} value={meta.description} aria-describedby="description-hint" onChange={(event) => onChange('description', event.target.value)} />
       <p id="description-hint">推送必填：请用一段文字概括文章，用于博客列表展示；本地草稿可以暂不填写。</p>
     </div>
+    <label className="check-field">
+      <input type="checkbox" disabled={disabled} checked={meta.featured} onChange={(event) => onChange('featured', event.target.checked)} />
+      精选文章
+    </label>
     <label className="check-field"><input type="checkbox" disabled={disabled} checked={meta.toc} onChange={(event) => onChange('toc', event.target.checked)} />显示目录</label>
   </section>
 }

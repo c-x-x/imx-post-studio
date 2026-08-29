@@ -8,7 +8,7 @@ import { MetadataPanel } from '../../src/metadata/MetadataPanel'
 function MetadataHarness() {
   const [meta, setMeta] = useState<ArticleMeta>({
     title: '', slug: 'manual-slug', date: '2026-08-04T09:00:00+08:00', draft: true,
-    categories: [], tags: [], description: '', toc: true,
+    categories: [], tags: [], description: '', featured: false, toc: true,
   })
   return <MetadataPanel meta={meta} onChange={(field, value) => setMeta((current) => ({ ...current, [field]: value }))} />
 }
@@ -32,7 +32,7 @@ describe('MetadataPanel', () => {
     render(<MetadataHarness />)
 
     expect(screen.queryByRole('checkbox', { name: /^草稿$/ })).not.toBeInTheDocument()
-    for (const label of ['标题', 'Slug', '发布日期', '摘要', '分类', '标签', '显示目录']) {
+    for (const label of ['标题', 'Slug', '发布日期', '摘要', '分类', '标签', '精选文章', '显示目录']) {
       expect(screen.getByLabelText(label)).toBeInTheDocument()
     }
 
@@ -40,6 +40,9 @@ describe('MetadataPanel', () => {
     await user.type(screen.getByLabelText('标签'), 'IMX{Enter}')
     expect(screen.getByRole('button', { name: '移除分类 技术' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '移除标签 IMX' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('checkbox', { name: '精选文章' }))
+    expect(screen.getByRole('checkbox', { name: '精选文章' })).toBeChecked()
 
     await user.clear(screen.getByLabelText('Slug'))
     await user.type(screen.getByLabelText('Slug'), 'Invalid slug')

@@ -6,7 +6,7 @@ import type { ArticleMeta } from '../../src/metadata/article'
 
 const meta: ArticleMeta = {
   title: 'A <title>', slug: 'a-title', date: '2026-08-04T16:00:00+08:00', draft: true,
-  categories: ['Notes'], tags: ['Safe'], description: '', toc: true,
+  categories: ['Notes'], tags: ['Safe'], description: '', featured: false, toc: true,
 }
 
 afterEach(cleanup)

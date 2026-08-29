@@ -13,7 +13,7 @@ import { fileFromBlob } from '../helpers/test-files'
 function draft(): ArticleDraft {
   return {
     id: 'export', createdAt: '2026-08-04T09:00:00+08:00', updatedAt: '2026-08-04T09:00:00+08:00',
-    meta: { title: 'Export', slug: 'export', date: '2026-08-04T09:00:00+08:00', draft: false, categories: [], tags: [], description: 'ready', toc: true },
+    meta: { title: 'Export', slug: 'export', date: '2026-08-04T09:00:00+08:00', draft: false, categories: [], tags: [], description: 'ready', featured: false, toc: true },
     body: '', media: [],
   }
 }
