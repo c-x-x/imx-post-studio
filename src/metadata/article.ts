@@ -112,7 +112,12 @@ function formatBeijingDateTime(now: Date): string {
   return `${beijingTime.toISOString().slice(0, 19)}+08:00`
 }
 
-export function createArticleDraft(now = new Date()): ArticleDraft {
+export interface ArticleDraftDefaults {
+  toc?: boolean
+  featured?: boolean
+}
+
+export function createArticleDraft(now = new Date(), defaults: ArticleDraftDefaults = {}): ArticleDraft {
   const timestamp = formatBeijingDateTime(now)
 
   return {
@@ -127,8 +132,8 @@ export function createArticleDraft(now = new Date()): ArticleDraft {
       categories: [],
       tags: [],
       description: '',
-      toc: true,
-      featured: false,
+      toc: defaults.toc ?? true,
+      featured: defaults.featured ?? false,
     },
     body: '',
     media: [],

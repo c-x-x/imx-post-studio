@@ -5,6 +5,7 @@ import { assertExportableMedia } from '../bundles/media-validation'
 import { validateBrowserImage } from '../media/validate-image'
 import { validateMediaReferences } from '../media/references'
 import { GITHUB_IMAGE_COUNT, GITHUB_IMAGE_LIMIT, GITHUB_SOURCE_LIMIT, type GithubArticle, type GithubSaveInput, type GithubRepository } from './contracts'
+import { DEFAULT_COMMIT_MESSAGE_TEMPLATE, renderCommitMessage } from './commit-message'
 
 export interface GithubOrigin extends GithubArticle {
   repository: string
@@ -74,7 +75,13 @@ export interface PreparedGithubSave {
   origin?: GithubOrigin
 }
 
-export async function prepareGithubSave(draft: ArticleDraft, repository: GithubRepository, commit: string, origin?: GithubOrigin): Promise<PreparedGithubSave> {
+export async function prepareGithubSave(
+  draft: ArticleDraft,
+  repository: GithubRepository,
+  commit: string,
+  origin?: GithubOrigin,
+  commitMessageTemplate = DEFAULT_COMMIT_MESSAGE_TEMPLATE,
+): Promise<PreparedGithubSave> {
   if (origin && origin.repository !== repository.name) throw new Error('此草稿关联了另一仓库，请取消关联后再提交')
   if (origin && origin.ref !== repository.branch) throw new Error('此草稿来自旧的 PR 分支，请导出备份后从作品页重新读取主分支文章')
   const source = serializeForGithub(draft, origin)
@@ -94,6 +101,8 @@ export async function prepareGithubSave(draft: ArticleDraft, repository: GithubR
   }
   const deleted = origin?.images.filter((image) => !images.some((current) => current.name === image.name)).map((image) => image.name) ?? []
   if (origin && source === origin.source && !uploads.length && !deleted.length) throw new Error('文章和图片没有变化，无需提交')
+  const message = renderCommitMessage(commitMessageTemplate, draft.meta)
+  if (!message) throw new Error('GitHub Commit 信息不能为空，请在设置中修改模板')
   return { input: { mode: 'direct', create: !origin, path: origin?.path ?? `${repository.contentRoot}/${draft.meta.slug}/index.md`, ref: repository.branch,
-    commit: origin?.commit ?? commit, source, images, requestId: crypto.randomUUID() }, uploads, deleted, origin }
+    commit: origin?.commit ?? commit, source, message, images, requestId: crypto.randomUUID() }, uploads, deleted, origin }
 }

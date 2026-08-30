@@ -80,6 +80,16 @@ describe('cover rendering', () => {
     expect(result.height).toBe(360)
   })
 
+  it('honors the configured cover bound and WebP quality', async () => {
+    stubDecodedBitmap(decodedBitmap(2400, 1350))
+    const { toBlob } = stubCanvas()
+
+    const result = await renderCover(source(), { x: 0, y: 0, width: 1, height: 1 }, { maxWidth: 1200, quality: 76 })
+
+    expect(result).toMatchObject({ width: 1200, height: 675 })
+    expect(toBlob).toHaveBeenCalledWith(expect.any(Function), 'image/webp', 0.76)
+  })
+
   it.each(['image/jpeg', 'image/png', 'image/webp'])('accepts %s cover sources', async (type) => {
     stubDecodedBitmap()
     stubCanvas()

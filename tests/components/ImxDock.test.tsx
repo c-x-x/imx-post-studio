@@ -1,7 +1,8 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ImxDock } from '../../src/app/ImxDock'
+import { readStudioSettings, resetStudioSettings } from '../../src/app/studio-settings'
 
 function props(view: 'home' | 'dashboard' | 'workspace' | 'works' = 'workspace') {
   return {
@@ -17,6 +18,7 @@ function props(view: 'home' | 'dashboard' | 'workspace' | 'works' = 'workspace')
 }
 
 describe('IMX Studio Dock', () => {
+  beforeEach(() => resetStudioSettings())
   afterEach(cleanup)
 
   it('exposes the Studio actions in the IMX three-part navigation', async () => {
@@ -40,14 +42,47 @@ describe('IMX Studio Dock', () => {
     expect(callbacks.onDashboard).toHaveBeenCalledOnce()
   })
 
-  it('groups settings beside the theme control and opens the placeholder dialog', async () => {
+  it('groups settings beside the theme control and persists functional categories', async () => {
     const user = userEvent.setup()
     render(<ImxDock {...props()} />)
 
     const actions = screen.getByRole('button', { name: '打开设置' }).parentElement
     expect(actions).toContainElement(screen.getByRole('button', { name: '切换到深色主题' }))
     await user.click(screen.getByRole('button', { name: '打开设置' }))
-    expect(screen.getByRole('dialog', { name: '设置' })).toHaveTextContent('功能开发中')
+    const dialog = screen.getByRole('dialog', { name: '设置' })
+    expect(dialog).toHaveTextContent('设置仅保存在当前浏览器；清除网站数据后会恢复默认值')
+    for (const label of ['通用', '编辑器', '图片', '发布', '安全与数据']) {
+      expect(screen.getByRole('tab', { name: label })).toBeInTheDocument()
+    }
+    expect(screen.getByRole('tabpanel')).toHaveAccessibleName('通用')
+    await user.click(screen.getByRole('checkbox', { name: /新文章默认设为精选/ }))
+    expect(readStudioSettings().defaultFeatured).toBe(true)
+    await user.click(screen.getByRole('tab', { name: '编辑器' }))
+    await user.click(screen.getByRole('radio', { name: /源代码/ }))
+    expect(readStudioSettings().defaultEditorMode).toBe('source')
+    await user.click(screen.getByRole('radio', { name: /清晰字体/ }))
+    expect(readStudioSettings().editorFont).toBe('sans')
+    await user.click(screen.getByRole('radio', { name: /文艺字体/ }))
+    expect(readStudioSettings().editorFont).toBe('wenkai')
+    await user.click(screen.getByRole('radio', { name: /潮流字体/ }))
+    expect(readStudioSettings().editorFont).toBe('smiley')
+    await user.click(screen.getByRole('tab', { name: '图片' }))
+    await user.selectOptions(screen.getByLabelText('封面最大宽度'), '1200')
+    expect(readStudioSettings().coverMaxWidth).toBe(1200)
+    await user.click(screen.getByRole('tab', { name: '发布' }))
+    expect(screen.getByRole('tabpanel')).toHaveAccessibleName('发布')
+    const template = screen.getByLabelText('GitHub Commit 信息模板')
+    await user.clear(template)
+    await user.type(template, 'post: article')
+    expect(readStudioSettings().commitMessageTemplate).toBe('post: article')
+    await user.click(screen.getByRole('tab', { name: '发布' }))
+    await user.keyboard('{ArrowRight}')
+    expect(screen.getByRole('tab', { name: '安全与数据' })).toHaveFocus()
+    expect(screen.getByRole('tabpanel')).toHaveAccessibleName('安全与数据')
+    await user.click(screen.getByRole('button', { name: '恢复默认设置' }))
+    await user.click(screen.getByRole('button', { name: '确认重置' }))
+    expect(readStudioSettings().defaultEditorMode).toBe('rich')
+    expect(readStudioSettings().editorFont).toBe('serif')
     await user.click(screen.getByRole('button', { name: '关闭' }))
     expect(screen.queryByRole('dialog', { name: '设置' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '打开设置' })).toHaveFocus()

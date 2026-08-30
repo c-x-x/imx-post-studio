@@ -8,7 +8,7 @@ export type SaveStatus =
   | { state: 'saved'; at: string }
   | { state: 'failed'; message: string }
 
-const AUTOSAVE_DELAY_MS = 800
+const DEFAULT_AUTOSAVE_DELAY_MS = 800
 const IDLE_STATUS: SaveStatus = { state: 'idle' }
 
 interface RevisionStatus {
@@ -16,7 +16,11 @@ interface RevisionStatus {
   status: SaveStatus
 }
 
-export function useAutosave(draft: ArticleDraft | null, onSaved?: (draft: ArticleDraft) => void): SaveStatus {
+export function useAutosave(
+  draft: ArticleDraft | null,
+  onSaved?: (draft: ArticleDraft) => void,
+  delayMs = DEFAULT_AUTOSAVE_DELAY_MS,
+): SaveStatus {
   const [revisionStatus, setRevisionStatus] = useState<RevisionStatus>({ draft: null, status: IDLE_STATUS })
   const generation = useRef(0)
   const onSavedRef = useRef(onSaved)
@@ -59,13 +63,13 @@ export function useAutosave(draft: ArticleDraft | null, onSaved?: (draft: Articl
           }
         },
       )
-    }, AUTOSAVE_DELAY_MS)
+    }, delayMs)
 
     return () => {
       window.clearTimeout(timer)
       generation.current += 1
     }
-  }, [draft])
+  }, [delayMs, draft])
 
   if (draft && !hasDraftTitle(draft)) return IDLE_STATUS
   return !draft || !hasDraftContent(draft) || revisionStatus.status.state === 'failed' || revisionStatus.draft === draft

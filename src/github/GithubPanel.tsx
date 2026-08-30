@@ -6,6 +6,7 @@ import { articleToDraft, prepareGithubSave, type GithubOrigin, type PreparedGith
 import { GithubApiError, githubApi } from './api'
 import type { GithubDeleteInput, GithubSaveResult, GithubSession } from './contracts'
 import { githubOrigins } from './origins'
+import { useStudioSettings } from '../app/studio-settings'
 import './github.css'
 
 interface Props {
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export default function GithubPanel({ mode, draft, onOpen, onClose, onPushed, returnFocus }: Props) {
+  const settings = useStudioSettings()
   const [session, setSession] = useState<GithubSession>()
   const [articles, setArticles] = useState<{ path: string; slug: string }[]>([])
   const [listCommit, setListCommit] = useState('')
@@ -48,7 +50,7 @@ export default function GithubPanel({ mode, draft, onOpen, onClose, onPushed, re
           if (!nextOrigin && list.articles.some((item) => item.path === `${nextSession.repository!.contentRoot}/${draft.meta.slug}/index.md`)) {
             throw new Error('作品中已有同名文章，请从作品页读取并编辑，不能用本地草稿覆盖')
           }
-          const next = await prepareGithubSave(draft, nextSession.repository!, list.commit, nextOrigin)
+          const next = await prepareGithubSave(draft, nextSession.repository!, list.commit, nextOrigin, settings.commitMessageTemplate)
           if (!cancelled) setPrepared(next)
         }
       }
@@ -60,7 +62,7 @@ export default function GithubPanel({ mode, draft, onOpen, onClose, onPushed, re
       }
     }).finally(() => { if (!cancelled) setBusy(false) })
     return () => { cancelled = true }
-  }, [draft, mode])
+  }, [draft, mode, settings.commitMessageTemplate])
 
   const run = async (work: () => Promise<void>, onError = setError) => {
     if (busyRef.current) return
@@ -124,6 +126,7 @@ export default function GithubPanel({ mode, draft, onOpen, onClose, onPushed, re
         {prepared ? <div className="github-confirm" aria-label="确认 GitHub 变更">
           <p>目标：{session.repository.branch} · {prepared.input.path}</p>
           <p>文章文件 1 个；新增/更新图片 {prepared.uploads.length} 张；删除原有图片 {prepared.deleted.length} 张。</p>
+          <p>Commit：<code>{prepared.input.message}</code></p>
           {prepared.deleted.length ? <p className="field-error">推送后删除图片：{prepared.deleted.join('、')}</p> : null}
           <p>推送会将文章设为已发布（draft = false），博客部署完成后生效。</p>
           <details><summary>查看 Markdown</summary><pre>{prepared.input.source}</pre></details>

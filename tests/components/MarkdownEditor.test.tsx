@@ -12,6 +12,29 @@ function ControlledEditor({ initial = '' }: { initial?: string }) {
 }
 
 describe('MarkdownEditor', () => {
+  it('applies the selected writing font to rich and source modes', async () => {
+    const user = userEvent.setup()
+    const { container } = render(<MarkdownEditor font="sans" value="正文" onChange={() => undefined} media={[]} />)
+    const editor = container.querySelector('.markdown-editor')
+    expect(editor).toHaveAttribute('data-font', 'sans')
+    await user.click(screen.getByRole('button', { name: '源代码' }))
+    expect(editor).toHaveAttribute('data-font', 'sans')
+  })
+
+  it('exposes the self-hosted art font choices without changing Markdown', () => {
+    const { container, rerender } = render(<MarkdownEditor font="wenkai" value="艺术字体" onChange={() => undefined} media={[]} />)
+    const editor = container.querySelector('.markdown-editor')
+    expect(editor).toHaveAttribute('data-font', 'wenkai')
+    rerender(<MarkdownEditor font="smiley" value="艺术字体" onChange={() => undefined} media={[]} />)
+    expect(editor).toHaveAttribute('data-font', 'smiley')
+    expect(screen.getByRole('textbox', { name: 'Markdown 编辑器' })).toHaveTextContent('艺术字体')
+  })
+
+  it('can start directly in source mode without switching the current document later', async () => {
+    render(<MarkdownEditor initialMode="source" value="Source first" onChange={() => undefined} media={[]} />)
+    expect(await screen.findByRole('textbox', { name: 'Markdown 编辑器' })).toHaveTextContent('Source first')
+    expect(screen.getByRole('button', { name: '即时排版' })).toBeInTheDocument()
+  })
   it('inserts visible links using an accessible dialog and rejects unsafe addresses', async () => {
     const user = userEvent.setup()
     render(<ControlledEditor />)

@@ -74,6 +74,12 @@ describe('GitHub article adapter', () => {
     expect(prepared.uploads).toEqual([])
     await expect(prepareGithubSave(draft, { ...repository, name: 'other/blog' }, origin.commit, origin)).rejects.toThrow(/另一仓库/)
   })
+  it('renders the configured commit template into a safe one-line message', async () => {
+    const draft = await articleToDraft(origin, async () => new Blob())
+    draft.body += 'update'
+    const prepared = await prepareGithubSave(draft, repository, origin.commit, origin, 'post: 发布《{title}》 [{slug}]')
+    expect(prepared.input.message).toBe('post: 发布《Example》 [example]')
+  })
   it('computes the same Git blob identifier as GitHub', async () => {
     vi.stubGlobal('crypto', webcrypto)
     expect(await gitBlobSha(new Blob(['hello\n']))).toBe('ce013625030ba8dba906f756967f9e9ca394464a')

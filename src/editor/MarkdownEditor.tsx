@@ -12,6 +12,7 @@ import { common, createLowlight } from 'lowlight'
 import type { MediaAsset } from '../metadata/article'
 import { mediaAlt } from '../media/names'
 import type { EditorMode } from './editor-mode'
+import type { EditorFont } from './editor-font'
 import { extractEditorOutline } from './outline'
 import { clipboardImages, type PastedImageRequest } from './paste'
 import { RawMarkdownBlock, RawMarkdownInline, SafeCodeBlock, SafeTable } from './markdown-extensions'
@@ -19,6 +20,7 @@ import { TableDialog, type MarkdownTableDimensions } from './TableDialog'
 import { LinkDialog } from './LinkDialog'
 import { DeferredMarkdown, editorMarkdown, pauseDeferredMarkdown } from './deferred-markdown'
 import type { SourceMarkdownEditorHandle } from './SourceMarkdownEditor'
+import './editor-fonts.css'
 import './editor.css'
 
 const SourceMarkdownEditor = lazy(() => import('./SourceMarkdownEditor'))
@@ -44,6 +46,8 @@ interface MarkdownEditorProps {
   onCommitPastedImages?: (assets: MediaAsset[], body: string) => void
   resolveMediaUrl?: (asset: MediaAsset) => string
   disabled?: boolean
+  initialMode?: EditorMode
+  font?: EditorFont
 }
 
 function markdownHeadingIndex(value: string, position: number): number {
@@ -285,6 +289,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   onCommitPastedImages,
   resolveMediaUrl,
   disabled = false,
+  initialMode = 'rich',
+  font = 'serif',
 }, ref) {
   const sourceRef = useRef<SourceMarkdownEditorHandle>(null)
   const tableButtonRef = useRef<HTMLButtonElement>(null)
@@ -297,7 +303,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const richEditorRef = useRef<Editor | null>(null)
   const richComposingRef = useRef(false)
   const richCompositionPendingRef = useRef(false)
-  const [mode, setMode] = useState<EditorMode>('rich')
+  const [mode, setMode] = useState<EditorMode>(initialMode)
   const modeRef = useRef<EditorMode>(mode)
   const [sourceHistory, setSourceHistory] = useState({ canUndo: false, canRedo: false })
   const [tableDialogOpen, setTableDialogOpen] = useState(false)
@@ -640,7 +646,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 
   return <>
     {toolbarTarget ? createPortal(toolbar, toolbarTarget) : null}
-    <section className="markdown-editor" data-mode={mode} aria-label="Markdown 编辑">
+    <section className="markdown-editor" data-mode={mode} data-font={font} aria-label="Markdown 编辑">
       {toolbarTarget === undefined ? toolbar : null}
       {status ? <div className="editor-status-bar">
         <p className="editor-save-status" data-tone={statusTone} role="status">{status}</p>

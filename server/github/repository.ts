@@ -124,6 +124,8 @@ function validateSave(config: GithubConfig, input: GithubSaveInput) {
   assertSha(input.commit)
   if (typeof input.create !== 'boolean' || typeof input.requestId !== 'string' || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(input.requestId)
     || typeof input.source !== 'string' || Buffer.byteLength(input.source) > GITHUB_SOURCE_LIMIT
+    || (input.message !== undefined && (typeof input.message !== 'string' || !input.message.trim() || input.message.length > 160
+      || Array.from(input.message).some((character) => character.charCodeAt(0) <= 31 || character.charCodeAt(0) === 127)))
     || !Array.isArray(input.images) || input.images.length > GITHUB_IMAGE_COUNT) throw new GithubError(400, '提交内容格式或大小无效')
   const names = new Set<string>()
   for (const image of input.images) {
@@ -144,13 +146,15 @@ function validateSave(config: GithubConfig, input: GithubSaveInput) {
   if (Boolean(article.coverPath) !== names.has('cover.webp')) throw new GithubError(400, '封面引用与图片清单不一致')
   const references = validateMediaReferences(article.body, input.images.map((image) => ({ name: image.name, kind: image.name === 'cover.webp' ? 'cover' : 'body' })))
   if (references.missing.length) throw new GithubError(400, `文章缺少图片：${references.missing.join('、')}`)
-  return article.meta.title
+  return {
+    message: input.message ?? `Edit article: ${article.meta.title.slice(0, 120)}`,
+  }
 }
 
 export async function saveArticle(config: GithubConfig, client: GithubClient, input: GithubSaveInput): Promise<GithubSaveResult> {
-  const title = validateSave(config, input)
+  const { message } = validateSave(config, input)
   const target = config.branch
-  const fingerprint = createHash('sha256').update(JSON.stringify({ path: input.path, source: input.source, images: input.images.map(({ name, sha }) => ({ name, sha })) })).digest('hex')
+  const fingerprint = createHash('sha256').update(JSON.stringify({ path: input.path, source: input.source, message, images: input.images.map(({ name, sha }) => ({ name, sha })) })).digest('hex')
   const marker = `ipost-request:${input.requestId}:${fingerprint}`
   const targetHead = await head(config, client, target)
   // Recover a completed push after a lost response without creating a second commit.
@@ -186,7 +190,7 @@ export async function saveArticle(config: GithubConfig, client: GithubClient, in
   for (const image of oldImages) {
     if (!input.images.some((item) => item.name === image.name)) tree.push({ path: `${prefix}images/${image.name}`, mode: '100644', type: 'blob', sha: null })
   }
-  return commitArticleTree(config, client, commit, tree, `Edit article: ${title.slice(0, 120)}\n\n${marker}`)
+  return commitArticleTree(config, client, commit, tree, `${message}\n\n${marker}`)
 }
 
 export async function deleteArticle(config: GithubConfig, client: GithubClient, input: GithubDeleteInput): Promise<GithubSaveResult> {

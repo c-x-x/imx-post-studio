@@ -29,6 +29,7 @@ import { readSettingsCollapsed, writeSettingsCollapsed } from './sidebar-prefere
 import { applyTheme, resolveInitialTheme, writeThemePreference, type AppTheme } from './theme-preference'
 import { TransitionConfirmDialog } from './TransitionConfirmDialog'
 import { useUnsavedChangesWarning } from './use-unsaved-changes-warning'
+import { useStudioSettings } from './studio-settings'
 import './app.css'
 
 const GithubPanel = lazy(() => import('../github/GithubPanel'))
@@ -63,10 +64,14 @@ function downloadRecovery(blob: Blob): void {
 }
 
 export function App() {
+  const studioSettings = useStudioSettings()
   const [githubOpen, setGithubOpen] = useState(false)
   const [pendingWorkId, setPendingWorkId] = useState<string>()
   const githubTrigger = useRef<HTMLElement | null>(null)
-  const [draft, dispatch] = useReducer(appReducer, undefined, () => createArticleDraft())
+  const [draft, dispatch] = useReducer(appReducer, undefined, () => createArticleDraft(new Date(), {
+    toc: studioSettings.defaultToc,
+    featured: studioSettings.defaultFeatured,
+  }))
   const [view, setView] = useState<View>(() => new URLSearchParams(window.location.search).has('github') ? 'works' : 'home')
   const [tab, setTab] = useState<WorkspaceTab>('settings')
   const [inspectorView, setInspectorView] = useState<InspectorView>('settings')
@@ -108,6 +113,7 @@ export function App() {
   const saveStatus = useAutosave(
     draftStarted && hasUnsavedChanges && !newArticlePromptOpen && !githubOpen && !transitioning ? draft : null,
     () => setHasUnsavedChanges(false),
+    studioSettings.autosaveDelay,
   )
 
   const setNotice = useCallback((message: string, tone: 'info' | 'pending' | 'success' | 'error' = 'info') => {
@@ -233,7 +239,10 @@ export function App() {
   }
 
   const executeNewArticle = () => {
-    const next = createArticleDraft()
+    const next = createArticleDraft(new Date(), {
+      toc: studioSettings.defaultToc,
+      featured: studioSettings.defaultFeatured,
+    })
     draftRef.current = next
     dispatchDraft({ type: 'new', draft: next }, true)
     setPendingWorkId(undefined)
@@ -522,7 +531,7 @@ export function App() {
             : <OutlinePanel markdown={draft.body} onSelect={focusOutlineHeading} />}
         </aside>
         <button className="inspector-toggle" type="button" aria-controls="panel-settings" aria-expanded={!settingsCollapsed} aria-label={settingsCollapsed ? '展开文章设置' : '折叠文章设置'} title={settingsCollapsed ? '展开文章设置' : '折叠文章设置'} onClick={toggleSettings}><span aria-hidden="true">{settingsCollapsed ? '›' : '‹'}</span></button>
-        <section id="panel-write" className="workspace-panel workspace-editor" role="tabpanel" aria-labelledby="tab-write"><h2 className="visually-hidden">写作</h2><MarkdownEditor key={draft.id} disabled={workspaceLocked} ref={editorRef} value={draft.body} media={draft.media} status={status} statusTone={statusTone} statusActions={statusActions} toolbarTarget={formatToolbarTarget} onFormatApplied={() => setTab('write')} preparePastedImages={preparePastedImages} onCommitPastedImages={(assets, body) => dispatchDraft({ type: 'paste-body-media', assets, body })} resolveMediaUrl={resolveEditorMediaUrl} onChange={(body) => {
+        <section id="panel-write" className="workspace-panel workspace-editor" role="tabpanel" aria-labelledby="tab-write"><h2 className="visually-hidden">写作</h2><MarkdownEditor key={draft.id} initialMode={studioSettings.defaultEditorMode} font={studioSettings.editorFont} disabled={workspaceLocked} ref={editorRef} value={draft.body} media={draft.media} status={status} statusTone={statusTone} statusActions={statusActions} toolbarTarget={formatToolbarTarget} onFormatApplied={() => setTab('write')} preparePastedImages={preparePastedImages} onCommitPastedImages={(assets, body) => dispatchDraft({ type: 'paste-body-media', assets, body })} resolveMediaUrl={resolveEditorMediaUrl} onChange={(body) => {
           if (draft.id !== draftRef.current.id) return
           if (body === draftRef.current.body) return
           dispatchDraft({ type: 'set-body', body })

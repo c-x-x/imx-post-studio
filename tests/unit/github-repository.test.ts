@@ -10,7 +10,7 @@ const original = 'a'.repeat(40)
 const treeSha = 'b'.repeat(40)
 const nextCommit = 'c'.repeat(40)
 const nextTree = 'd'.repeat(40)
-const input = (): GithubSaveInput => ({ mode: 'direct', create: true, path: 'content/posts/article/index.md', ref: 'main', commit: original, requestId: crypto.randomUUID(),
+const input = (): GithubSaveInput => ({ mode: 'direct', create: true, path: 'content/posts/article/index.md', ref: 'main', commit: original, requestId: crypto.randomUUID(), message: 'Edit article: Article',
   source: '+++\ntitle = "Article"\ndate = "2026-08-26T12:00:00+08:00"\ndescription = "Article summary"\ndraft = false\n+++\nHello', images: [] })
 
 function fakeGithub(options: { head?: string; entries?: readonly unknown[]; closed?: boolean; truncated?: boolean } = {}) {
@@ -70,6 +70,8 @@ describe('GitHub atomic content writes', () => {
     expect(fake.mock.mock.calls.filter(([path, method]) => path.endsWith('/git/commits') && method === 'POST')).toHaveLength(1)
     expect(fake.pulls).toHaveLength(0)
     expect(fake.mock.mock.calls.find(([, method]) => method === 'PATCH')?.[2]).toEqual({ sha: nextCommit, force: false })
+    const commitCall = fake.mock.mock.calls.find(([path, method]) => path.endsWith('/git/commits') && method === 'POST')
+    expect((commitCall?.[2] as { message: string }).message).toMatch(/^Edit article: Article\n\nipost-request:/)
   })
   it('rejects stale revisions before any write', async () => {
     const fake = fakeGithub({ head: 'e'.repeat(40) })
@@ -114,6 +116,7 @@ describe('GitHub atomic content writes', () => {
     const fake = fakeGithub()
     await expect(saveArticle(config, fake.client, { ...input(), mode: undefined } as unknown as GithubSaveInput)).rejects.toMatchObject({ status: 400 })
     await expect(saveArticle(config, fake.client, { ...input(), ref: 'ipost/123-' + crypto.randomUUID() })).rejects.toMatchObject({ status: 400 })
+    await expect(saveArticle(config, fake.client, { ...input(), message: 'bad\nmessage' })).rejects.toMatchObject({ status: 400 })
     expect(fake.mock).not.toHaveBeenCalled()
   })
   it('preserves concurrent main changes instead of force-pushing', async () => {

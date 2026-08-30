@@ -3,6 +3,7 @@ import Cropper, { type Area, type Point } from 'react-easy-crop'
 import type { MediaAsset } from '../metadata/article'
 import { AccessibleDialog, DialogClose } from '../app/AccessibleDialog'
 import { renderCover } from './cover'
+import { useStudioSettings } from '../app/studio-settings'
 
 interface CoverCropDialogProps {
   source: File
@@ -12,6 +13,7 @@ interface CoverCropDialogProps {
 }
 
 export function CoverCropDialog({ source, onCancel, onComplete, disabled = false }: CoverCropDialogProps) {
+  const settings = useStudioSettings()
   const [crop, setCrop] = useState<Point>({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
   const [area, setArea] = useState<Area>({ x: 0, y: 0, width: 100, height: 100 })
@@ -38,7 +40,7 @@ export function CoverCropDialog({ source, onCancel, onComplete, disabled = false
         y: area.y / 100,
         width: area.width / 100,
         height: area.height / 100,
-      })
+      }, { maxWidth: settings.coverMaxWidth, quality: settings.coverQuality })
       if (closedRef.current) return
       onComplete({
         id: crypto.randomUUID(),
@@ -58,7 +60,7 @@ export function CoverCropDialog({ source, onCancel, onComplete, disabled = false
   }
 
   return <AccessibleDialog title="裁剪封面" className="crop-dialog" onClose={close} returnFocus={() => triggerRef.current}>
-      <p>封面将裁剪为 16:9，并导出为 1600×900 以内的 WebP。</p>
+      <p>封面将裁剪为 16:9，并以质量 {settings.coverQuality} 导出为 {settings.coverMaxWidth}×{settings.coverMaxWidth * 9 / 16} 以内的 WebP。</p>
       <div className="crop-canvas"><Cropper image={previewUrl} crop={crop} zoom={zoom} aspect={16 / 9} onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={(percentages) => setArea(percentages)} /></div>
       <label htmlFor="cover-zoom">缩放<input id="cover-zoom" disabled={disabled} type="range" min="1" max="3" step="0.05" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} /></label>
       {error ? <p role="alert" className="field-error">{error}</p> : null}

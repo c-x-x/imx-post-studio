@@ -53,6 +53,11 @@ describe('article TOML front matter', () => {
     expect(first.id).not.toBe(second.id)
   })
 
+  it('applies Studio defaults only when creating a new article', () => {
+    const created = createArticleDraft(new Date('2026-06-13T01:02:03Z'), { toc: false, featured: true })
+    expect(created.meta).toMatchObject({ toc: false, featured: true })
+  })
+
   it('serializes deterministic LF TOML and round-trips known article data', () => {
     const serialized = serializeArticle(draft)
 

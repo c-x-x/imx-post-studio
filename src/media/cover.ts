@@ -2,8 +2,8 @@ import { MAX_SOURCE_BYTES } from '../shared/limits'
 
 const COVER_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const COVER_ASPECT_RATIO = 16 / 9
-const MAX_COVER_WIDTH = 1600
-const MAX_COVER_HEIGHT = 900
+const DEFAULT_MAX_COVER_WIDTH = 1600
+const DEFAULT_COVER_QUALITY = 82
 
 export interface NormalizedCrop {
   x: number
@@ -16,6 +16,11 @@ export interface RenderedCover {
   blob: Blob
   width: number
   height: number
+}
+
+export interface CoverRenderOptions {
+  maxWidth?: number
+  quality?: number
 }
 
 function clamp(value: number): number {
@@ -59,12 +64,15 @@ function normalizedCrop(bitmap: ImageBitmap, crop: NormalizedCrop) {
   }
 }
 
-function coverDimensions(crop: { width: number; height: number }) {
+function coverDimensions(crop: { width: number; height: number }, maxWidth: number) {
+  const boundedWidth = Number.isInteger(maxWidth) && maxWidth >= 16 && maxWidth <= DEFAULT_MAX_COVER_WIDTH
+    ? maxWidth : DEFAULT_MAX_COVER_WIDTH
+  const maxHeight = boundedWidth / COVER_ASPECT_RATIO
   const multiple = Math.min(
     Math.floor(crop.width / 16),
     Math.floor(crop.height / 9),
-    Math.floor(MAX_COVER_WIDTH / 16),
-    Math.floor(MAX_COVER_HEIGHT / 9),
+    Math.floor(boundedWidth / 16),
+    Math.floor(maxHeight / 9),
   )
   if (multiple < 1) {
     throw new Error('封面裁剪区域过小，至少需要 16×9 像素，请重新调整裁剪框')
@@ -76,7 +84,7 @@ function coverDimensions(crop: { width: number; height: number }) {
   }
 }
 
-function encodeWithCanvas(canvas: HTMLCanvasElement): Promise<Blob | undefined> {
+function encodeWithCanvas(canvas: HTMLCanvasElement, quality: number): Promise<Blob | undefined> {
   return new Promise((resolve) => {
     canvas.toBlob((blob) => {
       if (blob?.type === 'image/webp' && blob.size > 0) {
@@ -84,19 +92,19 @@ function encodeWithCanvas(canvas: HTMLCanvasElement): Promise<Blob | undefined> 
       } else {
         resolve(undefined)
       }
-    }, 'image/webp', 0.82)
+    }, 'image/webp', quality / 100)
   })
 }
 
-async function encodeWebp(canvas: HTMLCanvasElement): Promise<Blob> {
-  const native = await encodeWithCanvas(canvas)
+async function encodeWebp(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
+  const native = await encodeWithCanvas(canvas, quality)
   if (native) return native
 
   try {
     const context = canvas.getContext('2d')
     if (!context) throw new Error('2D canvas is unavailable')
     const { encode } = await import('@jsquash/webp')
-    const bytes = await encode(context.getImageData(0, 0, canvas.width, canvas.height), { quality: 82 })
+    const bytes = await encode(context.getImageData(0, 0, canvas.width, canvas.height), { quality })
     const fallback = new Blob([bytes], { type: 'image/webp' })
     if (fallback.size > 0) return fallback
   } catch {
@@ -109,6 +117,7 @@ async function encodeWebp(canvas: HTMLCanvasElement): Promise<Blob> {
 export async function renderCover(
   source: Blob,
   crop: NormalizedCrop,
+  options: CoverRenderOptions = {},
 ): Promise<RenderedCover> {
   if (!COVER_MIME_TYPES.has(source.type)) {
     throw new Error('封面仅支持 JPEG、PNG 或 WebP 图片，请选择其他图片后重试')
@@ -121,7 +130,9 @@ export async function renderCover(
   try {
     bitmap = await createImageBitmap(source)
     const sourceCrop = normalizedCrop(bitmap, crop)
-    const { width, height } = coverDimensions(sourceCrop)
+    const quality = Number.isInteger(options.quality) && options.quality! >= 60 && options.quality! <= 95
+      ? options.quality! : DEFAULT_COVER_QUALITY
+    const { width, height } = coverDimensions(sourceCrop, options.maxWidth ?? DEFAULT_MAX_COVER_WIDTH)
     const canvas = document.createElement('canvas')
     canvas.width = width
     canvas.height = height
@@ -141,7 +152,7 @@ export async function renderCover(
       width,
       height,
     )
-    return { blob: await encodeWebp(canvas), width, height }
+    return { blob: await encodeWebp(canvas, quality), width, height }
   } catch (error) {
     if (error instanceof Error && error.message.startsWith('封面')) {
       throw error

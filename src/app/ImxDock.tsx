@@ -3,7 +3,7 @@ import { ImxLogo } from './ImxLogo'
 import { useLiquidIndicator } from './use-liquid-indicator'
 import { useSharedDock } from './use-shared-dock'
 import type { AppTheme } from './theme-preference'
-import { AccessibleDialog, DialogClose } from './AccessibleDialog'
+import { SettingsDialog } from './SettingsDialog'
 import './shared-dock.css'
 import './imx-dock.css'
 
@@ -96,8 +96,5 @@ export function ImxDock({
       </div>
     </div>
   </nav>
-  {settingsOpen ? <AccessibleDialog title="设置" className="confirm-dialog settings-dialog" onClose={() => setSettingsOpen(false)} returnFocus={() => settingsTriggerRef.current}>
-    <p className="settings-dialog__message">功能开发中</p>
-    <DialogClose>{(close) => <div className="dialog-actions"><button type="button" onClick={() => close()}>关闭</button></div>}</DialogClose>
-  </AccessibleDialog> : null}</>
+  {settingsOpen ? <SettingsDialog onClose={() => setSettingsOpen(false)} returnFocus={() => settingsTriggerRef.current} /> : null}</>
 }

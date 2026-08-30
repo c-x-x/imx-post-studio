@@ -33,6 +33,7 @@ export interface GithubSaveInput {
   ref: string
   commit: string
   source: string
+  message: string
   requestId: string
   images: { name: string; sha: string; ticket?: string }[]
 }

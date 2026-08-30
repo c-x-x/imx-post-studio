@@ -287,6 +287,12 @@
   height: 100%;
 }
 
+.markdown-editor[data-font='serif'] { --imx-editor-font: var(--imx-font-reading); }
+.markdown-editor[data-font='sans'] { --imx-editor-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif; }
+.markdown-editor[data-font='mono'] { --imx-editor-font: var(--imx-font-mono); }
+.markdown-editor[data-font='wenkai'] { --imx-editor-font: 'IMPS LXGW WenKai', var(--imx-font-reading); }
+.markdown-editor[data-font='smiley'] { --imx-editor-font: 'IMPS Smiley Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif; }
+
 .markdown-editor .cm-editor {
   min-height: 100%;
   border: 0;
@@ -301,12 +307,12 @@
 }
 
 .markdown-editor .cm-scroller {
-  font-family: var(--imx-font-reading);
+  font-family: var(--imx-editor-font, var(--imx-font-reading));
   line-height: 1.78;
 }
 
 .markdown-editor[data-mode='source'] .cm-scroller {
-  font-family: var(--imx-font-mono);
+  font-family: var(--imx-editor-font, var(--imx-font-mono));
 }
 
 .markdown-editor[data-mode='rich'] .cm-gutters {
@@ -358,7 +364,7 @@
   padding-inline: max(clamp(18px, 5vw, 72px), calc((100% - 920px) / 2 + clamp(18px, 5vw, 72px)));
   color: var(--imx-ink);
   background: var(--imx-paper);
-  font-family: var(--imx-font-reading);
+  font-family: var(--imx-editor-font, var(--imx-font-reading));
   font-size: 1rem;
   line-height: 1.78;
   outline: 0;
@@ -379,7 +385,7 @@
 .markdown-editor .tiptap h6 {
   margin: 1.35em 0 .55em;
   color: var(--imx-ink);
-  font-family: var(--imx-font-reading);
+  font-family: var(--imx-editor-font, var(--imx-font-reading));
   font-weight: 700;
   line-height: 1.35;
   text-decoration: none;
