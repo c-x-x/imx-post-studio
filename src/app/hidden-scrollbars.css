@@ -1,0 +1,11 @@
+/* Keep every scroll surface functional while presenting a scrollbar-free Studio. */
+* {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}

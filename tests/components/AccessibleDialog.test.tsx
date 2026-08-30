@@ -15,6 +15,16 @@ describe('AccessibleDialog', () => {
     expect(backdrop?.parentElement).toBe(document.body)
   })
 
+  it('locks the document behind the dialog and restores scrolling after unmount', () => {
+    const dialog = render(<AccessibleDialog title="设置" onClose={() => undefined}><button type="button">关闭</button></AccessibleDialog>)
+
+    expect(document.documentElement).toHaveClass('dialog-open')
+    expect(document.body).toHaveClass('dialog-open')
+    dialog.unmount()
+    expect(document.documentElement).not.toHaveClass('dialog-open')
+    expect(document.body).not.toHaveClass('dialog-open')
+  })
+
   it('moves focus inside, traps Tab, closes on Escape, and restores its initiator', () => {
     const initiator = document.createElement('button')
     document.body.append(initiator)

@@ -5,6 +5,8 @@ import { extractFontFaces } from './preview/font-faces'
 import previewCss from './preview/studio-preview.css?raw'
 import './app/app.css'
 import './app/studio-surfaces.css'
+import './app/hidden-scrollbars.css'
+import './app/site-distortion.css'
 
 const fontStyle = document.createElement('style')
 fontStyle.dataset.studioFonts = ''

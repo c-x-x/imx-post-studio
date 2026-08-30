@@ -28,13 +28,12 @@ body.is-article-page,
   background: var(--preview-page-bg);
 }
 
-html {
+* {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
 
-html::-webkit-scrollbar,
-body::-webkit-scrollbar {
+*::-webkit-scrollbar {
   display: none;
   width: 0;
   height: 0;

@@ -17,6 +17,20 @@ export interface DialogCloseOptions {
 type DialogCloseHandler = (options?: unknown) => void
 
 const DialogCloseContext = createContext<DialogCloseHandler | undefined>(undefined)
+let openDialogCount = 0
+
+function lockDocumentScroll() {
+  openDialogCount += 1
+  document.documentElement.classList.add('dialog-open')
+  document.body.classList.add('dialog-open')
+
+  return () => {
+    openDialogCount = Math.max(0, openDialogCount - 1)
+    if (openDialogCount > 0) return
+    document.documentElement.classList.remove('dialog-open')
+    document.body.classList.remove('dialog-open')
+  }
+}
 
 /** Use this for in-dialog Cancel controls so pointer and Escape closes share focus restoration. */
 export function DialogClose({ children }: { children: (close: DialogCloseHandler) => ReactNode }) {
@@ -42,9 +56,11 @@ export function AccessibleDialog({ title, children, onClose, returnFocus, classN
   }
 
   useLayoutEffect(() => {
+    const unlockDocumentScroll = lockDocumentScroll()
     const dialog = dialogRef.current
     const first = dialog ? focusableElements(dialog)[0] : undefined
     ;(first ?? dialog)?.focus()
+    return unlockDocumentScroll
   }, [])
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {

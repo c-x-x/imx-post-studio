@@ -876,6 +876,12 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
   overscroll-behavior: contain;
 }
 
+html.dialog-open,
+body.dialog-open {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 .confirm-dialog,
 .crop-dialog {
   width: min(100%, 560px);
@@ -940,7 +946,10 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
   width: min(100%, 760px);
   max-height: calc(100dvh - 32px);
   overflow: auto;
+  scrollbar-width: none;
 }
+
+.settings-dialog::-webkit-scrollbar { display: none; }
 
 .settings-dialog__tabs {
   display: grid;
@@ -969,6 +978,9 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
   background: var(--imx-paper);
   box-shadow: var(--imx-shadow-sm), inset 0 0 0 1px var(--imx-line);
 }
+
+/* Tab focus follows selection, so the selected surface is already the focus cue. */
+.settings-dialog__tabs button:focus-visible { outline: none; }
 
 .settings-dialog__panel {
   min-height: 250px;
