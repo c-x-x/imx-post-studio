@@ -946,10 +946,7 @@ body.dialog-open {
   width: min(100%, 760px);
   max-height: calc(100dvh - 32px);
   overflow: auto;
-  scrollbar-width: none;
 }
-
-.settings-dialog::-webkit-scrollbar { display: none; }
 
 .settings-dialog__tabs {
   display: grid;

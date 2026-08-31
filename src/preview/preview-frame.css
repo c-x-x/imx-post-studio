@@ -9,8 +9,6 @@
   overflow: hidden;
   color: var(--imx-ink);
   background: var(--preview-shell-bg);
-  scrollbar-width: thin;
-  scrollbar-color: rgba(122, 90, 50, .3) transparent;
 }
 
 .preview-surface[data-theme='dark'] {
