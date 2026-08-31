@@ -105,7 +105,7 @@
   width: 32px;
   height: 32px;
   flex: 0 0 auto;
-  will-change: transform;
+  transition: transform .6s cubic-bezier(.16, 1, .3, 1);
 }
 
 .imx-dock__logo {
@@ -117,8 +117,12 @@
   opacity: .92;
 }
 
+/* Animate the wrapper, never dashed SVG strokes or overlapping SVG layers.
+   The complete snowflake remains visible throughout Safari compositing. */
 @media (hover: hover) and (pointer: fine) {
-  .imx-dock__brand-default-logo:hover { overflow: visible; }
+  .imx-dock__brand-default-logo:hover .imx-dock__logo-wrap {
+    transform: rotate(60deg);
+  }
 }
 
 .imx-dock__menu {
@@ -370,6 +374,8 @@
     white-space: nowrap;
   }
 
+  .imx-dock__brand-default-logo:hover .imx-dock__logo-wrap { transform: none; }
+
   .imx-dock__actions {
     grid-area: actions;
     min-width: 0;
@@ -450,5 +456,5 @@
   .imx-dock *,
   .imx-dock *::before,
   .imx-dock *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
-  .imx-dock__logo-wrap { will-change: auto; }
+  .imx-dock__brand-default-logo:hover .imx-dock__logo-wrap { transform: none; }
 }
