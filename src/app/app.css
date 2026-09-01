@@ -18,16 +18,16 @@
   --imx-ink-muted: #8d8479;
   --imx-line: rgba(75, 64, 52, .14);
   --imx-line-strong: rgba(75, 64, 52, .25);
-  --imx-glass: rgba(251, 250, 247, .72);
-  --imx-card: rgba(251, 250, 247, .78);
-  --imx-control: rgba(251, 250, 247, .78);
-  --imx-control-strong: rgba(251, 250, 247, .88);
-  --imx-control-soft: rgba(251, 250, 247, .52);
-  --imx-input: rgba(255, 255, 255, .38);
-  --imx-input-focus: rgba(255, 255, 255, .68);
-  --imx-editor: rgba(251, 250, 247, .9);
-  --imx-toolbar: rgba(242, 239, 232, .72);
-  --imx-gutter: rgba(242, 239, 232, .45);
+  --imx-glass: #fbfaf7;
+  --imx-card: #fbfaf7;
+  --imx-control: #fbfaf7;
+  --imx-control-strong: #fbfaf7;
+  --imx-control-soft: #f7f4ee;
+  --imx-input: #fffdfa;
+  --imx-input-focus: #ffffff;
+  --imx-editor: #fbfaf7;
+  --imx-toolbar: #f2efe8;
+  --imx-gutter: #f2efe8;
   --imx-inset-highlight: rgba(255, 255, 255, .62);
   --imx-primary-bg: linear-gradient(145deg, #88653d, #674823);
   --imx-primary-ink: #fbfaf7;
@@ -92,6 +92,7 @@
 html {
   min-width: 0;
   min-height: 100%;
+  background-color: #f2efe8;
   background: var(--imx-paper-alt);
 }
 
@@ -99,13 +100,12 @@ body {
   min-width: 0;
   min-height: 100vh;
   margin: 0;
-  background:
-    radial-gradient(circle at 15% -8%, rgba(122, 90, 50, .1), transparent 30rem),
-    radial-gradient(circle at 92% 10%, rgba(122, 90, 50, .055), transparent 26rem),
-    var(--imx-paper-alt);
+  background-color: #f2efe8;
+  background: var(--imx-paper-alt);
 }
 
 :root[data-theme='dark'] body {
+  background-color: #1f1f1d;
   background:
     radial-gradient(circle at 15% -8%, rgba(212, 198, 178, .09), transparent 30rem),
     radial-gradient(circle at 92% 10%, rgba(212, 198, 178, .045), transparent 26rem),
@@ -132,6 +132,7 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
   min-height: 100vh;
   margin: 0 auto;
   padding: 92px clamp(14px, 2.2vw, 34px) 42px;
+  background-color: var(--imx-paper-alt);
   overflow-x: clip;
 }
 
