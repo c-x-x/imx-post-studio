@@ -14,7 +14,8 @@ export function resolveInitialTheme(): AppTheme {
 
 export function applyTheme(theme: AppTheme): void {
   document.documentElement.dataset.theme = theme
-  const colorScheme = theme === 'light' ? 'light only' : 'dark only'
+  const lockedColorScheme = theme === 'light' ? 'only light' : 'only dark'
+  const colorScheme = globalThis.CSS?.supports?.('color-scheme', lockedColorScheme) ? lockedColorScheme : theme
   const backgroundColor = theme === 'light' ? '#f2efe8' : '#171716'
   document.documentElement.style.colorScheme = colorScheme
   document.documentElement.style.backgroundColor = backgroundColor
