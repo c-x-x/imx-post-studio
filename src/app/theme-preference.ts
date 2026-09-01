@@ -14,7 +14,8 @@ export function resolveInitialTheme(): AppTheme {
 
 export function applyTheme(theme: AppTheme): void {
   document.documentElement.dataset.theme = theme
-  document.documentElement.style.colorScheme = theme === 'light' ? 'only light' : 'dark'
+  const colorScheme = theme === 'light' ? 'light only' : 'dark only'
+  document.documentElement.style.colorScheme = colorScheme
 
   let meta = document.head.querySelector<HTMLMetaElement>('meta[name="color-scheme"]')
   if (!meta) {
@@ -22,7 +23,15 @@ export function applyTheme(theme: AppTheme): void {
     meta.name = 'color-scheme'
     document.head.append(meta)
   }
-  meta.content = theme === 'light' ? 'only light' : 'dark'
+  meta.content = colorScheme
+
+  let legacyMeta = document.head.querySelector<HTMLMetaElement>('meta[name="supported-color-schemes"]')
+  if (!legacyMeta) {
+    legacyMeta = document.createElement('meta')
+    legacyMeta.name = 'supported-color-schemes'
+    document.head.append(legacyMeta)
+  }
+  legacyMeta.content = colorScheme
 }
 
 export function writeThemePreference(theme: AppTheme): void {

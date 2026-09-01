@@ -1,5 +1,6 @@
 :root {
-  color-scheme: only light;
+  color-scheme: light;
+  color-scheme: light only;
   color: #24211d;
   background: #f2efe8;
   --imx-font-ui: 'IMX Noto Serif SC', 'IMX Noto Serif SC Fallback', 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', STSong, SimSun, Georgia, serif;
@@ -47,6 +48,7 @@
 
 :root[data-theme='dark'] {
   color-scheme: dark;
+  color-scheme: dark only;
   color: #eeeae3;
   background: #171716;
   --imx-accent: #d4c6b2;

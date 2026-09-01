@@ -9,6 +9,7 @@ describe('Studio theme preference', () => {
     document.documentElement.removeAttribute('data-theme')
     document.documentElement.style.colorScheme = ''
     document.head.querySelector('meta[name="color-scheme"]')?.remove()
+    document.head.querySelector('meta[name="supported-color-schemes"]')?.remove()
     vi.unstubAllGlobals()
   })
 
@@ -27,12 +28,14 @@ describe('Studio theme preference', () => {
   it('applies the resolved theme to the document root', () => {
     applyTheme('dark')
     expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
-    expect(document.documentElement.style.colorScheme).toBe('dark')
-    expect(document.head.querySelector('meta[name="color-scheme"]')).toHaveAttribute('content', 'dark')
+    expect(document.documentElement.style.colorScheme).toBe('dark only')
+    expect(document.head.querySelector('meta[name="color-scheme"]')).toHaveAttribute('content', 'dark only')
+    expect(document.head.querySelector('meta[name="supported-color-schemes"]')).toHaveAttribute('content', 'dark only')
 
     applyTheme('light')
     expect(document.documentElement).toHaveAttribute('data-theme', 'light')
-    expect(document.documentElement.style.colorScheme).toBe('only light')
-    expect(document.head.querySelector('meta[name="color-scheme"]')).toHaveAttribute('content', 'only light')
+    expect(document.documentElement.style.colorScheme).toBe('light only')
+    expect(document.head.querySelector('meta[name="color-scheme"]')).toHaveAttribute('content', 'light only')
+    expect(document.head.querySelector('meta[name="supported-color-schemes"]')).toHaveAttribute('content', 'light only')
   })
 })
