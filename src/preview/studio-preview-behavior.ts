@@ -3,9 +3,8 @@ export const studioPreviewBehaviorCss = String.raw`:root {
   --floating-action-edge: 2rem;
   --floating-action-toggle-size: 50px;
   --floating-action-comment-size: var(--floating-action-toggle-size);
-  color-scheme: light;
-  color-scheme: only light;
-  supported-color-schemes: light only;
+  color-scheme: light dark only;
+  supported-color-schemes: light dark only;
   background: var(--preview-page-bg);
   height: 100%;
   overflow: auto;
@@ -22,9 +21,6 @@ export const studioPreviewBehaviorCss = String.raw`:root {
 
 :root[data-theme='dark'] {
   --preview-page-bg: #171716;
-  color-scheme: dark;
-  color-scheme: only dark;
-  supported-color-schemes: dark only;
 }
 
 html,

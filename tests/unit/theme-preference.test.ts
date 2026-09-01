@@ -32,26 +32,26 @@ describe('Studio theme preference', () => {
 
     applyTheme('dark')
     expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
-    expect(document.documentElement.style.colorScheme).toBe('only dark')
+    expect(document.documentElement.style.colorScheme).toBe('light dark only')
     expect(document.documentElement.style.backgroundColor).toBe('rgb(23, 23, 22)')
     expect(document.body.style.backgroundColor).toBe('rgb(23, 23, 22)')
-    expect(document.head.querySelector('meta[name="color-scheme"]')).toHaveAttribute('content', 'only dark')
-    expect(document.head.querySelector('meta[name="supported-color-schemes"]')).toHaveAttribute('content', 'dark only')
+    expect(document.head.querySelector('meta[name="color-scheme"]')).toHaveAttribute('content', 'light dark only')
+    expect(document.head.querySelector('meta[name="supported-color-schemes"]')).toHaveAttribute('content', 'light dark only')
 
     applyTheme('light')
     expect(document.documentElement).toHaveAttribute('data-theme', 'light')
-    expect(document.documentElement.style.colorScheme).toBe('only light')
+    expect(document.documentElement.style.colorScheme).toBe('light dark only')
     expect(document.documentElement.style.backgroundColor).toBe('rgb(242, 239, 232)')
     expect(document.body.style.backgroundColor).toBe('rgb(242, 239, 232)')
-    expect(document.head.querySelector('meta[name="color-scheme"]')).toHaveAttribute('content', 'only light')
-    expect(document.head.querySelector('meta[name="supported-color-schemes"]')).toHaveAttribute('content', 'light only')
+    expect(document.head.querySelector('meta[name="color-scheme"]')).toHaveAttribute('content', 'light dark only')
+    expect(document.head.querySelector('meta[name="supported-color-schemes"]')).toHaveAttribute('content', 'light dark only')
   })
 
-  it('falls back to the plain theme when the browser rejects locked color-scheme values', () => {
+  it('keeps both supported schemes even when CSS feature detection is unavailable', () => {
     vi.stubGlobal('CSS', { supports: vi.fn().mockReturnValue(false) })
 
     applyTheme('light')
-    expect(document.documentElement.style.colorScheme).toBe('light')
-    expect(document.head.querySelector('meta[name="color-scheme"]')).toHaveAttribute('content', 'light')
+    expect(document.documentElement.style.colorScheme).toBe('light dark only')
+    expect(document.head.querySelector('meta[name="color-scheme"]')).toHaveAttribute('content', 'light dark only')
   })
 })

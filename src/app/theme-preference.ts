@@ -14,12 +14,10 @@ export function resolveInitialTheme(): AppTheme {
 
 export function applyTheme(theme: AppTheme): void {
   document.documentElement.dataset.theme = theme
-  const lockedColorScheme = theme === 'light' ? 'only light' : 'only dark'
-  const legacyColorScheme = theme === 'light' ? 'light only' : 'dark only'
-  const colorScheme = globalThis.CSS?.supports?.('color-scheme', lockedColorScheme) ? lockedColorScheme : theme
+  const supportedColorSchemes = 'light dark only'
   const backgroundColor = theme === 'light' ? '#f2efe8' : '#171716'
-  document.documentElement.style.colorScheme = colorScheme
-  document.documentElement.style.setProperty('supported-color-schemes', legacyColorScheme)
+  document.documentElement.style.colorScheme = supportedColorSchemes
+  document.documentElement.style.setProperty('supported-color-schemes', supportedColorSchemes)
   document.documentElement.style.backgroundColor = backgroundColor
   document.body.style.backgroundColor = backgroundColor
 
@@ -29,7 +27,7 @@ export function applyTheme(theme: AppTheme): void {
     meta.name = 'color-scheme'
     document.head.append(meta)
   }
-  meta.content = colorScheme
+  meta.content = supportedColorSchemes
 
   let legacyMeta = document.head.querySelector<HTMLMetaElement>('meta[name="supported-color-schemes"]')
   if (!legacyMeta) {
@@ -37,7 +35,7 @@ export function applyTheme(theme: AppTheme): void {
     legacyMeta.name = 'supported-color-schemes'
     document.head.append(legacyMeta)
   }
-  legacyMeta.content = legacyColorScheme
+  legacyMeta.content = supportedColorSchemes
 }
 
 export function writeThemePreference(theme: AppTheme): void {
