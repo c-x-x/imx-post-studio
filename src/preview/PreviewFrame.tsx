@@ -27,6 +27,8 @@ function renderPreviewContent(host: HTMLElement, html: string): ShadowRoot {
 
 function wirePreviewFrameScroll(host: HTMLElement, root: ShadowRoot, dock: HTMLElement | null, onScroll: (scrollTop: number) => void): () => void {
   const toc = root.querySelector<HTMLElement>('.article-page .toc')
+  const sidebar = root.querySelector<HTMLElement>('.article-page .sidebar')
+  const layout = root.querySelector<HTMLElement>('.article-page .layout-with-sidebar')
   const headings = [...root.querySelectorAll<HTMLElement>('.article-content h1, .article-content h2, .article-content h3, .article-content h4, .article-content h5, .article-content h6')]
   const tocLinkById = new Map<string, HTMLAnchorElement>()
   root.querySelectorAll<HTMLAnchorElement>('.toc a').forEach((link) => {
@@ -43,6 +45,22 @@ function wirePreviewFrameScroll(host: HTMLElement, root: ShadowRoot, dock: HTMLE
       viewportHeight: host.clientHeight,
     },
   }))
+  const syncSidebar = (scrollTop: number) => {
+    if (!sidebar || !layout) return
+    if (host.clientWidth <= 768) {
+      sidebar.style.removeProperty('position')
+      sidebar.style.removeProperty('top')
+      sidebar.style.removeProperty('transform')
+      return
+    }
+    const stickyOffset = Number.parseFloat(getComputedStyle(sidebar).top) || 0
+    sidebar.style.position = 'relative'
+    sidebar.style.top = 'auto'
+    const hostTop = host.getBoundingClientRect().top
+    const layoutTop = scrollTop + layout.getBoundingClientRect().top - hostTop
+    const stickyStart = layoutTop + sidebar.offsetTop - stickyOffset
+    sidebar.style.transform = `translateY(${Math.max(scrollTop - stickyStart, 0)}px)`
+  }
   const syncToc = (scrollTop: number) => {
     if (!toc || headings.length === 0) return
     const probeTop = scrollTop + Math.min(Math.max(host.clientHeight * 0.22, 112), 168)
@@ -70,6 +88,7 @@ function wirePreviewFrameScroll(host: HTMLElement, root: ShadowRoot, dock: HTMLE
   const sync = () => {
     animationFrame = 0
     const scrollTop = host.scrollTop
+    syncSidebar(scrollTop)
     if (scrollTop !== lastScrollTop) {
       lastScrollTop = scrollTop
       onScroll(scrollTop)
@@ -248,25 +267,24 @@ export function PreviewFrame({ meta, rendered, css, theme, onToggleTheme, onClos
     resizeObserver?.observe(frame)
     window.addEventListener('resize', syncFloatingEdges)
     const savedScrollTop = frameScrollTop.current
-    const scrollHost = previewHtml ?? frame
     let restoringScroll = savedScrollTop > 0
     const disconnectCodeCopy = wirePreviewCodeCopy(root)
     const disconnectTocToggle = wirePreviewTocToggle(root)
-    const disconnectScroll = wirePreviewFrameScroll(scrollHost, root, dockRef.current, (scrollTop) => {
+    const disconnectScroll = wirePreviewFrameScroll(frame, root, dockRef.current, (scrollTop) => {
       if (!restoringScroll) frameScrollTop.current = scrollTop
     })
     let restoreFrame = 0
     if (restoringScroll) {
       let attempts = 0
       const restoreScroll = () => {
-        scrollHost.scrollTop = savedScrollTop
+        frame.scrollTop = savedScrollTop
         attempts += 1
-        if (Math.abs(scrollHost.scrollTop - savedScrollTop) > 1 && attempts < 12) {
+        if (Math.abs(frame.scrollTop - savedScrollTop) > 1 && attempts < 12) {
           restoreFrame = requestAnimationFrame(restoreScroll)
           return
         }
         restoringScroll = false
-        frameScrollTop.current = scrollHost.scrollTop
+        frameScrollTop.current = frame.scrollTop
       }
       restoreFrame = requestAnimationFrame(restoreScroll)
     }

@@ -1,6 +1,5 @@
 /* Studio-owned responsive liquid-glass Dock. */
 .imx-dock {
-  --imx-dock-surface: #fbfaf7;
   --imx-dock-surface-rgb: 251, 250, 247;
   --imx-dock-border-rgb: 75, 64, 52;
   --imx-dock-shadow-rgb: 75, 64, 52;
@@ -16,7 +15,6 @@
 }
 
 :root[data-theme='dark'] .imx-dock {
-  --imx-dock-surface: #171716;
   --imx-dock-surface-rgb: 23, 23, 22;
   --imx-dock-border-rgb: 238, 234, 227;
   --imx-dock-shadow-rgb: 0, 0, 0;
@@ -39,7 +37,7 @@
   overflow: hidden;
   border: 1px solid rgba(var(--imx-dock-border-rgb), .14);
   border-radius: 999px;
-  background: var(--imx-dock-surface);
+  background: rgba(var(--imx-dock-surface-rgb), .46);
   box-shadow: 0 14px 34px rgba(var(--imx-dock-shadow-rgb), .18), inset 0 1px 0 var(--imx-dock-highlight);
   backdrop-filter: blur(18px) saturate(150%);
   -webkit-backdrop-filter: blur(18px) saturate(150%);
@@ -49,7 +47,7 @@
 .imx-dock__actions,
 .imx-dock__menu {
   border: 1px solid rgba(var(--imx-dock-border-rgb), calc(var(--home-dock-part-border-alpha) * 1));
-  background: var(--imx-dock-surface);
+  background: rgba(var(--imx-dock-surface-rgb), var(--home-dock-part-bg-alpha));
   box-shadow: 0 7px 26px rgba(var(--imx-dock-shadow-rgb), var(--home-dock-part-shadow-alpha));
   backdrop-filter: blur(18px) saturate(150%);
   -webkit-backdrop-filter: blur(18px) saturate(150%);
@@ -384,7 +382,7 @@
     column-gap: 6px;
     border: 1px solid rgba(var(--imx-dock-border-rgb), .12);
     border-radius: 24px;
-    background: var(--imx-dock-surface);
+    background: rgba(var(--imx-dock-surface-rgb), .74);
     box-shadow: 0 12px 30px rgba(var(--imx-dock-shadow-rgb), .18), inset 0 1px 0 var(--imx-dock-highlight);
     backdrop-filter: blur(22px) saturate(165%);
     -webkit-backdrop-filter: blur(22px) saturate(165%);
@@ -449,7 +447,7 @@
     padding: 5px;
     border: 1px solid rgba(var(--imx-dock-border-rgb), .12);
     border-radius: 18px;
-    background: var(--imx-dock-surface);
+    background: rgba(var(--imx-dock-surface-rgb), .94);
     box-shadow: 0 14px 34px rgba(var(--imx-dock-shadow-rgb), .22), inset 0 1px 0 var(--imx-dock-highlight);
     visibility: hidden;
     opacity: 0;

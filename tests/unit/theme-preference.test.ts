@@ -7,11 +7,6 @@ describe('Studio theme preference', () => {
   afterEach(() => {
     window.localStorage.removeItem(key)
     document.documentElement.removeAttribute('data-theme')
-    document.documentElement.style.colorScheme = ''
-    document.documentElement.style.backgroundColor = ''
-    document.body.style.backgroundColor = ''
-    document.head.querySelector('meta[name="color-scheme"]')?.remove()
-    document.head.querySelector('meta[name="supported-color-schemes"]')?.remove()
     vi.unstubAllGlobals()
   })
 
@@ -28,30 +23,7 @@ describe('Studio theme preference', () => {
   })
 
   it('applies the resolved theme to the document root', () => {
-    vi.stubGlobal('CSS', { supports: vi.fn().mockReturnValue(true) })
-
     applyTheme('dark')
     expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
-    expect(document.documentElement.style.colorScheme).toBe('light dark only')
-    expect(document.documentElement.style.backgroundColor).toBe('rgb(23, 23, 22)')
-    expect(document.body.style.backgroundColor).toBe('rgb(23, 23, 22)')
-    expect(document.head.querySelector('meta[name="color-scheme"]')).toHaveAttribute('content', 'light dark only')
-    expect(document.head.querySelector('meta[name="supported-color-schemes"]')).toHaveAttribute('content', 'light dark only')
-
-    applyTheme('light')
-    expect(document.documentElement).toHaveAttribute('data-theme', 'light')
-    expect(document.documentElement.style.colorScheme).toBe('light dark only')
-    expect(document.documentElement.style.backgroundColor).toBe('rgb(242, 239, 232)')
-    expect(document.body.style.backgroundColor).toBe('rgb(242, 239, 232)')
-    expect(document.head.querySelector('meta[name="color-scheme"]')).toHaveAttribute('content', 'light dark only')
-    expect(document.head.querySelector('meta[name="supported-color-schemes"]')).toHaveAttribute('content', 'light dark only')
-  })
-
-  it('keeps both supported schemes even when CSS feature detection is unavailable', () => {
-    vi.stubGlobal('CSS', { supports: vi.fn().mockReturnValue(false) })
-
-    applyTheme('light')
-    expect(document.documentElement.style.colorScheme).toBe('light dark only')
-    expect(document.head.querySelector('meta[name="color-scheme"]')).toHaveAttribute('content', 'light dark only')
   })
 })

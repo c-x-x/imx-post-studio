@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PreviewFrame } from '../../src/preview/PreviewFrame'
 import { buildPreviewDocument } from '../../src/preview/build-preview-document'
@@ -41,9 +41,8 @@ describe('PreviewFrame', () => {
   it('navigates body and footnote anchors inside the preview without leaving the editor', () => {
     render(<PreviewFrame meta={meta} rendered={{ html: '<a href="#imx-heading-a">跳转正文</a><h2 id="imx-heading-a">A</h2><a href="#fn-1">脚注</a><p id="fn-1">注释</p>', toc: [], wordCount: 1, readingMinutes: 1 }} css="" theme="light" onToggleTheme={vi.fn()} onClose={vi.fn()} />)
     const root = screen.getByTitle('IMX 文章预览').shadowRoot!
-    const scrollHost = root.querySelector<HTMLElement>('.preview-html')!
     const scroll = vi.fn()
-    scrollHost.scrollTo = scroll
+    screen.getByTitle('IMX 文章预览').scrollTo = scroll
     for (const link of root.querySelectorAll('.article-content a')) {
       const event = new MouseEvent('click', { bubbles: true, cancelable: true })
       fireEvent(link, event)
@@ -94,29 +93,6 @@ describe('PreviewFrame', () => {
     expect(tools).toHaveClass('is-toc-open')
     expect(sidebar).toHaveClass('active')
     expect(sidebar).toHaveTextContent('A')
-  })
-
-  it('leaves the desktop directory on native sticky positioning while scrolling', async () => {
-    render(<PreviewFrame
-      meta={meta}
-      rendered={{ html: '<h2 id="imx-heading-a">A</h2><div style="height:2400px"></div><h2 id="imx-heading-b">B</h2>', toc: [{ id: 'imx-heading-a', depth: 2, text: 'A', children: [] }, { id: 'imx-heading-b', depth: 2, text: 'B', children: [] }], wordCount: 400, readingMinutes: 2 }}
-      css=".article-page .sidebar { position: sticky; top: 100px; }"
-      theme="light"
-      onToggleTheme={vi.fn()}
-      onClose={vi.fn()}
-    />)
-
-    const preview = screen.getByTitle('IMX 文章预览')
-    const scrollHost = preview.shadowRoot?.querySelector<HTMLElement>('.preview-html')
-    Object.defineProperty(scrollHost!, 'clientWidth', { configurable: true, value: 1180 })
-    scrollHost!.scrollTop = 900
-    fireEvent.scroll(scrollHost!)
-    const sidebar = preview.shadowRoot?.querySelector<HTMLElement>('.article-page .sidebar')
-
-    await waitFor(() => expect(sidebar).not.toBeNull())
-    expect(sidebar?.style.position).toBe('')
-    expect(sidebar?.style.top).toBe('')
-    expect(sidebar?.style.transform).toBe('')
   })
 
 })

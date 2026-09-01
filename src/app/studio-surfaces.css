@@ -14,13 +14,13 @@
   --imx-ink-muted: #8d8479;
   --imx-line: rgba(75, 64, 52, .14);
   --imx-line-strong: rgba(75, 64, 52, .25);
-  --imx-glass: #fbfaf7;
-  --imx-card: #fbfaf7;
-  --imx-control: #fbfaf7;
-  --imx-control-strong: #fbfaf7;
-  --imx-control-soft: #f7f4ee;
-  --imx-input: #fffdfa;
-  --imx-input-focus: #ffffff;
+  --imx-glass: rgba(251, 250, 247, .8);
+  --imx-card: rgba(251, 250, 247, .72);
+  --imx-control: rgba(251, 250, 247, .72);
+  --imx-control-strong: rgba(251, 250, 247, .8);
+  --imx-control-soft: rgba(251, 250, 247, .72);
+  --imx-input: rgba(251, 250, 247, .72);
+  --imx-input-focus: rgba(251, 250, 247, .8);
   --imx-editor: #fbfaf7;
   --imx-toolbar: rgba(242, 239, 232, .8);
   --imx-gutter: rgba(242, 239, 232, .72);
@@ -82,12 +82,10 @@ textarea {
 
 html,
 body {
-  background-color: #fbfaf7;
   background: var(--imx-paper);
 }
 
 :root[data-theme='dark'] body {
-  background-color: #171716;
   background: var(--imx-paper);
 }
 

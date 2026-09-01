@@ -124,17 +124,7 @@ export function App() {
   useUnsavedChangesWarning(hasUnsavedChanges)
 
   useLayoutEffect(() => { draftRef.current = draft }, [draft])
-  useLayoutEffect(() => {
-    applyTheme(theme)
-    const themeColor = theme === 'light' ? '#f2efe8' : '#171716'
-    let meta = document.head.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
-    if (!meta) {
-      meta = document.createElement('meta')
-      meta.name = 'theme-color'
-      document.head.append(meta)
-    }
-    meta.content = themeColor
-  }, [theme])
+  useLayoutEffect(() => { applyTheme(theme) }, [theme])
   useLayoutEffect(() => {
     if (tab !== 'write' || outlineFocusPosition.current === undefined) return
     const position = outlineFocusPosition.current
