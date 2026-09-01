@@ -15,9 +15,11 @@ export function resolveInitialTheme(): AppTheme {
 export function applyTheme(theme: AppTheme): void {
   document.documentElement.dataset.theme = theme
   const lockedColorScheme = theme === 'light' ? 'only light' : 'only dark'
+  const legacyColorScheme = theme === 'light' ? 'light only' : 'dark only'
   const colorScheme = globalThis.CSS?.supports?.('color-scheme', lockedColorScheme) ? lockedColorScheme : theme
   const backgroundColor = theme === 'light' ? '#f2efe8' : '#171716'
   document.documentElement.style.colorScheme = colorScheme
+  document.documentElement.style.setProperty('supported-color-schemes', legacyColorScheme)
   document.documentElement.style.backgroundColor = backgroundColor
   document.body.style.backgroundColor = backgroundColor
 
@@ -35,7 +37,7 @@ export function applyTheme(theme: AppTheme): void {
     legacyMeta.name = 'supported-color-schemes'
     document.head.append(legacyMeta)
   }
-  legacyMeta.content = colorScheme
+  legacyMeta.content = legacyColorScheme
 }
 
 export function writeThemePreference(theme: AppTheme): void {

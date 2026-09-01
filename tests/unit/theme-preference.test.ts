@@ -36,7 +36,7 @@ describe('Studio theme preference', () => {
     expect(document.documentElement.style.backgroundColor).toBe('rgb(23, 23, 22)')
     expect(document.body.style.backgroundColor).toBe('rgb(23, 23, 22)')
     expect(document.head.querySelector('meta[name="color-scheme"]')).toHaveAttribute('content', 'only dark')
-    expect(document.head.querySelector('meta[name="supported-color-schemes"]')).toHaveAttribute('content', 'only dark')
+    expect(document.head.querySelector('meta[name="supported-color-schemes"]')).toHaveAttribute('content', 'dark only')
 
     applyTheme('light')
     expect(document.documentElement).toHaveAttribute('data-theme', 'light')
@@ -44,7 +44,7 @@ describe('Studio theme preference', () => {
     expect(document.documentElement.style.backgroundColor).toBe('rgb(242, 239, 232)')
     expect(document.body.style.backgroundColor).toBe('rgb(242, 239, 232)')
     expect(document.head.querySelector('meta[name="color-scheme"]')).toHaveAttribute('content', 'only light')
-    expect(document.head.querySelector('meta[name="supported-color-schemes"]')).toHaveAttribute('content', 'only light')
+    expect(document.head.querySelector('meta[name="supported-color-schemes"]')).toHaveAttribute('content', 'light only')
   })
 
   it('falls back to the plain theme when the browser rejects locked color-scheme values', () => {

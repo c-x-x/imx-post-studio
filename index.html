@@ -4,8 +4,31 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="only light" />
-    <meta name="supported-color-schemes" content="only light" />
+    <meta name="supported-color-schemes" content="light only" />
     <meta name="theme-color" content="#f2efe8" />
+    <script>
+      (() => {
+        try {
+          const savedTheme = localStorage.getItem('imx-post-studio-theme')
+          const theme = savedTheme === 'light' || savedTheme === 'dark'
+            ? savedTheme
+            : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+          const modernScheme = theme === 'light' ? 'only light' : 'only dark'
+          const webkitScheme = theme === 'light' ? 'light only' : 'dark only'
+          const background = theme === 'light' ? '#f2efe8' : '#171716'
+          const root = document.documentElement
+          root.dataset.theme = theme
+          root.style.setProperty('color-scheme', modernScheme)
+          root.style.setProperty('supported-color-schemes', webkitScheme)
+          root.style.backgroundColor = background
+          document.querySelector('meta[name="color-scheme"]')?.setAttribute('content', modernScheme)
+          document.querySelector('meta[name="supported-color-schemes"]')?.setAttribute('content', webkitScheme)
+          document.querySelector('meta[name="theme-color"]')?.setAttribute('content', background)
+        } catch {
+          // Static light defaults above remain usable when storage is unavailable.
+        }
+      })()
+    </script>
     <title>IMX Post Studio</title>
   </head>
   <body>

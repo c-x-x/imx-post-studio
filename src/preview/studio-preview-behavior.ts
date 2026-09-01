@@ -5,6 +5,7 @@ export const studioPreviewBehaviorCss = String.raw`:root {
   --floating-action-comment-size: var(--floating-action-toggle-size);
   color-scheme: light;
   color-scheme: only light;
+  supported-color-schemes: light only;
   background: var(--preview-page-bg);
   height: 100%;
   overflow: auto;
@@ -23,6 +24,7 @@ export const studioPreviewBehaviorCss = String.raw`:root {
   --preview-page-bg: #171716;
   color-scheme: dark;
   color-scheme: only dark;
+  supported-color-schemes: dark only;
 }
 
 html,
