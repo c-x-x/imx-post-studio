@@ -7,6 +7,8 @@ describe('Studio theme preference', () => {
   afterEach(() => {
     window.localStorage.removeItem(key)
     document.documentElement.removeAttribute('data-theme')
+    document.documentElement.style.colorScheme = ''
+    document.head.querySelector('meta[name="color-scheme"]')?.remove()
     vi.unstubAllGlobals()
   })
 
@@ -25,5 +27,12 @@ describe('Studio theme preference', () => {
   it('applies the resolved theme to the document root', () => {
     applyTheme('dark')
     expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
+    expect(document.documentElement.style.colorScheme).toBe('dark')
+    expect(document.head.querySelector('meta[name="color-scheme"]')).toHaveAttribute('content', 'dark')
+
+    applyTheme('light')
+    expect(document.documentElement).toHaveAttribute('data-theme', 'light')
+    expect(document.documentElement.style.colorScheme).toBe('only light')
+    expect(document.head.querySelector('meta[name="color-scheme"]')).toHaveAttribute('content', 'only light')
   })
 })

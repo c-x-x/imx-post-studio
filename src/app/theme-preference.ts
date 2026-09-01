@@ -14,6 +14,15 @@ export function resolveInitialTheme(): AppTheme {
 
 export function applyTheme(theme: AppTheme): void {
   document.documentElement.dataset.theme = theme
+  document.documentElement.style.colorScheme = theme === 'light' ? 'only light' : 'dark'
+
+  let meta = document.head.querySelector<HTMLMetaElement>('meta[name="color-scheme"]')
+  if (!meta) {
+    meta = document.createElement('meta')
+    meta.name = 'color-scheme'
+    document.head.append(meta)
+  }
+  meta.content = theme === 'light' ? 'only light' : 'dark'
 }
 
 export function writeThemePreference(theme: AppTheme): void {
