@@ -3,8 +3,11 @@ export const studioPreviewBehaviorCss = String.raw`:root {
   --floating-action-edge: 2rem;
   --floating-action-toggle-size: 50px;
   --floating-action-comment-size: var(--floating-action-toggle-size);
-  color-scheme: light;
+  color-scheme: only light;
   background: var(--preview-page-bg);
+  height: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 @media (max-width: 768px) {
@@ -41,6 +44,7 @@ body.is-article-page,
 
 body {
   min-height: 100%;
+  overflow: visible;
 }
 
 .toc-toggle-control {
