@@ -198,6 +198,54 @@ function wirePreviewCodeCopy(root: ShadowRoot): () => void {
   }
 }
 
+function wirePreviewMermaid(root: ShadowRoot, theme: AppTheme): () => void {
+  let cancelled = false
+  const diagrams = [...root.querySelectorAll<HTMLElement>('.mermaid[data-mermaid-source]')]
+  if (diagrams.length === 0) return () => undefined
+  void import('mermaid').then(async ({ default: mermaid }) => {
+    if (cancelled) return
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'strict',
+      htmlLabels: false,
+      theme: theme === 'dark' ? 'dark' : 'neutral',
+      suppressErrorRendering: true,
+    })
+    for (const [index, container] of diagrams.entries()) {
+      if (cancelled || !container.isConnected) return
+      let source = ''
+      try { source = decodeURIComponent(container.dataset.mermaidSource ?? '') } catch { /* handled below */ }
+      if (!source || source.length > 50_000) {
+        container.textContent = '图表源码为空或过长，无法渲染。'
+        container.dataset.mermaidState = 'error'
+        continue
+      }
+      try {
+        const { svg, bindFunctions } = await mermaid.render(`imx-mermaid-${Date.now()}-${index}`, source)
+        if (cancelled || !container.isConnected) return
+        container.innerHTML = svg
+        container.querySelectorAll('script, foreignObject').forEach((node) => node.remove())
+        container.querySelectorAll<HTMLElement>('*').forEach((node) => {
+          for (const attribute of [...node.attributes]) {
+            if (/^on/i.test(attribute.name)) node.removeAttribute(attribute.name)
+          }
+        })
+        bindFunctions?.(container)
+        container.dataset.mermaidState = 'ready'
+      } catch {
+        container.textContent = 'Mermaid 语法有误，无法渲染图表。'
+        container.dataset.mermaidState = 'error'
+      }
+    }
+  }).catch(() => {
+    diagrams.forEach((container) => {
+      container.textContent = '图表渲染器加载失败。'
+      container.dataset.mermaidState = 'error'
+    })
+  })
+  return () => { cancelled = true }
+}
+
 export function PreviewFrame({ meta, rendered, css, theme, onToggleTheme, onClose }: PreviewFrameProps) {
   const [viewport, setViewport] = useState<'desktop' | 'mobile'>(() => (
     typeof window !== 'undefined'
@@ -209,7 +257,6 @@ export function PreviewFrame({ meta, rendered, css, theme, onToggleTheme, onClos
   const dockRef = useRef<HTMLElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
   const frameScrollTop = useRef(0)
-  const [documentTheme] = useState(theme)
   useSharedDock(dockRef)
 
   useEffect(() => {
@@ -222,8 +269,8 @@ export function PreviewFrame({ meta, rendered, css, theme, onToggleTheme, onClos
   }, [])
 
   const documentHtml = useMemo(
-    () => buildPreviewDocument({ meta, rendered, css, theme: documentTheme }),
-    [css, documentTheme, meta, rendered],
+    () => buildPreviewDocument({ meta, rendered, css, theme }),
+    [css, meta, rendered, theme],
   )
 
   useEffect(() => {
@@ -253,7 +300,7 @@ export function PreviewFrame({ meta, rendered, css, theme, onToggleTheme, onClos
     const root = renderPreviewContent(frame, documentHtml)
     const previewHtml = root.querySelector<HTMLElement>('.preview-html')
     if (previewHtml) {
-      previewHtml.dataset.theme = frame.dataset.theme ?? documentTheme
+      previewHtml.dataset.theme = frame.dataset.theme ?? theme
       previewHtml.dataset.previewViewport = viewport
     }
     const syncFloatingEdges = () => {
@@ -269,6 +316,7 @@ export function PreviewFrame({ meta, rendered, css, theme, onToggleTheme, onClos
     const savedScrollTop = frameScrollTop.current
     let restoringScroll = savedScrollTop > 0
     const disconnectCodeCopy = wirePreviewCodeCopy(root)
+    const disconnectMermaid = wirePreviewMermaid(root, frame.dataset.theme === 'dark' ? 'dark' : 'light')
     const disconnectTocToggle = wirePreviewTocToggle(root)
     const disconnectScroll = wirePreviewFrameScroll(frame, root, dockRef.current, (scrollTop) => {
       if (!restoringScroll) frameScrollTop.current = scrollTop
@@ -293,10 +341,11 @@ export function PreviewFrame({ meta, rendered, css, theme, onToggleTheme, onClos
       resizeObserver?.disconnect()
       window.removeEventListener('resize', syncFloatingEdges)
       disconnectCodeCopy()
+      disconnectMermaid()
       disconnectTocToggle()
       disconnectScroll()
     }
-  }, [documentHtml, documentTheme, viewport])
+  }, [documentHtml, theme, viewport])
 
   return <section className="preview-surface" data-theme={theme} data-viewport={viewport} data-shared-dock-scroll aria-label="IMX 文章预览内容">
     <header ref={dockRef} className="preview-dock has-shared-dock">

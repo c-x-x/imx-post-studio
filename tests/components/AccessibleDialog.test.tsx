@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { AccessibleDialog, DialogClose } from '../../src/app/AccessibleDialog'
 
@@ -25,7 +25,7 @@ describe('AccessibleDialog', () => {
     expect(document.body).not.toHaveClass('dialog-open')
   })
 
-  it('moves focus inside, traps Tab, closes on Escape, and restores its initiator', () => {
+  it('moves focus inside, traps Tab, closes on Escape, and restores its initiator', async () => {
     const initiator = document.createElement('button')
     document.body.append(initiator)
     initiator.focus()
@@ -40,11 +40,11 @@ describe('AccessibleDialog', () => {
     fireEvent.keyDown(dialog, { key: 'Tab' })
     expect(document.activeElement).toBe(cancel)
     fireEvent.keyDown(dialog, { key: 'Escape' })
-    expect(initiator).toHaveFocus()
+    await waitFor(() => expect(initiator).toHaveFocus())
     initiator.remove()
   })
 
-  it('routes a Cancel click through the same focus-restoring close path', () => {
+  it('routes a Cancel click through the same focus-restoring close path', async () => {
     const initiator = document.createElement('button')
     document.body.append(initiator)
     let closed = false
@@ -52,7 +52,7 @@ describe('AccessibleDialog', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '取消' }))
     expect(closed).toBe(true)
-    expect(initiator).toHaveFocus()
+    await waitFor(() => expect(initiator).toHaveFocus())
     initiator.remove()
   })
 })

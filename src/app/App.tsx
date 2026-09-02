@@ -40,9 +40,11 @@ type InspectorView = 'settings' | 'outline'
 
 interface FailedTransition {
   id: number
+  kind: 'autosave' | 'operation'
   label: string
   continue: () => void | Promise<void>
   message: string
+  retainsCurrent: boolean
 }
 
 const emptyRendered: RenderedMarkdown = { html: '', toc: [], wordCount: 0, readingMinutes: 0 }
@@ -83,6 +85,7 @@ export function App() {
   const [notice, setNoticeText] = useState('')
   const [noticeTone, setNoticeTone] = useState<'info' | 'pending' | 'success' | 'error'>('info')
   const [failedTransition, setFailedTransition] = useState<FailedTransition>()
+  const [transitionBackupError, setTransitionBackupError] = useState<string>()
   const [transitioning, setTransitioning] = useState(false)
   const [intakeBusy, setIntakeBusy] = useState(false)
   const [draftStarted, setDraftStartedState] = useState(false)
@@ -181,6 +184,7 @@ export function App() {
   const setTransitionFailure = (failure: FailedTransition | undefined) => {
     failedTransitionRef.current = failure
     setFailedTransition(failure)
+    setTransitionBackupError(undefined)
   }
 
   const setDraftStarted = (started: boolean) => {
@@ -225,13 +229,25 @@ export function App() {
       // Any mutation that somehow reaches the reducer during the asynchronous put
       // increments this revision. In that case persist the newest snapshot before
       // allowing a view or identity change to discard the outgoing reducer value.
-      if (draftStartedRef.current && hasUnsavedChanges && (!retainsCurrent || hasDraftTitle(draftRef.current))) await persistLatestDraft()
+      if (draftStartedRef.current && hasUnsavedChanges) {
+        try {
+          await persistLatestDraft()
+        } catch (cause) {
+          setTransitionFailure({ id: ++transitionId.current, kind: 'autosave', label, continue: continueTransition, message: errorMessage(cause), retainsCurrent })
+          // Navigating to a read-only library does not replace the in-memory article,
+          // so the failure can be handled visibly on the destination page.
+          if (retainsCurrent) await continueTransition()
+          return false
+        }
+      }
       setTransitionFailure(undefined)
-      await continueTransition()
-      return true
-    } catch (cause) {
-      setTransitionFailure({ id: ++transitionId.current, label, continue: continueTransition, message: errorMessage(cause) })
-      return false
+      try {
+        await continueTransition()
+        return true
+      } catch (cause) {
+        setTransitionFailure({ id: ++transitionId.current, kind: 'operation', label, continue: continueTransition, message: errorMessage(cause), retainsCurrent })
+        return false
+      }
     } finally {
       transitionInFlight.current = false
       setTransitioning(false)
@@ -266,6 +282,11 @@ export function App() {
   }
 
   const openDraft = (next: ArticleDraft) => {
+    if (next.id === draftRef.current.id) {
+      setView('workspace')
+      setNotice('当前文章已在写作区打开')
+      return Promise.resolve(true)
+    }
     return requestTransition(async () => {
       const origin = await githubOrigins.get(next.id)
       dispatchDraft({ type: 'replace', draft: next }, true)
@@ -364,6 +385,16 @@ export function App() {
     }
   }
 
+  const exportTransitionRecovery = async () => {
+    if (transitionInFlight.current || intakeBusyRef.current) return
+    setTransitionBackupError(undefined)
+    try {
+      downloadRecovery(await exportRecoveryBundle(draftRef.current))
+    } catch (cause) {
+      setTransitionBackupError(`恢复备份失败：${errorMessage(cause)}`)
+    }
+  }
+
   const workspaceLocked = transitioning || intakeBusy || githubOpen
   const openPreview = () => {
     setRendered(emptyRendered)
@@ -377,7 +408,7 @@ export function App() {
     const failure = failedTransitionRef.current
     if (!failure || transitionDecisionInFlight.current || transitionInFlight.current) return
     transitionDecisionInFlight.current = true
-    void requestTransition(failure.continue, failure.label).finally(() => { transitionDecisionInFlight.current = false })
+    void requestTransition(failure.continue, failure.label, failure.retainsCurrent).finally(() => { transitionDecisionInFlight.current = false })
   }
   const discardFailedTransition = async () => {
     const failure = failedTransitionRef.current
@@ -389,7 +420,7 @@ export function App() {
     try {
       await failure.continue()
     } catch (cause) {
-      setNotice(`切换失败：${errorMessage(cause)}`, 'error')
+      setTransitionFailure({ ...failure, id: ++transitionId.current, kind: 'operation', message: errorMessage(cause) })
     } finally {
       transitionInFlight.current = false
       transitionDecisionInFlight.current = false
@@ -400,6 +431,11 @@ export function App() {
     if (transitionInFlight.current) return
     setNewArticlePromptOpen(false)
     setNewArticlePromptError(undefined)
+  }
+  const returnToWorkspaceAfterTransitionFailure = () => {
+    setTransitionFailure(undefined)
+    setView('workspace')
+    setNotice('请处理当前文章后再继续')
   }
   const deleteAndContinueNewArticle = async () => {
     if (!newArticlePromptOpen || transitionInFlight.current || intakeBusyRef.current) return
@@ -437,31 +473,24 @@ export function App() {
       setTransitioning(false)
     }
   }
-  const unnamed = !hasDraftTitle(draft)
-  const transitionMessage = failedTransition
-    ? `保存当前草稿失败，无法${failedTransition.label}：${failedTransition.message}`
-    : ''
+  const unnamed = hasDraftContent(draft) && !hasDraftTitle(draft)
   const status = saveStatus.state === 'saving'
     ? '正在保存…'
     : intakeBusy
       ? '正在读取媒体…'
-      : transitionMessage
-        ? transitionMessage
-        : notice && noticeTone === 'error'
-          ? notice
-          : saveStatus.state === 'failed'
-            ? `保存失败：${saveStatus.message}`
-            : unnamed
-              ? UNTITLED_DRAFT_MESSAGE
-              : saveStatus.state === 'saved' && draftStarted
-                ? pendingWorkId === draft.id ? '已保存到待提交作品' : '已保存到本地草稿'
-                : notice
+      : notice && noticeTone === 'error'
+        ? notice
+        : saveStatus.state === 'failed'
+          ? `保存失败：${saveStatus.message}`
+          : unnamed
+            ? UNTITLED_DRAFT_MESSAGE
+            : saveStatus.state === 'saved' && draftStarted
+              ? pendingWorkId === draft.id ? '已保存到待提交作品' : '已保存到本地草稿'
+              : notice
   const statusTone = saveStatus.state === 'saving' || intakeBusy ? 'pending'
-    : transitionMessage || (notice && noticeTone === 'error') || saveStatus.state === 'failed' || unnamed ? 'error'
+    : (notice && noticeTone === 'error') || saveStatus.state === 'failed' || unnamed ? 'error'
       : saveStatus.state === 'saved' && draftStarted ? 'success' : noticeTone
-  const statusActions = transitionMessage
-    ? <><button type="button" disabled={transitioning || intakeBusy} onClick={retryFailedTransition}>重试保存</button><button type="button" disabled={transitioning || intakeBusy} onClick={discardFailedTransition}>放弃未保存更改</button><button type="button" disabled={transitioning || intakeBusy} onClick={() => void exportRecovery()}>导出恢复备份</button></>
-    : saveStatus.state === 'failed'
+  const statusActions = saveStatus.state === 'failed'
       ? <button type="button" disabled={transitioning || intakeBusy} onClick={() => void exportRecovery()}>导出恢复备份</button>
       : undefined
   const toggleSettings = (event: MouseEvent<HTMLButtonElement>) => {
@@ -511,9 +540,23 @@ export function App() {
     }
   }
 
+  const syncRenamedDraft = (renamed: ArticleDraft) => {
+    if (draftRef.current.id !== renamed.id) return
+    const current = draftRef.current
+    const next = {
+      ...current,
+      storageRevision: renamed.storageRevision,
+      updatedAt: renamed.updatedAt,
+      meta: { ...current.meta, title: renamed.meta.title },
+    }
+    draftRef.current = next
+    dispatchDraft({ type: 'replace', draft: next }, true)
+    setNotice('草稿名称已更新')
+  }
+
   return <main className="app-shell" data-view={view}>
     <ImxDock view={view} disabled={workspaceLocked} theme={theme} onToggleTheme={toggleTheme} onHome={() => void showHome()} onArticle={showWorkspace} onDashboard={() => void showDashboard()} onWorks={() => void showWorks()} />
-    {view === 'home' ? <HomePage disabled={workspaceLocked} onArticle={showWorkspace} onDashboard={() => void showDashboard()} onGithub={() => void showWorks()} /> : view === 'dashboard' ? <DraftDashboard onOpen={openDraft} onRename={(renamed) => { if (draftRef.current.id === renamed.id) { draftRef.current = renamed; dispatch({ type: 'replace', draft: renamed }); setNotice('草稿名称已更新') } }} disabled={workspaceLocked} onDelete={(id) => { if (draftRef.current.id === id) { executeNewArticle(); setView('dashboard') } }} /> : view === 'works' ? <Suspense fallback={<p role="status">正在加载作品…</p>}><GithubPanel mode="works" draft={draft} onOpen={openDraft} onClose={showWorkspace} returnFocus={() => null} /></Suspense> : <section className="workspace" aria-label="文章工作区" aria-busy={workspaceLocked} data-inspector-collapsed={settingsCollapsed} data-actions-collapsed={actionsCollapsed}>
+    {view === 'home' ? <HomePage disabled={workspaceLocked} onArticle={showWorkspace} onDashboard={() => void showDashboard()} onGithub={() => void showWorks()} /> : view === 'dashboard' ? <DraftDashboard activeDraftId={draft.id} onOpen={openDraft} onRename={syncRenamedDraft} disabled={workspaceLocked} onDelete={(id) => { if (draftRef.current.id === id) { executeNewArticle(); setView('dashboard') } }} /> : view === 'works' ? <Suspense fallback={<p role="status">正在加载作品…</p>}><GithubPanel mode="works" draft={draft} onOpen={openDraft} onClose={showWorkspace} returnFocus={() => null} /></Suspense> : <section className="workspace" aria-label="文章工作区" aria-busy={workspaceLocked} data-inspector-collapsed={settingsCollapsed} data-actions-collapsed={actionsCollapsed}>
       <nav className="workspace-tabs" data-editor-controls role="tablist" aria-label="工作区视图">
         {([['settings', '设置'], ['write', '写作'], ['actions', '工具']] as const).map(([id, label]) => <button key={id} id={`tab-${id}`} type="button" disabled={workspaceLocked} role="tab" aria-selected={tab === id} aria-controls={`panel-${id}`} onClick={() => setTab(id)}>{label}</button>)}
       </nav>
@@ -531,7 +574,7 @@ export function App() {
             : <OutlinePanel markdown={draft.body} onSelect={focusOutlineHeading} />}
         </aside>
         <button className="inspector-toggle" type="button" aria-controls="panel-settings" aria-expanded={!settingsCollapsed} aria-label={settingsCollapsed ? '展开文章设置' : '折叠文章设置'} title={settingsCollapsed ? '展开文章设置' : '折叠文章设置'} onClick={toggleSettings}><span aria-hidden="true">{settingsCollapsed ? '›' : '‹'}</span></button>
-        <section id="panel-write" className="workspace-panel workspace-editor" role="tabpanel" aria-labelledby="tab-write"><h2 className="visually-hidden">写作</h2><MarkdownEditor key={draft.id} initialMode={studioSettings.defaultEditorMode} font={studioSettings.editorFont} disabled={workspaceLocked} ref={editorRef} value={draft.body} media={draft.media} status={status} statusTone={statusTone} statusActions={statusActions} toolbarTarget={formatToolbarTarget} onFormatApplied={() => setTab('write')} preparePastedImages={preparePastedImages} onCommitPastedImages={(assets, body) => dispatchDraft({ type: 'paste-body-media', assets, body })} resolveMediaUrl={resolveEditorMediaUrl} onChange={(body) => {
+        <section id="panel-write" className="workspace-panel workspace-editor" role="tabpanel" aria-labelledby="tab-write"><h2 className="visually-hidden">写作</h2><MarkdownEditor key={draft.id} initialMode={studioSettings.defaultEditorMode} font={studioSettings.editorFont} focusMode={studioSettings.focusMode} typewriterMode={studioSettings.typewriterMode} disabled={workspaceLocked} ref={editorRef} value={draft.body} media={draft.media} status={status} statusTone={statusTone} statusActions={statusActions} toolbarTarget={formatToolbarTarget} onFormatApplied={() => setTab('write')} preparePastedImages={preparePastedImages} onCommitPastedImages={(assets, body) => dispatchDraft({ type: 'paste-body-media', assets, body })} resolveMediaUrl={resolveEditorMediaUrl} onChange={(body) => {
           if (draft.id !== draftRef.current.id) return
           if (body === draftRef.current.body) return
           dispatchDraft({ type: 'set-body', body })
@@ -560,14 +603,16 @@ export function App() {
       </div>
     </section>}
     {newArticlePromptOpen ? <TransitionConfirmDialog busy={transitioning || intakeBusy} error={newArticlePromptError} onCancel={cancelNewArticle} onDiscard={() => void deleteAndContinueNewArticle()} onSave={() => void saveAndContinueNewArticle()} returnFocus={() => confirmReturnFocus.current} /> : null}
-    {failedTransition && view !== 'workspace' ? <AccessibleDialog title={`无法${failedTransition.label}`} onClose={() => setTransitionFailure(undefined)} returnFocus={() => null} closeOnEscape={!transitioning}>
-      <p>{failedTransition.message}</p>
-      <p>当前写作内容尚未安全保存。请选择重试保存、放弃未保存更改，或先导出恢复备份。</p>
+    {failedTransition ? <AccessibleDialog title={failedTransition.kind === 'autosave' ? '当前写作区有无法自动保存的文章' : `无法${failedTransition.label}`} onClose={returnToWorkspaceAfterTransitionFailure} returnFocus={() => null} closeOnEscape={!transitioning}>
+      <p>{failedTransition.kind === 'autosave' ? `自动保存失败，因此无法安全${failedTransition.label}。` : `执行“${failedTransition.label}”时发生错误。`}</p>
+      <p className="field-error">原因：{failedTransition.message}</p>
+      {transitionBackupError ? <p className="field-error" role="alert">{transitionBackupError}</p> : null}
       <div className="dialog-actions">
-        <button type="button" disabled={transitioning || intakeBusy} onClick={retryFailedTransition}>重试保存</button>
-        <button type="button" disabled={transitioning || intakeBusy} onClick={() => void discardFailedTransition()}>放弃未保存更改</button>
-        <button type="button" disabled={transitioning || intakeBusy} onClick={() => void exportRecovery()}>导出恢复备份</button>
-        <DialogClose>{(close) => <button type="button" disabled={transitioning} onClick={close}>取消</button>}</DialogClose>
+        <button type="button" disabled={transitioning || intakeBusy} onClick={retryFailedTransition}>{failedTransition.kind === 'autosave' ? '重试自动保存' : '重试操作'}</button>
+        {failedTransition.kind === 'autosave' && !failedTransition.retainsCurrent ? <button type="button" disabled={transitioning || intakeBusy} onClick={() => void discardFailedTransition()}>放弃未保存更改并继续</button> : null}
+        {failedTransition.kind === 'autosave' && failedTransition.retainsCurrent ? <button type="button" disabled={transitioning || intakeBusy} onClick={() => setTransitionFailure(undefined)}>继续浏览，暂不打开其他文章</button> : null}
+        <button type="button" disabled={transitioning || intakeBusy} onClick={() => void exportTransitionRecovery()}>导出恢复备份</button>
+        <button type="button" disabled={transitioning} onClick={returnToWorkspaceAfterTransitionFailure}>返回写作区处理</button>
       </div>
     </AccessibleDialog> : null}
     {previewOpen ? <AccessibleDialog title="IMX 文章预览" className="preview-dialog" onClose={closePreview} returnFocus={() => previewTrigger.current}><DialogClose>{(close) => <PreviewFrame meta={draft.meta} rendered={rendered} css={previewCss} theme={theme} onToggleTheme={toggleTheme} onClose={() => close()} />}</DialogClose></AccessibleDialog> : null}

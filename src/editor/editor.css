@@ -89,6 +89,22 @@
   outline-offset: 3px;
 }
 
+.editor-heading-control {
+  display: grid;
+  gap: 4px;
+  color: var(--imx-ink-muted);
+  font-size: .72rem;
+}
+
+.editor-heading-control select {
+  min-width: 88px;
+  border: 1px solid var(--imx-line);
+  border-radius: 999px;
+  padding: .58rem .72rem;
+  color: var(--imx-ink);
+  background: var(--imx-paper);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .editor-toolbar button { transition: none; }
   .editor-toolbar button:active:not(:disabled) { transform: none; }
@@ -479,6 +495,55 @@
 .markdown-editor .tiptap code[data-raw-markdown='inline'] {
   white-space: pre-wrap;
 }
+
+.markdown-editor .tiptap mark {
+  border-radius: .18em;
+  padding-inline: .08em;
+  color: inherit;
+  background: color-mix(in srgb, #ffd84d 58%, transparent);
+}
+
+.markdown-editor .tiptap [data-math] {
+  color: var(--imx-ink);
+  cursor: default;
+}
+
+.markdown-editor .tiptap [data-math='block'] {
+  margin: 1rem 0;
+  overflow-x: auto;
+  border: 1px solid var(--imx-line);
+  border-radius: 14px;
+  padding: 1rem;
+  text-align: center;
+  background: var(--imx-gutter);
+}
+
+.markdown-editor .tiptap aside[data-callout] {
+  margin: 1rem 0;
+  border: 1px solid color-mix(in srgb, var(--imx-accent) 35%, var(--imx-line));
+  border-left: 4px solid var(--imx-accent);
+  border-radius: 12px;
+  padding: .85rem 1rem;
+  background: var(--imx-accent-soft);
+}
+
+.markdown-editor .tiptap aside[data-callout] > * { display: block; margin: 0; }
+.markdown-editor .tiptap aside[data-callout] > p { margin-top: .35rem; white-space: pre-wrap; }
+
+.markdown-editor .tiptap pre[data-mermaid-source] {
+  border-style: dashed;
+  white-space: pre-wrap;
+}
+
+.markdown-editor[data-focus-mode='true'] .tiptap > * { opacity: .32; transition: opacity 160ms ease; }
+.markdown-editor[data-focus-mode='true'] .tiptap > [data-active-block],
+.markdown-editor[data-focus-mode='true'] .tiptap > [data-active-block] * { opacity: 1; }
+
+.slash-command-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.slash-command-list button { display: flex; justify-content: space-between; text-align: left; }
+.slash-command-list span { color: var(--imx-ink-muted); font-family: var(--imx-font-mono); }
+
+@media (max-width: 620px) { .slash-command-list { grid-template-columns: 1fr; } }
 
 .markdown-editor .tiptap pre .hljs-comment,
 .markdown-editor .tiptap pre .hljs-quote { color: #6e7781; }

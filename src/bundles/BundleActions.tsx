@@ -109,6 +109,10 @@ export function BundleActions({ draft, onReplace, onNew, onStatus, onImportFocus
       if (await operation(pendingImport) !== false) {
         onImportFocusRequest?.(() => pendingImportTrigger.current)
         close({ restoreFocus: !onImportFocusRequest })
+      } else {
+        // The app owns transition recovery. Close this staging dialog so its
+        // save/recovery choices are not hidden behind a second modal.
+        close({ restoreFocus: false })
       }
     } catch (cause) {
       setError(errorMessage(cause))

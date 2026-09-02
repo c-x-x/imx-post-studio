@@ -116,4 +116,31 @@ describe('renderMarkdown', () => {
     expect(rendered.html).toContain('<td align="center">x</td>')
     expect(rendered.html).toContain('<td align="right">y</td>')
   })
+
+  it('renders formulas, semantic text and callouts without executable markup', async () => {
+    const rendered = await renderMarkdown([
+      '<mark>重点</mark> H<sub>2</sub>O x<sup>2</sup> $a^2$',
+      '',
+      '> [!TIP]',
+      '> 安全提示。',
+      '',
+      '$$',
+      '\\frac{1}{2}',
+      '$$',
+    ].join('\n'), () => undefined)
+    expect(rendered.html).toContain('<mark>重点</mark>')
+    expect(rendered.html).toContain('<sub>2</sub>')
+    expect(rendered.html).toContain('<sup>2</sup>')
+    expect(rendered.html).toContain('class="katex"')
+    expect(rendered.html).toContain('class="callout"')
+    expect(rendered.html).toContain('data-callout="tip"')
+    expect(rendered.html).not.toMatch(/<script|onerror=/i)
+  })
+
+  it('turns Mermaid fences into inert render targets instead of executable HTML', async () => {
+    const rendered = await renderMarkdown('```mermaid\ngraph TD\nA --> B\n```', () => undefined)
+    expect(rendered.html).toContain('class="mermaid"')
+    expect(rendered.html).toContain('data-mermaid-source=')
+    expect(rendered.html).not.toContain('<svg')
+  })
 })

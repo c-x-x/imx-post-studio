@@ -9,6 +9,7 @@ import { githubOrigins } from '../github/origins'
 
 interface DraftDashboardProps {
   onOpen: (draft: ArticleDraft) => Promise<boolean | void> | boolean | void
+  activeDraftId?: string
   disabled?: boolean
   onDelete?: (id: string) => void
   onRename?: (draft: ArticleDraft) => void
@@ -37,7 +38,7 @@ function DraftThumbnail({ draft }: { draft: ArticleDraft }) {
   return url ? <img className="draft-thumbnail" src={url} alt="封面缩略图" /> : <div className="draft-thumbnail draft-thumbnail-empty" aria-label="无封面">无封面</div>
 }
 
-export function DraftDashboard({ onOpen, onDelete, onRename, disabled = false }: DraftDashboardProps) {
+export function DraftDashboard({ onOpen, activeDraftId, onDelete, onRename, disabled = false }: DraftDashboardProps) {
   const [drafts, setDrafts] = useState<ArticleDraft[]>([])
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string>()
@@ -95,7 +96,7 @@ export function DraftDashboard({ onOpen, onDelete, onRename, disabled = false }:
     {needsBackup ? <p className="backup-reminder" role="status">超过 7 天没有导出便携草稿备份。建议下载一个草稿 ZIP。</p> : null}
     {error ? <p className="field-error" role="alert">{error}</p> : null}
     {[false, true].map((pending) => <section key={String(pending)} className="draft-group" aria-label={pending ? '待提交作品' : '本地草稿'}><h3>{pending ? '待提交作品' : '本地草稿'}</h3><p>{pending ? '从作品页读取的文章及其本地修改，尚未再次推送。删除这里只移除本地副本。' : '尚未推送到 GitHub 的本地创作。'}</p>{!drafts.some((draft) => pendingIds.has(draft.id) === pending) ? <p>暂无{pending ? '待提交作品' : '本地草稿'}。</p> : <ul className="draft-list">{drafts.filter((draft) => pendingIds.has(draft.id) === pending).map((draft) => <li key={draft.id}><DraftThumbnail draft={draft} /><div><h3>{draft.meta.title || '未命名文章'}</h3><p>{draft.meta.slug || '尚未设置 Slug'} · 修改于 {new Date(draft.updatedAt).toLocaleString('zh-CN')}</p></div><div className="draft-actions"><button type="button" disabled={disabled} onClick={() => void onOpen(draft)}>打开</button><button type="button" disabled={disabled} onClick={() => void draftRepository.duplicate(draft.id).then(refresh, (cause: unknown) => setError(errorMessage(cause)))}>复制</button><button ref={renameTrigger} type="button" disabled={disabled} onClick={(event) => { renameTrigger.current = event.currentTarget; setRenameDraft(draft); setRenameValue(draft.meta.title) }}>重命名</button><button type="button" disabled={disabled} onClick={() => void downloadDraft(draft)}>导出草稿</button><button ref={deleteTrigger} type="button" disabled={disabled} onClick={(event) => { deleteTrigger.current = event.currentTarget; setPendingDelete(draft) }}>删除</button></div></li>)}</ul>}</section>)}
-    {pendingDelete ? <AccessibleDialog title="删除草稿？" onClose={closeDelete} returnFocus={() => deleteTrigger.current ?? dashboardRef.current}><p>“{pendingDelete.meta.title || '未命名文章'}”及其图片将从本浏览器移除。</p><div className="dialog-actions"><DialogClose>{(close) => <button type="button" onClick={close}>取消</button>}</DialogClose><button type="button" onClick={() => void draftRepository.delete(pendingDelete.id).then(async () => { await githubOrigins.delete(pendingDelete.id); onDelete?.(pendingDelete.id); closeDelete(); dashboardRef.current?.focus(); return refresh() }, (cause: unknown) => setError(errorMessage(cause)))}>删除草稿</button></div></AccessibleDialog> : null}
+    {pendingDelete ? <AccessibleDialog title="删除草稿？" onClose={closeDelete} returnFocus={() => deleteTrigger.current ?? dashboardRef.current}><p>“{pendingDelete.meta.title || '未命名文章'}”及其图片将从本浏览器移除。</p>{pendingDelete.id === activeDraftId ? <p className="field-error">这也是写作区当前打开的文章；确认删除后，写作区内容会同时清空。</p> : null}<div className="dialog-actions"><DialogClose>{(close) => <button type="button" onClick={close}>取消</button>}</DialogClose><button type="button" onClick={() => void draftRepository.delete(pendingDelete.id).then(async () => { await githubOrigins.delete(pendingDelete.id); onDelete?.(pendingDelete.id); closeDelete(); dashboardRef.current?.focus(); return refresh() }, (cause: unknown) => setError(errorMessage(cause)))}>删除草稿</button></div></AccessibleDialog> : null}
     {renameDraft ? <AccessibleDialog title="重命名草稿" onClose={() => setRenameDraft(undefined)} returnFocus={() => renameTrigger.current}><label htmlFor="rename-draft">标题<input id="rename-draft" value={renameValue} onChange={(event) => setRenameValue(event.target.value)} /></label><div className="dialog-actions"><DialogClose>{(close) => <button type="button" onClick={close}>取消</button>}</DialogClose><button type="button" onClick={() => void draftRepository.rename(renameDraft.id, renameValue).then((renamed) => { onRename?.(renamed); setRenameDraft(undefined); renameTrigger.current?.focus(); return refresh() }, (cause: unknown) => setError(errorMessage(cause)))}>保存名称</button></div></AccessibleDialog> : null}
   </section>
 }

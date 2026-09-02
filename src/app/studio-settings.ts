@@ -14,6 +14,8 @@ export interface StudioSettings {
   defaultFeatured: boolean
   defaultEditorMode: EditorMode
   editorFont: EditorFont
+  focusMode: boolean
+  typewriterMode: boolean
   coverMaxWidth: CoverMaxWidth
   coverQuality: number
   commitMessageTemplate: string
@@ -25,6 +27,8 @@ export const DEFAULT_STUDIO_SETTINGS: Readonly<StudioSettings> = Object.freeze({
   defaultFeatured: false,
   defaultEditorMode: 'rich',
   editorFont: 'serif',
+  focusMode: false,
+  typewriterMode: false,
   coverMaxWidth: 1600,
   coverQuality: 82,
   commitMessageTemplate: DEFAULT_COMMIT_MESSAGE_TEMPLATE,
@@ -46,6 +50,8 @@ function normalize(value: unknown): StudioSettings {
     editorFont: source.editorFont === 'serif' || source.editorFont === 'sans' || source.editorFont === 'mono'
       || source.editorFont === 'wenkai' || source.editorFont === 'smiley'
       ? source.editorFont : DEFAULT_STUDIO_SETTINGS.editorFont,
+    focusMode: typeof source.focusMode === 'boolean' ? source.focusMode : DEFAULT_STUDIO_SETTINGS.focusMode,
+    typewriterMode: typeof source.typewriterMode === 'boolean' ? source.typewriterMode : DEFAULT_STUDIO_SETTINGS.typewriterMode,
     coverMaxWidth: source.coverMaxWidth === 800 || source.coverMaxWidth === 1200 || source.coverMaxWidth === 1600
       ? source.coverMaxWidth : DEFAULT_STUDIO_SETTINGS.coverMaxWidth,
     coverQuality: typeof source.coverQuality === 'number' && Number.isInteger(source.coverQuality)

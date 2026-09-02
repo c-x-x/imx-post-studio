@@ -32,7 +32,10 @@ export const SourceMarkdownEditor = forwardRef<SourceMarkdownEditorHandle, Sourc
   prepareRef.current = preparePastedImages
   commitRef.current = onCommitPastedImages
   historyRef.current = onHistoryStateChange
-  useEffect(() => () => { mountedRef.current = false }, [])
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
   const extensions = useMemo(() => [
     markdown({ codeLanguages: languages, extensions: GFM }),
     EditorView.lineWrapping,

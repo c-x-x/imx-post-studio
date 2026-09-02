@@ -15,11 +15,13 @@ import type { EditorMode } from './editor-mode'
 import type { EditorFont } from './editor-font'
 import { extractEditorOutline } from './outline'
 import { clipboardImages, type PastedImageRequest } from './paste'
-import { RawMarkdownBlock, RawMarkdownInline, SafeCodeBlock, SafeTable } from './markdown-extensions'
+import { CalloutBlock, MathBlock, MathInline, MermaidBlock, RawMarkdownBlock, RawMarkdownInline, SafeCodeBlock, SafeTable, Subscript, Superscript, TextHighlight } from './markdown-extensions'
 import { TableDialog, type MarkdownTableDimensions } from './TableDialog'
 import { LinkDialog } from './LinkDialog'
+import { SyntaxDialog, type SyntaxDialogKind, type SyntaxDialogValue } from './SyntaxDialog'
 import { DeferredMarkdown, editorMarkdown, pauseDeferredMarkdown } from './deferred-markdown'
 import type { SourceMarkdownEditorHandle } from './SourceMarkdownEditor'
+import { AccessibleDialog } from '../app/AccessibleDialog'
 import './editor-fonts.css'
 import './editor.css'
 
@@ -48,6 +50,8 @@ interface MarkdownEditorProps {
   disabled?: boolean
   initialMode?: EditorMode
   font?: EditorFont
+  focusMode?: boolean
+  typewriterMode?: boolean
 }
 
 function markdownHeadingIndex(value: string, position: number): number {
@@ -291,10 +295,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   disabled = false,
   initialMode = 'rich',
   font = 'serif',
+  focusMode = false,
+  typewriterMode = false,
 }, ref) {
   const sourceRef = useRef<SourceMarkdownEditorHandle>(null)
   const tableButtonRef = useRef<HTMLButtonElement>(null)
   const linkButtonRef = useRef<HTMLButtonElement>(null)
+  const syntaxButtonRef = useRef<HTMLButtonElement>(null)
   const latestValueRef = useRef(value)
   const emittedValueRef = useRef(value)
   const onChangeRef = useRef(onChange)
@@ -308,6 +315,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const [sourceHistory, setSourceHistory] = useState({ canUndo: false, canRedo: false })
   const [tableDialogOpen, setTableDialogOpen] = useState(false)
   const [linkDialog, setLinkDialog] = useState<{ from: number; to: number; href: string; text: string } | null>(null)
+  const [syntaxDialog, setSyntaxDialog] = useState<{ kind: SyntaxDialogKind; initial?: SyntaxDialogValue; nodePos?: number } | null>(null)
+  const [slashOpen, setSlashOpen] = useState(false)
 
   useLayoutEffect(() => {
     if (!richComposingRef.current && !richCompositionPendingRef.current) latestValueRef.current = value
@@ -328,6 +337,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       TaskList,
       TaskItem.configure({ nested: true }),
       Image.configure({ inline: true, allowBase64: false }),
+      TextHighlight,
+      Subscript,
+      Superscript,
+      MathBlock,
+      MathInline,
+      CalloutBlock,
+      MermaidBlock,
       RawMarkdownBlock,
       RawMarkdownInline,
       Markdown,
@@ -346,6 +362,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         'aria-label': 'Markdown 编辑器',
       },
       handleKeyDown(view, event) {
+        if (event.key === '/' && view.state.selection.empty && view.state.selection.$from.parent.textContent.length === 0 && view.state.selection.$from.parent.type.name === 'paragraph') {
+          event.preventDefault()
+          setSlashOpen(true)
+          return true
+        }
         if (event.key !== 'Tab') return false
         const { $from } = view.state.selection
         if ($from.parent.type.name !== 'codeBlock') return false
@@ -368,6 +389,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         paste(_view, event) {
           const clipboardEvent = event as ClipboardEvent
           const files = clipboardImages(clipboardEvent.clipboardData)
+          const activeEditor = richEditorRef.current
+          const plainText = clipboardEvent.clipboardData?.getData('text/plain').trim() ?? ''
+          if (files.length === 0 && activeEditor && !activeEditor.state.selection.empty && /^https?:\/\/\S+$/i.test(plainText)) {
+            clipboardEvent.preventDefault()
+            activeEditor.chain().focus().setLink({ href: plainText }).run()
+            return true
+          }
           const prepare = preparePastedImagesRef.current
           const commit = onCommitPastedImagesRef.current
           if (files.length === 0 || !prepare || !commit) return false
@@ -394,6 +422,29 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               commit(assets, editorMarkdown(activeEditor))
             })
             .catch(() => undefined)
+          return true
+        },
+        drop(_view, event) {
+          const files = clipboardImages((event as DragEvent).dataTransfer)
+          const prepare = preparePastedImagesRef.current
+          const commit = onCommitPastedImagesRef.current
+          const activeEditor = richEditorRef.current
+          if (files.length === 0 || !prepare || !commit || !activeEditor) return false
+          event.preventDefault()
+          const coordinates = activeEditor.view.posAtCoords({ left: event.clientX, top: event.clientY })
+          const position = coordinates?.pos ?? activeEditor.state.selection.from
+          const current = editorMarkdown(activeEditor)
+          void prepare({ files, selection: { from: position, to: position }, value: current }).then((assets) => {
+            const currentEditor = richEditorRef.current
+            if (!currentEditor || currentEditor.isDestroyed || assets.length === 0 || modeRef.current !== 'rich') return
+            const content = assets.flatMap((asset, index) => [
+              { type: 'image', attrs: { src: `images/${asset.name}`, alt: mediaAlt(asset.name) } },
+              ...(index < assets.length - 1 ? [{ type: 'hardBreak' }] : []),
+            ])
+            const safePosition = Math.max(1, Math.min(currentEditor.state.doc.content.size, position))
+            currentEditor.chain().focus().insertContentAt(safePosition, content).run()
+            commit(assets, editorMarkdown(currentEditor))
+          }).catch(() => undefined)
           return true
         },
         beforeinput(_view, event) {
@@ -423,6 +474,21 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           return false
         },
       },
+      handleDoubleClickOn(_view, pos, node) {
+        const currentEditor = richEditorRef.current
+        const dialogs: Record<string, { kind: SyntaxDialogKind; initial: SyntaxDialogValue }> = {
+          image: { kind: 'image', initial: { primary: String(node.attrs.alt ?? ''), secondary: String(node.attrs.title ?? '') } },
+          mathInline: { kind: 'math-inline', initial: { primary: String(node.attrs.latex ?? '') } },
+          mathBlock: { kind: 'math-block', initial: { primary: String(node.attrs.latex ?? '') } },
+          calloutBlock: { kind: 'callout', initial: { primary: String(node.attrs.content ?? ''), calloutType: String(node.attrs.kind ?? 'NOTE') as NonNullable<SyntaxDialogValue['calloutType']> } },
+          mermaidBlock: { kind: 'mermaid', initial: { primary: String(node.attrs.source ?? '') } },
+        }
+        const dialog = dialogs[node.type.name]
+        if (!dialog) return false
+        currentEditor?.commands.setNodeSelection(pos)
+        setSyntaxDialog({ ...dialog, nodePos: pos })
+        return true
+      },
     },
     onUpdate({ editor: currentEditor }) {
       if (richComposingRef.current || (currentEditor.view as { composing?: boolean }).composing) return
@@ -440,7 +506,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       bold: Boolean(currentEditor?.isActive('bold')),
       bulletList: Boolean(currentEditor?.isActive('bulletList')),
       codeBlock: Boolean(currentEditor?.isActive('codeBlock')),
-      heading: Boolean(currentEditor?.isActive('heading', { level: 2 })),
+      headingLevel: currentEditor?.isActive('heading') ? Number(currentEditor.getAttributes('heading').level ?? 0) : 0,
       italic: Boolean(currentEditor?.isActive('italic')),
       strike: Boolean(currentEditor?.isActive('strike')),
       link: Boolean(currentEditor?.isActive('link')),
@@ -450,6 +516,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       canStrike: Boolean(currentEditor?.can().toggleStrike()),
       canCode: Boolean(currentEditor?.can().toggleCode()),
       canHeading: Boolean(currentEditor?.can().toggleHeading({ level: 2 })),
+      highlight: Boolean(currentEditor?.isActive('textHighlight')),
+      subscript: Boolean(currentEditor?.isActive('subscript')),
+      superscript: Boolean(currentEditor?.isActive('superscript')),
       canBulletList: Boolean(currentEditor?.can().toggleBulletList()),
       canOrderedList: Boolean(currentEditor?.can().toggleOrderedList()),
       canTaskList: Boolean(currentEditor?.can().toggleTaskList()),
@@ -473,6 +542,46 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     if (!editor) return
     editor.setEditable(!disabled, false)
   }, [disabled, editor])
+
+  useEffect(() => {
+    if (!editor || mode !== 'rich') return
+    const root = editor.view.dom
+    let previous: HTMLElement | null = null
+    const sync = () => {
+      previous?.removeAttribute('data-active-block')
+      previous = null
+      if (!focusMode) return
+      const { $from } = editor.state.selection
+      const position = $from.depth > 0 ? $from.before(1) : editor.state.selection.from
+      const dom = editor.view.nodeDOM(position)
+      let element = dom instanceof HTMLElement ? dom : dom?.parentElement ?? null
+      while (element?.parentElement && element.parentElement !== root) element = element.parentElement
+      if (element && element.parentElement === root) {
+        element.setAttribute('data-active-block', '')
+        previous = element
+      }
+    }
+    const centerCaret = () => {
+      sync()
+      if (!typewriterMode) return
+      const selection = window.getSelection()
+      const range = selection?.rangeCount ? selection.getRangeAt(0) : null
+      const rect = range?.getBoundingClientRect()
+      const scroller = root.closest<HTMLElement>('.editor-scroll-region')
+      if (!rect || !scroller || rect.height === 0) return
+      const bounds = scroller.getBoundingClientRect()
+      const delta = rect.top - (bounds.top + bounds.height * .46)
+      if (Math.abs(delta) > 48) scroller.scrollBy({ top: delta, behavior: 'smooth' })
+    }
+    editor.on('selectionUpdate', centerCaret)
+    editor.on('focus', centerCaret)
+    sync()
+    return () => {
+      editor.off('selectionUpdate', centerCaret)
+      editor.off('focus', centerCaret)
+      previous?.removeAttribute('data-active-block')
+    }
+  }, [editor, focusMode, mode, typewriterMode])
 
   useEffect(() => {
     if (!editor || mode !== 'rich') return
@@ -597,6 +706,57 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     if (command(editor.chain().focus()).run()) onFormatApplied?.()
   }
 
+  const openSyntaxDialog = (kind: SyntaxDialogKind) => {
+    if (!editor || disabled || mode !== 'rich') return
+    pauseDeferredMarkdown(editor, true)
+    const selection = editor.state.selection
+    const selected = editor.state.doc.textBetween(selection.from, selection.to, '\n')
+    syntaxButtonRef.current = document.activeElement instanceof HTMLButtonElement ? document.activeElement : null
+    setSyntaxDialog({ kind, initial: { primary: selected } })
+  }
+
+  const applySyntax = (dialog: NonNullable<typeof syntaxDialog>, input: SyntaxDialogValue) => {
+    if (!editor || disabled) return
+    if (typeof dialog.nodePos === 'number') {
+      const attributes = dialog.kind === 'image' ? { alt: input.primary, title: input.secondary || null }
+        : dialog.kind === 'callout' ? { kind: input.calloutType, content: input.primary }
+          : dialog.kind === 'mermaid' ? { source: input.primary }
+            : { latex: input.primary }
+      const nodeName = dialog.kind === 'image' ? 'image'
+        : dialog.kind === 'callout' ? 'calloutBlock'
+          : dialog.kind === 'mermaid' ? 'mermaidBlock'
+            : dialog.kind === 'math-block' ? 'mathBlock' : 'mathInline'
+      editor.chain().focus().setNodeSelection(dialog.nodePos).updateAttributes(nodeName, attributes).run()
+    } else if (dialog.kind === 'math-inline') {
+      editor.chain().focus().insertContent({ type: 'mathInline', attrs: { latex: input.primary } }).run()
+    } else if (dialog.kind === 'math-block') {
+      editor.chain().focus().insertContent({ type: 'mathBlock', attrs: { latex: input.primary } }).run()
+    } else if (dialog.kind === 'callout') {
+      editor.chain().focus().insertContent({ type: 'calloutBlock', attrs: { kind: input.calloutType, content: input.primary } }).run()
+    } else if (dialog.kind === 'mermaid') {
+      editor.chain().focus().insertContent({ type: 'mermaidBlock', attrs: { source: input.primary } }).run()
+    } else if (dialog.kind === 'footnote') {
+      const current = editorMarkdown(editor)
+      const used = new Set(Array.from(current.matchAll(/\[\^([^\]]+)\]/g), (match) => match[1]))
+      let number = 1
+      while (used.has(String(number))) number += 1
+      editor.chain().focus().insertContent({ type: 'rawMarkdownInline', attrs: { raw: `[^${number}]` } }).run()
+      const next = `${editorMarkdown(editor).trimEnd()}\n\n[^${number}]: ${input.primary}\n`
+      editor.commands.setContent(next, { contentType: 'markdown', emitUpdate: true })
+      editor.commands.focus('end')
+    }
+    onFormatApplied?.()
+  }
+
+  const slashCommand = (kind: 'heading' | 'quote' | 'code' | 'table' | SyntaxDialogKind) => {
+    setSlashOpen(false)
+    if (kind === 'heading') runFormat((chain) => chain.setHeading({ level: 2 }))
+    else if (kind === 'quote') runFormat((chain) => chain.toggleBlockquote())
+    else if (kind === 'code') runFormat((chain) => chain.toggleCodeBlock())
+    else if (kind === 'table') setTableDialogOpen(true)
+    else openSyntaxDialog(kind)
+  }
+
   const runHistory = (direction: 'undo' | 'redo') => {
     if (!editor || disabled) return
     if (mode === 'source') {
@@ -613,10 +773,17 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.italic)} disabled={disabled || mode === 'source' || !activeFormats?.canItalic} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleItalic())}>斜体</button>
         <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.strike)} disabled={disabled || mode === 'source' || !activeFormats?.canStrike} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleStrike())}>删除线</button>
         <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.code)} disabled={disabled || mode === 'source' || !activeFormats?.canCode} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleCode())}>行内代码</button>
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.highlight)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleMark('textHighlight'))}>高亮</button>
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.subscript)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.unsetMark('superscript').toggleMark('subscript'))}>下标</button>
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.superscript)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.unsetMark('subscript').toggleMark('superscript'))}>上标</button>
       </div>
       <div className="editor-tool-group" role="group" aria-label="段落结构">
         <h3>段落结构</h3>
-        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.heading)} disabled={disabled || mode === 'source' || !activeFormats?.canHeading} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleHeading({ level: 2 }))}>二级标题</button>
+        <label className="editor-heading-control">段落样式<select aria-label="段落样式" value={mode === 'rich' ? activeFormats?.headingLevel ?? 0 : 0} disabled={disabled || mode === 'source'} onChange={(event) => {
+          const level = Number(event.target.value)
+          if (level === 0) runFormat((chain) => chain.setParagraph())
+          else runFormat((chain) => chain.setHeading({ level: level as 1 | 2 | 3 | 4 | 5 | 6 }))
+        }}><option value="0">正文</option>{[1, 2, 3, 4, 5, 6].map((level) => <option key={level} value={level}>H{level}</option>)}</select></label>
         <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.bulletList)} disabled={disabled || mode === 'source' || !activeFormats?.canBulletList} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleBulletList())}>无序列表</button>
         <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.orderedList)} disabled={disabled || mode === 'source' || !activeFormats?.canOrderedList} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleOrderedList())}>有序列表</button>
         <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.taskList)} disabled={disabled || mode === 'source' || !activeFormats?.canTaskList} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleTaskList())}>任务列表</button>
@@ -625,13 +792,18 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       <div className="editor-tool-group" role="group" aria-label="插入内容">
         <h3>插入内容</h3>
         <button ref={linkButtonRef} type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.link)} disabled={disabled || mode === 'source' || activeFormats?.codeBlock} onMouseDown={(event) => event.preventDefault()} onClick={openLinkDialog}>链接</button>
-        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.codeBlock)} disabled={disabled || mode === 'source' || !activeFormats?.canCodeBlock} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleCodeBlock())}>代码块</button>
+        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.codeBlock)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleCodeBlock())}>代码块</button>
         <button type="button" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.setHorizontalRule())}>分隔线</button>
         <button ref={tableButtonRef} type="button" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => {
           if (!editor) return
           pauseDeferredMarkdown(editor, true)
           setTableDialogOpen(true)
         }}>表格</button>
+        <button type="button" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => openSyntaxDialog('footnote')}>脚注</button>
+        <button type="button" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => openSyntaxDialog('math-inline')}>行内公式</button>
+        <button type="button" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => openSyntaxDialog('math-block')}>公式块</button>
+        <button type="button" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => openSyntaxDialog('callout')}>提示块</button>
+        <button type="button" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => openSyntaxDialog('mermaid')}>流程图</button>
       </div>
       <div className="editor-tool-group" role="group" aria-label="编辑历史">
         <h3>编辑历史</h3>
@@ -646,7 +818,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 
   return <>
     {toolbarTarget ? createPortal(toolbar, toolbarTarget) : null}
-    <section className="markdown-editor" data-mode={mode} data-font={font} aria-label="Markdown 编辑">
+    <section className="markdown-editor" data-mode={mode} data-font={font} data-focus-mode={focusMode || undefined} data-typewriter-mode={typewriterMode || undefined} aria-label="Markdown 编辑">
       {toolbarTarget === undefined ? toolbar : null}
       {status ? <div className="editor-status-bar">
         <p className="editor-save-status" data-tone={statusTone} role="status">{status}</p>
@@ -683,5 +855,22 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       setLinkDialog(null)
       if (editor && !editor.isDestroyed) pauseDeferredMarkdown(editor, false)
     }} onApply={applyLink} onRemove={removeLink} returnFocus={() => linkButtonRef.current} />}
+    {syntaxDialog ? <SyntaxDialog kind={syntaxDialog.kind} initial={syntaxDialog.initial} onClose={() => {
+      setSyntaxDialog(null)
+      if (editor && !editor.isDestroyed) pauseDeferredMarkdown(editor, false)
+    }} onSubmit={(input) => applySyntax(syntaxDialog, input)} returnFocus={() => syntaxButtonRef.current} /> : null}
+    {slashOpen ? <AccessibleDialog title="快速插入" className="confirm-dialog slash-command-dialog" onClose={() => setSlashOpen(false)} returnFocus={() => editor?.view.dom ?? null}>
+      <p>输入“/”可快速打开常用写作功能。</p>
+      <div className="slash-command-list" role="list">
+        <button type="button" onClick={() => slashCommand('heading')}>二级标题 <span>H2</span></button>
+        <button type="button" onClick={() => slashCommand('quote')}>引用 <span>&gt;</span></button>
+        <button type="button" onClick={() => slashCommand('code')}>代码块 <span>```</span></button>
+        <button type="button" onClick={() => slashCommand('table')}>表格</button>
+        <button type="button" onClick={() => slashCommand('footnote')}>脚注</button>
+        <button type="button" onClick={() => slashCommand('math-block')}>公式块</button>
+        <button type="button" onClick={() => slashCommand('callout')}>提示块</button>
+        <button type="button" onClick={() => slashCommand('mermaid')}>Mermaid 图表</button>
+      </div>
+    </AccessibleDialog> : null}
   </>
 })

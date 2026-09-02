@@ -64,12 +64,12 @@ describe('MarkdownEditor', () => {
   it('exposes the active format as a pressed toolbar control', async () => {
     const user = userEvent.setup()
     render(<ControlledEditor />)
-    const heading = screen.getByRole('button', { name: '二级标题' })
-    expect(heading).toHaveAttribute('aria-pressed', 'false')
-    await user.click(heading)
-    expect(heading).toHaveAttribute('aria-pressed', 'true')
-    await user.click(heading)
-    expect(heading).toHaveAttribute('aria-pressed', 'false')
+    const heading = screen.getByRole('combobox', { name: '段落样式' })
+    expect(heading).toHaveValue('0')
+    await user.selectOptions(heading, '2')
+    expect(heading).toHaveValue('2')
+    await user.selectOptions(heading, '0')
+    expect(heading).toHaveValue('0')
   })
 
   it('creates an editable table and exposes structural actions', async () => {
@@ -85,6 +85,44 @@ describe('MarkdownEditor', () => {
     expect(screen.getByRole('table')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '删除表格' })).toBeInTheDocument()
     expect(screen.getAllByRole('columnheader')).toHaveLength(2)
+  })
+
+  it('inserts formulas through the dialog and keeps editable Markdown source', async () => {
+    const user = userEvent.setup()
+    render(<ControlledEditor />)
+    await user.click(screen.getByRole('button', { name: '行内公式' }))
+    const inlineDialog = screen.getByRole('dialog', { name: '插入行内公式' })
+    await user.type(within(inlineDialog).getByLabelText('LaTeX'), 'E=mc^2')
+    await user.click(within(inlineDialog).getByRole('button', { name: '插入' }))
+    expect(screen.getByTestId('markdown')).toHaveTextContent('$E=mc^2$')
+
+    await user.click(screen.getByRole('button', { name: '公式块' }))
+    const blockDialog = screen.getByRole('dialog', { name: '插入公式块' })
+    await user.type(within(blockDialog).getByLabelText('LaTeX'), '\\int_0^1 x dx')
+    await user.click(within(blockDialog).getByRole('button', { name: '插入' }))
+    expect(screen.getByTestId('markdown')).toHaveTextContent('$$')
+    expect(screen.getByTestId('markdown')).toHaveTextContent('\\int_0^1 x dx')
+  })
+
+  it('opens the slash menu only in an empty paragraph and runs its command', async () => {
+    const user = userEvent.setup()
+    render(<ControlledEditor />)
+    const editor = screen.getByRole('textbox', { name: 'Markdown 编辑器' })
+    editor.focus()
+    await user.keyboard('/')
+    const dialog = screen.getByRole('dialog', { name: '快速插入' })
+    await user.click(within(dialog).getByRole('button', { name: /二级标题/ }))
+    expect(screen.queryByRole('dialog', { name: '快速插入' })).not.toBeInTheDocument()
+    expect(within(editor).getByRole('heading', { level: 2 })).toBeInTheDocument()
+    expect(screen.getByTestId('markdown')).not.toHaveTextContent('/')
+  })
+
+  it('exposes focus and typewriter preferences without changing document content', () => {
+    const { container } = render(<MarkdownEditor focusMode typewriterMode value="正文" onChange={() => undefined} media={[]} />)
+    const editor = container.querySelector('.markdown-editor')
+    expect(editor).toHaveAttribute('data-focus-mode', 'true')
+    expect(editor).toHaveAttribute('data-typewriter-mode', 'true')
+    expect(screen.getByRole('textbox', { name: 'Markdown 编辑器' })).toHaveTextContent('正文')
   })
 
   it('disables unsupported text formatting inside code instead of silently doing nothing', async () => {

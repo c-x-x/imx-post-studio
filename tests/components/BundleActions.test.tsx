@@ -66,7 +66,7 @@ describe('BundleActions production choices', () => {
     expect(trigger).toHaveFocus()
   })
 
-  it('keeps the validated import dialog open when its transition reports failure', async () => {
+  it('closes the validated import dialog so app-level transition recovery is visible', async () => {
     const user = userEvent.setup()
     render(<BundleActions draft={draft()} onReplace={() => false} onNew={() => true} onStatus={() => undefined} />)
 
@@ -75,6 +75,6 @@ describe('BundleActions production choices', () => {
     await screen.findByRole('dialog', { name: '导入已验证' })
     await user.click(screen.getByRole('button', { name: '替换当前文章' }))
 
-    expect(screen.getByRole('dialog', { name: '导入已验证' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: '导入已验证' })).not.toBeInTheDocument()
   })
 })

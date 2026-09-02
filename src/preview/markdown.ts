@@ -1,9 +1,11 @@
 import GithubSlugger from 'github-slugger'
 import rehypeHighlight from 'rehype-highlight'
+import rehypeKatex from 'rehype-katex'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import rehypeStringify from 'rehype-stringify'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
 import remarkParse from 'remark-parse'
 import remarkRehype from 'remark-rehype'
 import { unified } from 'unified'
@@ -75,6 +77,7 @@ const codeLanguages: Record<string, { key: string; label: string }> = {
 const previewSanitizeSchema = {
   ...defaultSchema,
   clobberPrefix: '',
+  tagNames: [...(defaultSchema.tagNames ?? []), 'mark'],
   protocols: { ...defaultSchema.protocols, href: [...(defaultSchema.protocols?.href ?? []), 'tel'] },
 }
 
@@ -122,6 +125,15 @@ function decorateCodeBlocks() {
       const code = node.children.find((child): child is Element => child.type === 'element' && child.tagName === 'code')
       if (!code) return
       const language = codeLanguage(code)
+      if (language.key === 'mermaid') {
+        parent.children[index] = {
+          type: 'element',
+          tagName: 'div',
+          properties: { className: ['mermaid'], dataMermaidSource: encodeURIComponent(elementText(code)) },
+          children: [{ type: 'text', value: '正在渲染图表…' }],
+        }
+        return index + 1
+      }
       const wrapper: Element = {
         type: 'element',
         tagName: 'div',
@@ -130,6 +142,33 @@ function decorateCodeBlocks() {
       }
       parent.children[index] = wrapper
       return index + 1
+    })
+  }
+}
+
+function decorateCallouts() {
+  return (tree: Root) => {
+    visit(tree, 'element', (node: Element) => {
+      if (node.tagName !== 'blockquote') return
+      const first = node.children.find((child): child is Element => child.type === 'element' && child.tagName === 'p')
+      if (!first) return
+      const text = elementText(first)
+      const match = text.match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][ \t]*/i)
+      if (!match) return
+      const remove = match[0].length
+      let remaining = remove
+      visit(first, 'text', (child) => {
+        if (remaining <= 0) return
+        const consumed = Math.min(remaining, child.value.length)
+        child.value = child.value.slice(consumed)
+        remaining -= consumed
+      })
+      node.properties.className = [...(Array.isArray(node.properties.className) ? node.properties.className : []), 'callout']
+      node.properties.dataCallout = match[1].toLowerCase()
+      node.children.unshift({
+        type: 'element', tagName: 'strong', properties: { className: ['callout-title'] },
+        children: [{ type: 'text', value: ({ NOTE: '说明', TIP: '技巧', IMPORTANT: '重要', WARNING: '警告', CAUTION: '注意' } as Record<string, string>)[match[1].toUpperCase()] }],
+      })
     })
   }
 }
@@ -195,10 +234,13 @@ export async function renderMarkdown(
   const processor = unified()
     .use(remarkParse)
     .use(remarkGfm)
+    .use(remarkMath)
     .use(remarkRehype, { allowDangerousHtml: true })
     .use(rehypeRaw)
     .use(rehypeSanitize, previewSanitizeSchema)
+    .use(rehypeKatex, { strict: 'warn', trust: false })
     .use(rehypeHighlight, { detect: false })
+    .use(decorateCallouts)
     .use(decorateCodeBlocks)
     .use(() => collectHeadingsRewriteImagesAndMeasure(resolveLocalImage, headings, metrics))
     .use(rehypeStringify)

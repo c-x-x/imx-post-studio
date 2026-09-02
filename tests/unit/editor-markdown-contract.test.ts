@@ -7,7 +7,7 @@ import TaskItem from '@tiptap/extension-task-item'
 import Image from '@tiptap/extension-image'
 import { common, createLowlight } from 'lowlight'
 import { afterEach, describe, expect, it } from 'vitest'
-import { RawMarkdownBlock, RawMarkdownInline, SafeCodeBlock, SafeTable } from '../../src/editor/markdown-extensions'
+import { CalloutBlock, MathBlock, MathInline, MermaidBlock, RawMarkdownBlock, RawMarkdownInline, SafeCodeBlock, SafeTable, Subscript, Superscript, TextHighlight } from '../../src/editor/markdown-extensions'
 
 const editors: Editor[] = []
 
@@ -27,6 +27,13 @@ function createEditor(markdown: string) {
       TaskList,
       TaskItem.configure({ nested: true }),
       Image.configure({ inline: true, allowBase64: false }),
+      TextHighlight,
+      Subscript,
+      Superscript,
+      MathBlock,
+      MathInline,
+      CalloutBlock,
+      MermaidBlock,
       RawMarkdownBlock,
       RawMarkdownInline,
       Markdown,
@@ -71,5 +78,42 @@ describe('current rich Markdown contract', () => {
   it('uses a longer fence when a code block contains triple backticks', () => {
     const editor = createEditor('````md\n```js\ncode\n```\n````')
     expect(editor.getMarkdown()).toContain('````md\n```js\ncode\n```\n````')
+  })
+
+  it('round-trips formulas, Mermaid, callouts and semantic text marks', () => {
+    const source = [
+      '<mark>重点</mark> H<sub>2</sub>O x<sup>2</sup> $a^2+b^2=c^2$',
+      '',
+      '$$',
+      '\\frac{1}{2}',
+      '$$',
+      '',
+      '> [!WARNING]',
+      '> 请先备份。',
+      '',
+      '```mermaid',
+      'graph TD',
+      '  A --> B',
+      '```',
+    ].join('\n')
+    const output = createEditor(source).getMarkdown()
+    expect(output).toContain('<mark>重点</mark>')
+    expect(output).toContain('H<sub>2</sub>O')
+    expect(output).toContain('x<sup>2</sup>')
+    expect(output).toContain('$a^2+b^2=c^2$')
+    expect(output).toContain('$$\n\\frac{1}{2}\n$$')
+    expect(output).toContain('> [!WARNING]\n> 请先备份。')
+    expect(output).toContain('```mermaid\ngraph TD\n  A --> B\n```')
+  })
+
+  it('keeps core block transformations available with extended syntax enabled', () => {
+    const editor = createEditor('')
+    expect(editor.commands.setHeading({ level: 2 })).toBe(true)
+    expect(editor.isActive('heading', { level: 2 })).toBe(true)
+    expect(editor.commands.setParagraph()).toBe(true)
+    expect(editor.commands.toggleCodeBlock()).toBe(true)
+    expect(editor.isActive('codeBlock')).toBe(true)
+    expect(editor.commands.toggleCodeBlock()).toBe(true)
+    expect(editor.can().toggleBold()).toBe(true)
   })
 })

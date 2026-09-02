@@ -2,6 +2,7 @@ import type { ArticleMeta } from '../metadata/article'
 import type { RenderedMarkdown } from './markdown'
 import type { TocItem } from './toc'
 import { studioPreviewBehaviorCss } from './studio-preview-behavior'
+import katexCss from 'katex/dist/katex.min.css?inline'
 
 export interface PreviewDocumentInput {
   meta: ArticleMeta
@@ -40,7 +41,8 @@ function tocList(items: TocItem[]): string {
 const symbols = `<svg aria-hidden="true" class="preview-symbols" style="display:none"><symbol id="icon-calendar" viewBox="0 0 24 24"><path d="M6 2v4m12-4v4M3 9h18M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-width="2"/></symbol><symbol id="icon-folder" viewBox="0 0 24 24"><path d="M3 6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6Z" fill="none" stroke="currentColor" stroke-width="2"/></symbol><symbol id="icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="2"/></symbol><symbol id="icon-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2"/></symbol><symbol id="icon-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol></svg>`
 const previewAccessibilityCss = ':root[data-theme="light"] .article-page { --article-ink-muted: #746c62; }'
 
-export function buildPreviewDocument({ meta, rendered, css, theme }: PreviewDocumentInput): string {
+export function buildPreviewDocument({ meta, rendered, css: previewCss, theme }: PreviewDocumentInput): string {
+  const css = `${katexCss}\n${previewCss}`
   const categories = meta.categories.map((category) => `<span>${escapeHtml(category)}</span>`).join('')
   const tags = meta.tags.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join('')
   const toc = meta.toc && rendered.toc.length > 0

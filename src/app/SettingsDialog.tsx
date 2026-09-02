@@ -108,6 +108,11 @@ export function SettingsDialog({ onClose, returnFocus }: SettingsDialogProps) {
       <label data-font="wenkai"><input type="radio" name="editor-font" value="wenkai" checked={settings.editorFont === 'wenkai'} onChange={() => save({ editorFont: 'wenkai' })} /><span><strong>文艺字体 · 霞鹜文楷</strong><small>自然的楷体笔意，兼顾个性和长文阅读。</small></span></label>
       <label data-font="smiley"><input type="radio" name="editor-font" value="smiley" checked={settings.editorFont === 'smiley'} onChange={() => save({ editorFont: 'smiley' })} /><span><strong>潮流字体 · 得意黑</strong><small>窄斜几何造型，适合更有视觉张力的写作。</small></span></label>
     </fieldset>
+    <fieldset className="settings-choice">
+      <legend>专注写作</legend>
+      <label><input type="checkbox" checked={settings.focusMode} onChange={(event) => save({ focusMode: event.target.checked })} /><span><strong>专注模式</strong><small>弱化光标所在段落以外的内容。</small></span></label>
+      <label><input type="checkbox" checked={settings.typewriterMode} onChange={(event) => save({ typewriterMode: event.target.checked })} /><span><strong>打字机模式</strong><small>输入时让光标尽量保持在编辑区中部。</small></span></label>
+    </fieldset>
     <p className="settings-dialog__note">默认模式在新建或重新打开文章时生效；字体切换立即应用，不会改变文章内容。</p>
   </div> : activeId === 'images' ? <div className="settings-dialog__fields">
     <label className="settings-field">

@@ -174,7 +174,7 @@ test('keeps a verified ZIP dialog viewport-bound while its workspace rail is tra
   expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(560)
 })
 
-test('retries a transient IndexedDB open failure and clears the page alert after a same-session autosave', async ({ page }) => {
+test('recovers from a transient IndexedDB open failure and allows a same-session autosave', async ({ page }) => {
   await page.addInitScript(() => {
     const native = window.indexedDB
     let firstOpen = true
@@ -182,7 +182,7 @@ test('retries a transient IndexedDB open failure and clears the page alert after
       configurable: true,
       value: {
         open(...args: Parameters<IDBFactory['open']>) {
-          if (firstOpen) {
+          if (firstOpen && args[0] === 'imx-post-studio') {
             firstOpen = false
             throw new DOMException('transient test failure', 'InvalidStateError')
           }
@@ -193,9 +193,10 @@ test('retries a transient IndexedDB open failure and clears the page alert after
   })
   await page.goto('/')
   await page.getByRole('button', { name: '草稿', exact: true }).click()
-  await expect(page.getByRole('alert')).toContainText('列出草稿失败')
+  await expect(page.getByRole('region', { name: '本地草稿', exact: true })).toBeVisible()
   await page.getByRole('button', { name: '写作', exact: true }).click()
   await expect(page.getByRole('region', { name: '文章工作区' })).toBeVisible()
+  await page.getByLabel('标题').fill('IndexedDB 恢复测试')
   await page.getByRole('textbox', { name: 'Markdown 编辑器' }).fill('新的 IndexedDB 打开尝试必须允许同页自动保存。')
   await expect(page.getByRole('status')).toContainText('已保存到本地草稿')
   await expect(page.getByRole('alert')).toHaveCount(0)

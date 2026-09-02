@@ -18,17 +18,31 @@ type DialogCloseHandler = (options?: unknown) => void
 
 const DialogCloseContext = createContext<DialogCloseHandler | undefined>(undefined)
 let openDialogCount = 0
+let appRootAriaHidden: string | null = null
+let appRootWasInert = false
 
 function lockDocumentScroll() {
   openDialogCount += 1
   document.documentElement.classList.add('dialog-open')
   document.body.classList.add('dialog-open')
+  const appRoot = document.getElementById('root')
+  if (openDialogCount === 1 && appRoot) {
+    appRootAriaHidden = appRoot.getAttribute('aria-hidden')
+    appRootWasInert = appRoot.inert
+    appRoot.inert = true
+    appRoot.setAttribute('aria-hidden', 'true')
+  }
 
   return () => {
     openDialogCount = Math.max(0, openDialogCount - 1)
     if (openDialogCount > 0) return
     document.documentElement.classList.remove('dialog-open')
     document.body.classList.remove('dialog-open')
+    if (appRoot) {
+      appRoot.inert = appRootWasInert
+      if (appRootAriaHidden === null) appRoot.removeAttribute('aria-hidden')
+      else appRoot.setAttribute('aria-hidden', appRootAriaHidden)
+    }
   }
 }
 
@@ -52,7 +66,12 @@ export function AccessibleDialog({ title, children, onClose, returnFocus, classN
   const close: DialogCloseHandler = (options) => {
     const target = returnFocus?.()
     onClose()
-    if (!(typeof options === 'object' && options !== null && 'restoreFocus' in options && options.restoreFocus === false)) target?.focus()
+    if (!(typeof options === 'object' && options !== null && 'restoreFocus' in options && options.restoreFocus === false)) {
+      // React removes the modal (and its inert background) after this handler.
+      // Restore focus once that commit has completed, otherwise browsers reject
+      // focusing a control that is still inside the inert application root.
+      queueMicrotask(() => { if (target?.isConnected) target.focus() })
+    }
   }
 
   useLayoutEffect(() => {

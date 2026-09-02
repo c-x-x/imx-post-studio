@@ -1,6 +1,7 @@
-import { Node, type JSONContent, type MarkdownParseHelpers, type MarkdownRendererHelpers, type MarkdownToken } from '@tiptap/core'
+import { Mark, Node, mergeAttributes, type JSONContent, type MarkdownParseHelpers, type MarkdownRendererHelpers, type MarkdownToken } from '@tiptap/core'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { Table } from '@tiptap/extension-table'
+import katex from 'katex'
 
 function longestBacktickRun(value: string): number {
   return Math.max(0, ...Array.from(value.matchAll(/`+/g), (match) => match[0].length))
@@ -61,6 +62,174 @@ function renderSafeTable(node: JSONContent, helpers: MarkdownRendererHelpers): s
 export const SafeTable = Table.extend({
   renderMarkdown(node: JSONContent, helpers: MarkdownRendererHelpers) {
     return renderSafeTable(node, helpers)
+  },
+})
+
+function semanticMark(name: string, tag: 'mark' | 'sub' | 'sup') {
+  return Mark.create({
+    name,
+    parseHTML() { return [{ tag }] },
+    renderHTML({ HTMLAttributes }) { return [tag, mergeAttributes(HTMLAttributes), 0] },
+    renderMarkdown(node: JSONContent, helpers: MarkdownRendererHelpers) {
+      return `<${tag}>${helpers.renderChildren(node)}</${tag}>`
+    },
+  })
+}
+
+/** Semantic HTML is understood by Hugo Goldmark and survives source-mode edits. */
+export const TextHighlight = semanticMark('textHighlight', 'mark')
+export const Subscript = semanticMark('subscript', 'sub')
+export const Superscript = semanticMark('superscript', 'sup')
+
+function mathAttributes() {
+  return { latex: { default: undefined, isRequired: true } }
+}
+
+function mathNodeView(displayMode: boolean) {
+  return ({ node }: { node: { attrs: Record<string, unknown> } }) => {
+    const dom = document.createElement(displayMode ? 'div' : 'span')
+    dom.dataset.math = displayMode ? 'block' : 'inline'
+    const render = (latex: string) => {
+      try {
+        katex.render(latex, dom, { displayMode, throwOnError: false, strict: 'warn', trust: false })
+      } catch {
+        dom.textContent = latex
+        dom.dataset.mathError = 'true'
+      }
+    }
+    render(String(node.attrs.latex ?? ''))
+    return {
+      dom,
+      update(nextNode: { type: { name: string }, attrs: Record<string, unknown> }) {
+        if (nextNode.type.name !== (displayMode ? 'mathBlock' : 'mathInline')) return false
+        render(String(nextNode.attrs.latex ?? ''))
+        return true
+      },
+    }
+  }
+}
+
+export const MathBlock = Node.create({
+  name: 'mathBlock',
+  group: 'block',
+  atom: true,
+  selectable: true,
+  priority: 1200,
+  addAttributes: mathAttributes,
+  parseHTML() { return [{ tag: 'div[data-math="block"]', getAttrs: (element) => ({ latex: (element as HTMLElement).dataset.latex ?? '' }) }] },
+  renderHTML({ node }) { return ['div', { 'data-math': 'block', 'data-latex': String(node.attrs.latex ?? '') }] },
+  addNodeView() { return mathNodeView(true) },
+  markdownTokenName: 'mathBlock',
+  parseMarkdown(token: MarkdownToken, helpers: MarkdownParseHelpers) {
+    return helpers.createNode('mathBlock', { latex: String(token.text ?? '') })
+  },
+  renderMarkdown(node: JSONContent) { return `$$\n${String(node.attrs?.latex ?? '')}\n$$` },
+  markdownTokenizer: {
+    name: 'mathBlock',
+    level: 'block',
+    start(src: string) { return src.search(/^ {0,3}\$\$\s*$/m) },
+    tokenize(src: string) {
+      const match = src.match(/^ {0,3}\$\$[ \t]*\n([\s\S]*?)\n {0,3}\$\$[ \t]*(?:\n|$)/)
+      return match ? { type: 'mathBlock', raw: match[0], text: match[1] } : undefined
+    },
+  },
+})
+
+export const MathInline = Node.create({
+  name: 'mathInline',
+  group: 'inline',
+  inline: true,
+  atom: true,
+  selectable: true,
+  priority: 1200,
+  addAttributes: mathAttributes,
+  parseHTML() { return [{ tag: 'span[data-math="inline"]', getAttrs: (element) => ({ latex: (element as HTMLElement).dataset.latex ?? '' }) }] },
+  renderHTML({ node }) { return ['span', { 'data-math': 'inline', 'data-latex': String(node.attrs.latex ?? '') }] },
+  addNodeView() { return mathNodeView(false) },
+  markdownTokenName: 'mathInline',
+  parseMarkdown(token: MarkdownToken, helpers: MarkdownParseHelpers) {
+    return helpers.createNode('mathInline', { latex: String(token.text ?? '') })
+  },
+  renderMarkdown(node: JSONContent) { return `$${String(node.attrs?.latex ?? '')}$` },
+  markdownTokenizer: {
+    name: 'mathInline',
+    level: 'inline',
+    start(src: string) { return src.search(/(^|[^\\])\$(?!\$)/) },
+    tokenize(src: string) {
+      const match = src.match(/^\$(?!\$)(?!\s)((?:\\.|[^$\n])+?)(?<!\s)\$(?!\$)/)
+      return match ? { type: 'mathInline', raw: match[0], text: match[1] } : undefined
+    },
+  },
+})
+
+const CALLOUT_TYPES = ['NOTE', 'TIP', 'IMPORTANT', 'WARNING', 'CAUTION'] as const
+type CalloutType = typeof CALLOUT_TYPES[number]
+
+function calloutType(value: unknown): CalloutType {
+  const normalized = String(value ?? '').toUpperCase()
+  return CALLOUT_TYPES.includes(normalized as CalloutType) ? normalized as CalloutType : 'NOTE'
+}
+
+export const CalloutBlock = Node.create({
+  name: 'calloutBlock',
+  group: 'block',
+  atom: true,
+  selectable: true,
+  priority: 1150,
+  addAttributes() { return { kind: { default: 'NOTE' }, content: { default: undefined, isRequired: true } } },
+  parseHTML() {
+    return [{ tag: 'aside[data-callout]', getAttrs: (element) => ({
+      kind: calloutType((element as HTMLElement).dataset.callout),
+      content: (element as HTMLElement).dataset.content ?? '',
+    }) }]
+  },
+  renderHTML({ node }) {
+    return ['aside', { 'data-callout': calloutType(node.attrs.kind), 'data-content': String(node.attrs.content ?? '') },
+      ['strong', {}, calloutType(node.attrs.kind)], ['p', {}, String(node.attrs.content ?? '')]]
+  },
+  markdownTokenName: 'calloutBlock',
+  parseMarkdown(token: MarkdownToken, helpers: MarkdownParseHelpers) {
+    return helpers.createNode('calloutBlock', { kind: calloutType(token.kind), content: String(token.text ?? '') })
+  },
+  renderMarkdown(node: JSONContent) {
+    const content = String(node.attrs?.content ?? '').split('\n').map((line) => `> ${line}`).join('\n')
+    return `> [!${calloutType(node.attrs?.kind)}]\n${content}`
+  },
+  markdownTokenizer: {
+    name: 'calloutBlock',
+    level: 'block',
+    start(src: string) { return src.search(/^ {0,3}>[ \t]*\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/im) },
+    tokenize(src: string) {
+      const match = src.match(/^ {0,3}>[ \t]*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][ \t]*(?:\n|$)((?: {0,3}>[^\n]*(?:\n|$))*)/i)
+      if (!match) return undefined
+      const content = match[2].replace(/^ {0,3}> ?/gm, '').replace(/\n$/, '')
+      return { type: 'calloutBlock', raw: match[0], kind: match[1].toUpperCase(), text: content }
+    },
+  },
+})
+
+export const MermaidBlock = Node.create({
+  name: 'mermaidBlock',
+  group: 'block',
+  atom: true,
+  selectable: true,
+  priority: 1150,
+  addAttributes() { return { source: { default: undefined, isRequired: true } } },
+  parseHTML() { return [{ tag: 'pre[data-mermaid-source]', getAttrs: (element) => ({ source: (element as HTMLElement).dataset.mermaidSource ?? '' }) }] },
+  renderHTML({ node }) { return ['pre', { 'data-mermaid-source': String(node.attrs.source ?? ''), title: 'Mermaid 图表；请在源代码模式中编辑' }, String(node.attrs.source ?? '')] },
+  markdownTokenName: 'mermaidBlock',
+  parseMarkdown(token: MarkdownToken, helpers: MarkdownParseHelpers) {
+    return helpers.createNode('mermaidBlock', { source: String(token.text ?? '') })
+  },
+  renderMarkdown(node: JSONContent) { return `\`\`\`mermaid\n${String(node.attrs?.source ?? '')}\n\`\`\`` },
+  markdownTokenizer: {
+    name: 'mermaidBlock',
+    level: 'block',
+    start(src: string) { return src.search(/^ {0,3}`{3,}mermaid[ \t]*$/im) },
+    tokenize(src: string) {
+      const match = src.match(/^ {0,3}(`{3,})mermaid[ \t]*\n([\s\S]*?)\n {0,3}\1[ \t]*(?:\n|$)/i)
+      return match ? { type: 'mermaidBlock', raw: match[0], text: match[2] } : undefined
+    },
   },
 })
 
