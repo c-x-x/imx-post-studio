@@ -310,8 +310,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const richEditorRef = useRef<Editor | null>(null)
   const richComposingRef = useRef(false)
   const richCompositionPendingRef = useRef(false)
-  const [mode, setMode] = useState<EditorMode>(initialMode)
+  const mode = initialMode
   const modeRef = useRef<EditorMode>(mode)
+  const previousModeRef = useRef<EditorMode>(mode)
   const [sourceHistory, setSourceHistory] = useState({ canUndo: false, canRedo: false })
   const [tableDialogOpen, setTableDialogOpen] = useState(false)
   const [linkDialog, setLinkDialog] = useState<{ from: number; to: number; href: string; text: string } | null>(null)
@@ -584,8 +585,16 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   }, [editor, focusMode, mode, typewriterMode])
 
   useEffect(() => {
+    const enteredRichMode = previousModeRef.current === 'source' && mode === 'rich'
+    previousModeRef.current = mode
     if (!editor || mode !== 'rich') return
     if (richComposingRef.current || (editor.view as { composing?: boolean }).composing) return
+    if (enteredRichMode) {
+      editor.commands.setContent(value, { contentType: 'markdown', emitUpdate: false })
+      emittedValueRef.current = value
+      richCompositionPendingRef.current = false
+      return
+    }
     if (richCompositionPendingRef.current) {
       if (value === emittedValueRef.current) richCompositionPendingRef.current = false
       return
@@ -610,27 +619,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       if (resolved && image.src !== resolved) image.src = resolved
     })
   }, [editor, mediaUrls, value])
-
-  const switchMode = useCallback(() => {
-    if (!editor) return
-    if (mode === 'rich') {
-      const next = latestValueRef.current
-      latestValueRef.current = next
-      emittedValueRef.current = next
-      if (next !== value) onChangeRef.current(next)
-      setSourceHistory({ canUndo: false, canRedo: false })
-      modeRef.current = 'source'
-      setMode('source')
-      return
-    }
-    editor.commands.setContent(latestValueRef.current, { contentType: 'markdown', emitUpdate: false })
-    emittedValueRef.current = latestValueRef.current
-    modeRef.current = 'rich'
-    setMode('rich')
-    requestAnimationFrame(() => {
-      if (!editor.isDestroyed) editor.commands.focus()
-    })
-  }, [editor, mode, value])
 
   const handleSourceChange = useCallback((next: string) => {
     latestValueRef.current = next
@@ -779,11 +767,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       </div>
       <div className="editor-tool-group" role="group" aria-label="段落结构">
         <h3>段落结构</h3>
-        <label className="editor-heading-control">段落样式<select aria-label="段落样式" value={mode === 'rich' ? activeFormats?.headingLevel ?? 0 : 0} disabled={disabled || mode === 'source'} onChange={(event) => {
-          const level = Number(event.target.value)
-          if (level === 0) runFormat((chain) => chain.setParagraph())
-          else runFormat((chain) => chain.setHeading({ level: level as 1 | 2 | 3 | 4 | 5 | 6 }))
-        }}><option value="0">正文</option>{[1, 2, 3, 4, 5, 6].map((level) => <option key={level} value={level}>H{level}</option>)}</select></label>
+        <button type="button" aria-pressed={mode === 'rich' && (activeFormats?.headingLevel ?? 0) === 0} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.setParagraph())}>正文</button>
+        {([1, 2, 3, 4, 5, 6] as const).map((level) => <button key={level} type="button" aria-label={`H${level}`} aria-pressed={mode === 'rich' && activeFormats?.headingLevel === level} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.setHeading({ level }))}>H{level}</button>)}
         <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.bulletList)} disabled={disabled || mode === 'source' || !activeFormats?.canBulletList} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleBulletList())}>无序列表</button>
         <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.orderedList)} disabled={disabled || mode === 'source' || !activeFormats?.canOrderedList} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleOrderedList())}>有序列表</button>
         <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.taskList)} disabled={disabled || mode === 'source' || !activeFormats?.canTaskList} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleTaskList())}>任务列表</button>
@@ -805,25 +790,20 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         <button type="button" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => openSyntaxDialog('callout')}>提示块</button>
         <button type="button" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => openSyntaxDialog('mermaid')}>流程图</button>
       </div>
-      <div className="editor-tool-group" role="group" aria-label="编辑历史">
-        <h3>编辑历史</h3>
-        <button type="button" disabled={disabled || (mode === 'rich' ? !activeFormats?.canUndo : !sourceHistory.canUndo)} onMouseDown={(event) => event.preventDefault()} onClick={() => runHistory('undo')}>撤销</button>
-        <button type="button" disabled={disabled || (mode === 'rich' ? !activeFormats?.canRedo : !sourceHistory.canRedo)} onMouseDown={(event) => event.preventDefault()} onClick={() => runHistory('redo')}>重做</button>
-      </div>
-      <div className="editor-tool-group" role="group" aria-label="编辑模式">
-        <h3>编辑模式</h3>
-        <button className="editor-mode-toggle" type="button" aria-pressed={mode === 'source'} disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={() => { switchMode(); onFormatApplied?.() }}>{mode === 'rich' ? '源代码' : '即时排版'}</button>
-      </div>
       </div>
 
   return <>
     {toolbarTarget ? createPortal(toolbar, toolbarTarget) : null}
     <section className="markdown-editor" data-mode={mode} data-font={font} data-focus-mode={focusMode || undefined} data-typewriter-mode={typewriterMode || undefined} aria-label="Markdown 编辑">
       {toolbarTarget === undefined ? toolbar : null}
-      {status ? <div className="editor-status-bar">
-        <p className="editor-save-status" data-tone={statusTone} role="status">{status}</p>
-        {statusActions ? <div className="editor-status-actions">{statusActions}</div> : null}
-      </div> : null}
+      <div className="editor-status-bar">
+        <div className="editor-status-actions">{statusActions}</div>
+        <p className="editor-save-status" data-tone={statusTone} role="status">{status || '可以开始写作'}</p>
+        <div className="editor-history-actions" role="group" aria-label="编辑历史">
+          <button type="button" disabled={disabled || (mode === 'rich' ? !activeFormats?.canUndo : !sourceHistory.canUndo)} onMouseDown={(event) => event.preventDefault()} onClick={() => runHistory('undo')}>撤销</button>
+          <button type="button" disabled={disabled || (mode === 'rich' ? !activeFormats?.canRedo : !sourceHistory.canRedo)} onMouseDown={(event) => event.preventDefault()} onClick={() => runHistory('redo')}>重做</button>
+        </div>
+      </div>
       <div className="editor-scroll-region">
         {mode === 'rich'
           ? <>

@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { BlobReader, BlobWriter, TextReader, TextWriter, ZipReader, ZipWriter, type FileEntry } from '@zip.js/zip.js'
 import { expect, test, type Page } from '@playwright/test'
 import { oversizedPngFile, pngFile } from '../helpers/test-images'
+import { setEditorMode } from '../helpers/editor-mode'
 
 const title = '需要保留的当前草稿'
 const slug = 'preserve-current-draft'
@@ -23,11 +24,11 @@ async function beginArticle(page: Page): Promise<void> {
 
 async function setMarkdown(page: Page, value: string): Promise<void> {
   await page.getByRole('tab', { name: '排版' }).click()
-  await page.getByRole('button', { name: '源代码' }).click()
+  await setEditorMode(page, 'source')
   const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
   await expect(editor.locator('.cm-line').first()).toBeVisible()
   await editor.fill(value)
-  await page.getByRole('button', { name: '即时排版' }).click()
+  await setEditorMode(page, 'rich')
   await page.getByRole('tab', { name: '文档' }).click()
 }
 
@@ -94,7 +95,7 @@ test('sanitizes hostile preview HTML inside the script-free Shadow DOM contract'
 
 test('rejects SVG and oversized media, blocks missing media export, and keeps current content after hostile ZIP imports', { tag: '@critical' }, async ({ page }) => {
   await beginArticle(page)
-  await page.getByRole('tab', { name: '排版' }).click()
+  await page.getByRole('tab', { name: '文档' }).click()
   const imageInput = page.getByLabel('添加正文图片')
   await imageInput.setInputFiles({
     name: 'dangerous.svg',
@@ -204,7 +205,7 @@ test('recovers from a transient IndexedDB open failure and allows a same-session
 
 test('renders a real Blob body image inside the script-free Shadow DOM preview', async ({ page }) => {
   await beginArticle(page)
-  await page.getByRole('tab', { name: '排版' }).click()
+  await page.getByRole('tab', { name: '文档' }).click()
   await page.getByLabel('添加正文图片').setInputFiles(pngFile('blob-proof.png', 64, 36, [64, 158, 112, 255]))
   const image = page.getByRole('listitem', { name: 'blob-proof.png' })
   await image.getByRole('button', { name: '插入' }).click()

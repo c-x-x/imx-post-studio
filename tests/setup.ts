@@ -31,3 +31,12 @@ if (!Range.prototype.getBoundingClientRect) {
     value: () => ({ bottom: 0, height: 0, left: 0, right: 0, top: 0, width: 0 }),
   })
 }
+
+// ProseMirror asks the document for the node under a pointer before updating
+// its selection. jsdom intentionally does not implement layout hit testing.
+if (!document.elementFromPoint) {
+  Object.defineProperty(document, 'elementFromPoint', {
+    configurable: true,
+    value: () => null,
+  })
+}

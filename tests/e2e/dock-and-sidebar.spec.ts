@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { setEditorMode } from '../helpers/editor-mode'
 
 test('keeps a single complete I M P S logo before, during and after hovering', async ({ page }, testInfo) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' })
@@ -69,6 +70,32 @@ test('follows the system theme and keeps theme switching in the Dock on the work
   await expect(page.locator('#panel-actions').getByRole('button', { name: '预览文章' })).toBeVisible()
 })
 
+test('smoothly hides and restores the Dock while expanding the writing area', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await page.goto('/')
+  await page.getByRole('button', { name: '写作', exact: true }).click()
+
+  const app = page.locator('.app-shell')
+  const dock = page.locator('.imx-dock')
+  const editor = page.locator('.workspace-editor')
+  const status = page.getByRole('status')
+  const initialHeight = (await editor.boundingBox())?.height ?? 0
+  await page.getByRole('textbox', { name: 'Markdown 编辑器' }).fill('尚未命名的内容')
+  await expect(status).toHaveText('文章未命名，未保存至本地草稿')
+
+  await page.getByRole('button', { name: '隐藏 Dock' }).click()
+  await expect(app).toHaveAttribute('data-dock-hidden', 'true')
+  await expect(dock).toHaveAttribute('data-hidden', 'true')
+  await expect(status).toHaveText('Dock已隐藏')
+  await expect.poll(async () => (await editor.boundingBox())?.height ?? 0).toBeGreaterThan(initialHeight + 50)
+
+  await page.getByRole('button', { name: '恢复 Dock' }).click()
+  await expect(app).not.toHaveAttribute('data-dock-hidden')
+  await expect(dock).not.toHaveAttribute('data-hidden')
+  await expect(status).toHaveText('Dock已恢复')
+  await expect.poll(async () => Math.abs(((await editor.boundingBox())?.height ?? 0) - initialHeight)).toBeLessThan(2)
+})
+
 test('warns on browser exit only until the current changes reach the draft library', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: '写作', exact: true }).click()
@@ -134,12 +161,12 @@ test('collapses the action rail, expands the editor, and restores it independent
   const editor = page.locator('.workspace-editor')
   const initial = await editor.boundingBox()
   expect(initial).not.toBeNull()
-  await expect(actions.locator('.media-panel')).toBeHidden()
+  await expect(actions.locator('.media-panel')).toBeVisible()
   await expect(actions.locator('.bundle-actions')).toBeVisible()
   await expect(settings.getByLabel('选择封面')).toBeVisible()
   await expect(actions.getByLabel('选择封面')).toHaveCount(0)
   await actions.getByRole('tab', { name: '排版' }).click()
-  await expect(actions.getByLabel('添加正文图片')).toBeVisible()
+  await expect(actions.getByLabel('添加正文图片')).toBeHidden()
   await actions.getByRole('tab', { name: '文档' }).click()
   for (const property of ['background-color', 'border-top-width', 'border-top-left-radius', 'box-shadow', 'padding-top']) {
     await expect(actions).toHaveCSS(property, await settings.evaluate((element, name) => getComputedStyle(element).getPropertyValue(name), property))
@@ -246,7 +273,7 @@ test('uses the compact IMX menu and existing workspace tabs on mobile without ov
   await expect(page.getByRole('button', { name: '新建文章' })).toBeVisible()
   await expect(page.getByRole('button', { name: '推送' })).toBeVisible()
   await expect(page.getByRole('button', { name: '导入文章包' })).toBeVisible()
-  await page.getByRole('tab', { name: '排版' }).click()
+  await page.getByRole('tab', { name: '文档' }).click()
   await expect(page.getByRole('heading', { name: '正文图片' })).toBeVisible()
   await expect(page.locator('#panel-actions').getByLabel('选择封面')).toHaveCount(0)
   await expect(page.locator('#panel-actions').getByLabel('添加正文图片')).toBeVisible()
@@ -271,7 +298,7 @@ test('formats the selected text from the right sidebar without resetting the edi
   expect(await status.evaluate((element) => getComputedStyle(element).color)).not.toBe(infoColor)
   await editor.press('ControlOrMeta+a')
   await actions.getByRole('tab', { name: '排版' }).click()
-  await expect(page.locator('#panel-write').getByRole('button')).toHaveCount(0)
+  await expect(page.locator('#panel-write').locator('.editor-toolbar')).toHaveCount(0)
   await actions.getByRole('button', { name: '加粗', exact: true }).click()
   await expect(editor.locator('strong')).toHaveText('保留选区')
   await expect(actions.getByRole('button', { name: '加粗', exact: true })).toHaveAttribute('aria-pressed', 'true')
@@ -288,11 +315,9 @@ test('formats the selected text from the right sidebar without resetting the edi
   await actions.getByRole('button', { name: '斜体' }).click()
   await expect(editor).toBeVisible()
   await expect(editor.locator('em')).toHaveText('保留选区')
-  await page.getByRole('tab', { name: '工具', exact: true }).click()
-  await actions.getByRole('button', { name: '源代码' }).click()
+  await setEditorMode(page, 'source')
   await expect(page.locator('.cm-line').first()).toContainText('保留选区')
-  await page.getByRole('tab', { name: '工具', exact: true }).click()
-  await actions.getByRole('button', { name: '即时排版' }).click()
+  await setEditorMode(page, 'rich')
   await expect(editor.locator('em')).toHaveText('保留选区')
 })
 

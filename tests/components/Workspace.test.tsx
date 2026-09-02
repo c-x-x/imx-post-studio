@@ -62,7 +62,34 @@ describe('article workspace', () => {
     expect(screen.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-actions-collapsed', 'true')
   })
 
-  it('keeps metadata and cover settings on the left and body media tools on the right', async () => {
+  it('keeps the writing status bar stable when content is deleted and smoothly toggles the Dock', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: '写作' }))
+    const status = screen.getByRole('status')
+    const statusBar = status.closest('.editor-status-bar')
+    expect(status).toHaveTextContent('文章编辑器已打开')
+    expect(statusBar).toBeInTheDocument()
+
+    const editor = screen.getByRole('textbox', { name: 'Markdown 编辑器' })
+    await user.type(editor, '1')
+    expect(status).toHaveTextContent('文章未命名')
+    await user.keyboard('{Control>}a{/Control}{Backspace}')
+    expect(status).toHaveTextContent('可以开始写作')
+    expect(status.closest('.editor-status-bar')).toBe(statusBar)
+
+    await user.click(screen.getByRole('button', { name: '隐藏 Dock' }))
+    expect(screen.getByRole('main')).toHaveAttribute('data-dock-hidden', 'true')
+    expect(document.querySelector('.imx-dock')).toHaveAttribute('data-hidden', 'true')
+    expect(status).toHaveTextContent('Dock已隐藏')
+
+    await user.click(screen.getByRole('button', { name: '恢复 Dock' }))
+    expect(screen.getByRole('main')).not.toHaveAttribute('data-dock-hidden')
+    expect(status).toHaveTextContent('Dock已恢复')
+  })
+
+  it('keeps metadata and cover settings on the left and body media tools in the document panel', async () => {
     const user = userEvent.setup()
     render(<App />)
 
@@ -75,11 +102,11 @@ describe('article workspace', () => {
     expect(within(settings).getByLabelText('选择封面')).toBeInTheDocument()
     expect(within(tools).getByRole('group', { name: '文章操作' })).toBeInTheDocument()
     expect(within(tools).getByRole('group', { name: '文章包操作' })).toBeInTheDocument()
-    expect(within(tools).queryByRole('heading', { name: '正文图片' })).not.toBeInTheDocument()
-    await user.click(within(tools).getByRole('tab', { name: '排版' }))
     expect(within(tools).getByRole('heading', { name: '正文图片' })).toBeInTheDocument()
+    await user.click(within(tools).getByRole('tab', { name: '排版' }))
+    expect(within(tools).queryByRole('heading', { name: '正文图片' })).not.toBeInTheDocument()
     expect(within(tools).queryByLabelText('选择封面')).not.toBeInTheDocument()
-    expect(within(tools).getByLabelText('添加正文图片')).toBeInTheDocument()
+    expect(within(tools).getByLabelText('添加正文图片')).not.toBeVisible()
     expect(within(tools).queryByRole('group', { name: '文章包操作' })).not.toBeInTheDocument()
   })
 
@@ -93,8 +120,11 @@ describe('article workspace', () => {
     await user.click(screen.getByRole('tab', { name: '大纲' }))
     expect(screen.getByText('正文中暂无标题')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('tab', { name: '排版' }))
-    await user.click(screen.getByRole('button', { name: '源代码' }))
+    await user.click(screen.getByRole('button', { name: '打开设置' }))
+    const dialog = screen.getByRole('dialog', { name: '设置' })
+    await user.click(within(dialog).getByRole('tab', { name: '编辑器' }))
+    await user.click(within(dialog).getByRole('radio', { name: /源代码/ }))
+    await user.click(within(dialog).getByRole('button', { name: '关闭' }))
     const textbox = await screen.findByRole('textbox', { name: 'Markdown 编辑器' })
     const editor = EditorView.findFromDOM(textbox)
     if (!editor) throw new Error('CodeMirror view not found')
@@ -180,7 +210,7 @@ describe('article workspace', () => {
     await user.click(screen.getByRole('button', { name: '写作' }))
 
     const png = new File([new Uint8Array(createPngBuffer(1, 1))], '封面 图.PNG', { type: 'image/png' })
-    await user.click(screen.getByRole('tab', { name: '排版' }))
+    await user.click(screen.getByRole('tab', { name: '文档' }))
     await user.upload(screen.getByLabelText('添加正文图片'), png)
     expect(await screen.findByRole('listitem', { name: /feng-mian-tu\.png/ })).toBeInTheDocument()
 

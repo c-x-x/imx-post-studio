@@ -6,18 +6,18 @@ import { MarkdownEditor, type MarkdownEditorHandle } from '../../src/editor/Mark
 
 afterEach(cleanup)
 
-function ControlledEditor({ initial = '' }: { initial?: string }) {
+function ControlledEditor({ initial = '', initialMode = 'rich' }: { initial?: string, initialMode?: 'rich' | 'source' }) {
   const [value, setValue] = useState(initial)
-  return <><output data-testid="markdown">{value}</output><MarkdownEditor value={value} onChange={setValue} media={[]} /></>
+  return <><output data-testid="markdown">{value}</output><MarkdownEditor initialMode={initialMode} value={value} onChange={setValue} media={[]} /></>
 }
 
 describe('MarkdownEditor', () => {
   it('applies the selected writing font to rich and source modes', async () => {
-    const user = userEvent.setup()
-    const { container } = render(<MarkdownEditor font="sans" value="正文" onChange={() => undefined} media={[]} />)
+    const { container, rerender } = render(<MarkdownEditor font="sans" value="正文" onChange={() => undefined} media={[]} />)
     const editor = container.querySelector('.markdown-editor')
     expect(editor).toHaveAttribute('data-font', 'sans')
-    await user.click(screen.getByRole('button', { name: '源代码' }))
+    rerender(<MarkdownEditor initialMode="source" font="sans" value="正文" onChange={() => undefined} media={[]} />)
+    await screen.findByRole('textbox', { name: 'Markdown 编辑器' })
     expect(editor).toHaveAttribute('data-font', 'sans')
   })
 
@@ -33,7 +33,8 @@ describe('MarkdownEditor', () => {
   it('can start directly in source mode without switching the current document later', async () => {
     render(<MarkdownEditor initialMode="source" value="Source first" onChange={() => undefined} media={[]} />)
     expect(await screen.findByRole('textbox', { name: 'Markdown 编辑器' })).toHaveTextContent('Source first')
-    expect(screen.getByRole('button', { name: '即时排版' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Markdown 编辑' })).toHaveAttribute('data-mode', 'source')
+    expect(screen.queryByRole('button', { name: /源代码|即时排版/ })).not.toBeInTheDocument()
   })
   it('inserts visible links using an accessible dialog and rejects unsafe addresses', async () => {
     const user = userEvent.setup()
@@ -64,12 +65,13 @@ describe('MarkdownEditor', () => {
   it('exposes the active format as a pressed toolbar control', async () => {
     const user = userEvent.setup()
     render(<ControlledEditor />)
-    const heading = screen.getByRole('combobox', { name: '段落样式' })
-    expect(heading).toHaveValue('0')
-    await user.selectOptions(heading, '2')
-    expect(heading).toHaveValue('2')
-    await user.selectOptions(heading, '0')
-    expect(heading).toHaveValue('0')
+    const paragraph = screen.getByRole('button', { name: '正文' })
+    const heading = screen.getByRole('button', { name: 'H2' })
+    expect(paragraph).toHaveAttribute('aria-pressed', 'true')
+    await user.click(heading)
+    expect(heading).toHaveAttribute('aria-pressed', 'true')
+    await user.click(paragraph)
+    expect(paragraph).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('creates an editable table and exposes structural actions', async () => {
@@ -136,34 +138,31 @@ describe('MarkdownEditor', () => {
   })
 
   it('renders and round-trips centered table columns', async () => {
-    const user = userEvent.setup()
-    render(<ControlledEditor initial={'| 名称 | 状态 |\n| :---: | --- |\n| A | B |'} />)
+    const { rerender } = render(<ControlledEditor initial={'| 名称 | 状态 |\n| :---: | --- |\n| A | B |'} />)
     expect(screen.getAllByRole('columnheader')[0]).toHaveStyle({ textAlign: 'center' })
-    await user.click(screen.getByRole('button', { name: '源代码' }))
+    rerender(<ControlledEditor initial={'| 名称 | 状态 |\n| :---: | --- |\n| A | B |'} initialMode="source" />)
     expect(await screen.findByRole('textbox', { name: 'Markdown 编辑器' })).toHaveTextContent('| :---: |')
   })
 
   it('round-trips tables, tasks and fenced code through source mode', async () => {
-    const user = userEvent.setup()
     const markdown = '- [x] 完成\n\n| 名称 | 状态 |\n| --- | --- |\n| 表格 | 可编辑 |\n\n```bash\necho ok\n```'
-    render(<ControlledEditor initial={markdown} />)
+    const { rerender } = render(<ControlledEditor initial={markdown} />)
     expect(screen.getByRole('table')).toBeInTheDocument()
     expect(screen.getByRole('checkbox')).toBeChecked()
-    await user.click(screen.getByRole('button', { name: '源代码' }))
+    rerender(<ControlledEditor initial={markdown} initialMode="source" />)
     expect(await screen.findByRole('textbox', { name: 'Markdown 编辑器' })).toHaveTextContent('echo ok')
-    await user.click(screen.getByRole('button', { name: '即时排版' }))
+    rerender(<ControlledEditor initial={markdown} initialMode="rich" />)
     expect(screen.getByRole('table')).toBeInTheDocument()
     const highlightedCode = screen.getByRole('textbox', { name: 'Markdown 编辑器' }).querySelector('pre code')
     expect(highlightedCode).toHaveTextContent('echo ok')
     expect(highlightedCode?.querySelector('.hljs-built_in')).toHaveTextContent('echo')
   })
 
-  it('focuses source mode and exposes working source history controls', async () => {
+  it('exposes working source history controls in the stable status bar', async () => {
     const user = userEvent.setup()
-    render(<ControlledEditor initial="初始内容" />)
-    await user.click(screen.getByRole('button', { name: '源代码' }))
+    render(<ControlledEditor initial="初始内容" initialMode="source" />)
     const source = await screen.findByRole('textbox', { name: 'Markdown 编辑器' })
-    expect(source).toHaveFocus()
+    await user.click(source)
     expect(screen.getByRole('button', { name: '撤销' })).toBeDisabled()
     await user.type(source, '新增')
     expect(screen.getByRole('button', { name: '撤销' })).toBeEnabled()
@@ -181,11 +180,11 @@ describe('MarkdownEditor', () => {
         <output data-testid="markdown">{value}</output>
         <button type="button" onClick={() => setValue('源码中的新正文')}>修改源码值</button>
         <button type="button" onClick={() => editorRef.current?.insertImage('photo.jpg', 'photo')}>插入媒体</button>
-        <MarkdownEditor ref={editorRef} value={value} onChange={setValue} media={[]} />
+        <MarkdownEditor ref={editorRef} initialMode="source" value={value} onChange={setValue} media={[]} />
       </>
     }
     render(<RefEditor />)
-    await user.click(screen.getByRole('button', { name: '源代码' }))
+    await screen.findByRole('textbox', { name: 'Markdown 编辑器' })
     await user.click(screen.getByRole('button', { name: '修改源码值' }))
     await user.click(screen.getByRole('button', { name: '插入媒体' }))
     expect(screen.getByTestId('markdown')).toHaveTextContent('源码中的新正文')

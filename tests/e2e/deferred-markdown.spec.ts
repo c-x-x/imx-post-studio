@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { setEditorMode } from '../helpers/editor-mode'
 
 test('applies a link to the selected text while other Markdown in the line is pending', async ({ page }) => {
   await page.goto('/')
@@ -64,9 +65,9 @@ test('defers typed Markdown until leaving the paragraph and keeps toolbar format
   const plainAfterToolbar = editor.locator('p').filter({ hasText: '工具栏后的普通文字' })
   await expect(plainAfterToolbar).toHaveCount(1)
   await expect(plainAfterToolbar.locator('strong, em, s')).toHaveCount(0)
-  await page.getByRole('combobox', { name: '段落样式' }).selectOption('2')
+  await page.getByRole('button', { name: 'H2' }).click()
   await expect(editor.locator('h2')).toHaveCount(2)
-  await page.getByRole('button', { name: '源代码', exact: true }).click()
+  await setEditorMode(page, 'source')
   await expect(page.getByRole('textbox', { name: 'Markdown 编辑器' })).toContainText('~~删除文字~~')
   await expect(page.getByRole('textbox', { name: 'Markdown 编辑器' })).not.toContainText('\\*')
 })

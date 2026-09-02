@@ -93,6 +93,7 @@ export function App() {
   const [importFocusVersion, setImportFocusVersion] = useState(0)
   const [settingsCollapsed, setSettingsCollapsed] = useState(readSettingsCollapsed)
   const [actionsCollapsed, setActionsCollapsed] = useState(readActionsCollapsed)
+  const [dockHidden, setDockHidden] = useState(false)
   const [theme, setTheme] = useState<AppTheme>(resolveInitialTheme)
   const [newArticlePromptOpen, setNewArticlePromptOpen] = useState(false)
   const [newArticlePromptError, setNewArticlePromptError] = useState<string>()
@@ -478,21 +479,40 @@ export function App() {
     ? '正在保存…'
     : intakeBusy
       ? '正在读取媒体…'
-      : notice && noticeTone === 'error'
-        ? notice
-        : saveStatus.state === 'failed'
+      : saveStatus.state === 'failed'
           ? `保存失败：${saveStatus.message}`
-          : unnamed
-            ? UNTITLED_DRAFT_MESSAGE
-            : saveStatus.state === 'saved' && draftStarted
-              ? pendingWorkId === draft.id ? '已保存到待提交作品' : '已保存到本地草稿'
-              : notice
+          : notice
+            ? notice
+            : unnamed
+              ? UNTITLED_DRAFT_MESSAGE
+              : saveStatus.state === 'saved' && draftStarted
+                ? pendingWorkId === draft.id ? '已保存到待提交作品' : '已保存到本地草稿'
+                : '可以开始写作'
   const statusTone = saveStatus.state === 'saving' || intakeBusy ? 'pending'
-    : (notice && noticeTone === 'error') || saveStatus.state === 'failed' || unnamed ? 'error'
-      : saveStatus.state === 'saved' && draftStarted ? 'success' : noticeTone
-  const statusActions = saveStatus.state === 'failed'
-      ? <button type="button" disabled={transitioning || intakeBusy} onClick={() => void exportRecovery()}>导出恢复备份</button>
-      : undefined
+    : saveStatus.state === 'failed' ? 'error'
+      : notice ? noticeTone
+        : unnamed ? 'error'
+          : saveStatus.state === 'saved' && draftStarted ? 'success' : 'info'
+  const toggleDock = () => {
+    setDockHidden((hidden) => {
+      const next = !hidden
+      setNotice(next ? 'Dock已隐藏' : 'Dock已恢复')
+      return next
+    })
+  }
+  const statusActions = <>
+    <button
+      className="editor-dock-toggle"
+      type="button"
+      disabled={transitioning || intakeBusy}
+      aria-label={dockHidden ? '恢复 Dock' : '隐藏 Dock'}
+      aria-controls="studio-dock"
+      aria-expanded={!dockHidden}
+      title={dockHidden ? '恢复 Dock' : '隐藏 Dock，增大写作区'}
+      onClick={toggleDock}
+    ><span aria-hidden="true" /></button>
+    {saveStatus.state === 'failed' ? <button type="button" disabled={transitioning || intakeBusy} onClick={() => void exportRecovery()}>导出恢复备份</button> : null}
+  </>
   const toggleSettings = (event: MouseEvent<HTMLButtonElement>) => {
     event.currentTarget.focus()
     setSettingsCollapsed((current) => {
@@ -554,8 +574,8 @@ export function App() {
     setNotice('草稿名称已更新')
   }
 
-  return <main className="app-shell" data-view={view}>
-    <ImxDock view={view} disabled={workspaceLocked} theme={theme} onToggleTheme={toggleTheme} onHome={() => void showHome()} onArticle={showWorkspace} onDashboard={() => void showDashboard()} onWorks={() => void showWorks()} />
+  return <main className="app-shell" data-view={view} data-dock-hidden={view === 'workspace' && dockHidden || undefined}>
+    <ImxDock hidden={view === 'workspace' && dockHidden} view={view} disabled={workspaceLocked} theme={theme} onToggleTheme={toggleTheme} onHome={() => void showHome()} onArticle={showWorkspace} onDashboard={() => void showDashboard()} onWorks={() => void showWorks()} />
     {view === 'home' ? <HomePage disabled={workspaceLocked} onArticle={showWorkspace} onDashboard={() => void showDashboard()} onGithub={() => void showWorks()} /> : view === 'dashboard' ? <DraftDashboard activeDraftId={draft.id} onOpen={openDraft} onRename={syncRenamedDraft} disabled={workspaceLocked} onDelete={(id) => { if (draftRef.current.id === id) { executeNewArticle(); setView('dashboard') } }} /> : view === 'works' ? <Suspense fallback={<p role="status">正在加载作品…</p>}><GithubPanel mode="works" draft={draft} onOpen={openDraft} onClose={showWorkspace} returnFocus={() => null} /></Suspense> : <section className="workspace" aria-label="文章工作区" aria-busy={workspaceLocked} data-inspector-collapsed={settingsCollapsed} data-actions-collapsed={actionsCollapsed}>
       <nav className="workspace-tabs" data-editor-controls role="tablist" aria-label="工作区视图">
         {([['settings', '设置'], ['write', '写作'], ['actions', '工具']] as const).map(([id, label]) => <button key={id} id={`tab-${id}`} type="button" disabled={workspaceLocked} role="tab" aria-selected={tab === id} aria-controls={`panel-${id}`} onClick={() => setTab(id)}>{label}</button>)}
@@ -585,8 +605,8 @@ export function App() {
             <button id="actions-tab-article" type="button" role="tab" aria-selected={actionsView === 'article'} aria-controls="actions-article" onClick={() => setActionsView('article')}>文档</button>
             <button id="actions-tab-format" type="button" role="tab" aria-selected={actionsView === 'format'} aria-controls="actions-format" onClick={() => setActionsView('format')}>排版</button>
           </nav>
-          <div className="article-actions"><button ref={previewTrigger} className="article-save" type="button" disabled={workspaceLocked} onClick={openPreview}>预览文章</button></div>
           <div id="actions-article" className="actions-article-panel" role="tabpanel" aria-labelledby="actions-tab-article" hidden={actionsView !== 'article'}>
+          <div className="article-actions"><button ref={previewTrigger} className="article-save" type="button" disabled={workspaceLocked} onClick={openPreview}>预览文章</button></div>
           <section className="sidebar-tool-group" aria-label="文档操作">
           <h3>文档操作</h3>
           <ArticleActions disabled={workspaceLocked} onNew={() => void startNew()} />
@@ -594,10 +614,10 @@ export function App() {
           <p className="sidebar-tool-hint">自动保存到本地；推送将更新 GitHub 博客。</p>
           </section>
           <BundleActions disabled={workspaceLocked} draft={draft} onReplace={replaceImportedDraft} onNew={openImportedAsNew} onStatus={setNotice} onImportFocusRequest={(target) => { importFocusTarget.current = target; setImportFocusVersion((current) => current + 1) }} />
+          <MediaPanel draftId={draft.id} disabled={transitioning} media={draft.media} body={draft.body} onAddBatch={(assets) => dispatchDraft({ type: 'add-media-batch', assets })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onInsertImage={(asset) => { editorRef.current?.insertImage(asset.name, mediaAlt(asset.name)); setTab('write') }} onIntakeBusyChange={(busy) => setIntakeSourceBusy('body', busy)} />
           </div>
           <div id="actions-format" className="actions-format-panel" role="tabpanel" aria-labelledby="actions-tab-format" hidden={actionsView !== 'format'}>
           <div ref={setFormatToolbarTarget} />
-          <MediaPanel draftId={draft.id} disabled={transitioning} media={draft.media} body={draft.body} onAddBatch={(assets) => dispatchDraft({ type: 'add-media-batch', assets })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onInsertImage={(asset) => { editorRef.current?.insertImage(asset.name, mediaAlt(asset.name)); setTab('write') }} onIntakeBusyChange={(busy) => setIntakeSourceBusy('body', busy)} />
           </div>
         </aside>
       </div>

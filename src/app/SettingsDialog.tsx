@@ -96,7 +96,7 @@ export function SettingsDialog({ onClose, returnFocus }: SettingsDialogProps) {
     <label className="settings-check"><input type="checkbox" checked={settings.defaultFeatured} onChange={(event) => save({ defaultFeatured: event.target.checked })} /><span><strong>新文章默认设为精选</strong><small>推送后会写入 featured = true。</small></span></label>
   </div> : activeId === 'editor' ? <div className="settings-dialog__fields">
     <fieldset className="settings-choice">
-      <legend>新打开编辑器的默认模式</legend>
+      <legend>编辑模式</legend>
       <label><input type="radio" name="default-editor-mode" value="rich" checked={settings.defaultEditorMode === 'rich'} onChange={() => save({ defaultEditorMode: 'rich' })} /><span><strong>即时排版</strong><small>边写边显示 Markdown 排版效果。</small></span></label>
       <label><input type="radio" name="default-editor-mode" value="source" checked={settings.defaultEditorMode === 'source'} onChange={() => save({ defaultEditorMode: 'source' })} /><span><strong>源代码</strong><small>直接编辑完整 Markdown 标记。</small></span></label>
     </fieldset>
@@ -113,7 +113,7 @@ export function SettingsDialog({ onClose, returnFocus }: SettingsDialogProps) {
       <label><input type="checkbox" checked={settings.focusMode} onChange={(event) => save({ focusMode: event.target.checked })} /><span><strong>专注模式</strong><small>弱化光标所在段落以外的内容。</small></span></label>
       <label><input type="checkbox" checked={settings.typewriterMode} onChange={(event) => save({ typewriterMode: event.target.checked })} /><span><strong>打字机模式</strong><small>输入时让光标尽量保持在编辑区中部。</small></span></label>
     </fieldset>
-    <p className="settings-dialog__note">默认模式在新建或重新打开文章时生效；字体切换立即应用，不会改变文章内容。</p>
+    <p className="settings-dialog__note">编辑模式与字体切换会立即应用，并保存在当前浏览器；不会改变文章内容。</p>
   </div> : activeId === 'images' ? <div className="settings-dialog__fields">
     <label className="settings-field">
       <span id={`${idPrefix}-cover-width-label`}>封面最大宽度</span>

@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 import { App } from '../../src/app/App'
@@ -24,8 +24,11 @@ describe('App', () => {
     render(<App />)
 
     await user.click(screen.getByRole('button', { name: '写作' }))
-    await user.click(screen.getByRole('tab', { name: '排版' }))
-    await user.click(screen.getByRole('button', { name: '源代码' }))
+    await user.click(screen.getByRole('button', { name: '打开设置' }))
+    const dialog = screen.getByRole('dialog', { name: '设置' })
+    await user.click(within(dialog).getByRole('tab', { name: '编辑器' }))
+    await user.click(within(dialog).getByRole('radio', { name: /源代码/ }))
+    await user.click(within(dialog).getByRole('button', { name: '关闭' }))
     const editor = await screen.findByRole('textbox', { name: 'Markdown 编辑器' })
     await user.type(editor, '保留当前文章')
     await user.click(screen.getByRole('button', { name: '写作' }))

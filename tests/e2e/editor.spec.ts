@@ -4,6 +4,7 @@ import { BlobReader, BlobWriter, ZipReader } from '@zip.js/zip.js'
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Download, type Page } from '@playwright/test'
 import { pngFile, type TestFilePayload } from '../helpers/test-images'
+import { setEditorMode } from '../helpers/editor-mode'
 
 const ARTICLE_TITLE = '浏览器中的 IMX 图片工作流'
 const ARTICLE_SLUG = 'imx-browser-workflow'
@@ -104,24 +105,24 @@ async function pasteImages(page: Page, files: TestFilePayload[]): Promise<{ defa
 }
 
 async function markdownSource(page: Page): Promise<string> {
-  await page.getByRole('tab', { name: '排版' }).click()
-  await page.getByRole('button', { name: '源代码' }).click()
+  await page.getByRole('tab', { name: '文档' }).click()
+  await setEditorMode(page, 'source')
   const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
   await expect(editor.locator('.cm-line').first()).toBeVisible()
   await expect(editor.locator('.cm-line').first()).not.toHaveText('')
   const source = (await editor.locator('.cm-line').allTextContents()).join('\n')
-  await page.getByRole('button', { name: '即时排版' }).click()
+  await setEditorMode(page, 'rich')
   await page.getByRole('tab', { name: '文档' }).click()
   return source
 }
 
 async function setMarkdown(page: Page, value: string): Promise<void> {
-  await page.getByRole('tab', { name: '排版' }).click()
-  await page.getByRole('button', { name: '源代码' }).click()
+  await page.getByRole('tab', { name: '文档' }).click()
+  await setEditorMode(page, 'source')
   const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
   await expect(editor.locator('.cm-line').first()).toBeVisible()
   await editor.fill(value)
-  await page.getByRole('button', { name: '即时排版' }).click()
+  await setEditorMode(page, 'rich')
   await page.getByRole('tab', { name: '文档' }).click()
 }
 
@@ -147,7 +148,7 @@ async function assertEditorState(page: Page, expected: {
     .join('\n')
   expect(normalizeMarkdown(await markdownSource(page))).toBe(normalizeMarkdown(expected.body))
   await expect(page.getByLabel('当前封面')).toContainText('封面')
-  await page.getByRole('tab', { name: '排版' }).click()
+  await page.getByRole('tab', { name: '文档' }).click()
   expect(await mediaNames(page)).toEqual(['workflow.png'])
   await page.getByRole('tab', { name: '文档' }).click()
 }
@@ -173,7 +174,7 @@ test('authors, saves, reloads, exports, and reimports an IMX Hugo article bundle
   await expect(page.getByLabel('当前封面')).toContainText('封面')
 
   await setMarkdown(page, ARTICLE_BODY)
-  await page.getByRole('tab', { name: '排版' }).click()
+  await page.getByRole('tab', { name: '文档' }).click()
   await page.getByLabel('添加正文图片').setInputFiles(pngFile('workflow.png', 320, 180, [232, 121, 36, 255]))
   const imageItem = page.getByRole('listitem', { name: 'workflow.png' })
   await expect(imageItem).toBeVisible()
@@ -290,7 +291,7 @@ test('keeps responsive workspace panels mounted and opens preview without horizo
   await beginArticle(page)
   await fillMetadata(page)
   await page.getByRole('tab', { name: '排版' }).click()
-  await page.getByRole('button', { name: '源代码' }).click()
+  await setEditorMode(page, 'source')
   const source = page.locator('.source-markdown-editor')
   await expect(source.locator('.cm-gutters')).toBeVisible()
   for (const viewport of [{ width: 1117, height: 763 }, { width: 390, height: 844 }]) {
@@ -308,7 +309,7 @@ test('keeps responsive workspace panels mounted and opens preview without horizo
   }
   await page.evaluate(() => { document.documentElement.dataset.theme = 'light' })
   await page.getByRole('tab', { name: '工具', exact: true }).click()
-  await page.getByRole('button', { name: '即时排版' }).click()
+  await setEditorMode(page, 'rich')
   await page.setViewportSize({ width: 390, height: 844 })
   const workspaceTabs = page.getByRole('tablist', { name: '工作区视图' })
   await expect(workspaceTabs).toBeVisible()
@@ -322,9 +323,17 @@ test('keeps responsive workspace panels mounted and opens preview without horizo
   // Opening the mobile tool panel must not parse away the text selection.
   const rich = page.getByRole('textbox', { name: 'Markdown 编辑器' })
   await rich.fill('**粗体** 链接 尾部')
-  for (let index = 0; index < 5; index += 1) await rich.press('ArrowLeft')
-  await rich.press('Shift+ArrowRight')
-  await rich.press('Shift+ArrowRight')
+  await rich.evaluate((element) => {
+    const text = Array.from(element.childNodes).flatMap((node) => Array.from(node.childNodes)).find((node) => node.textContent?.includes('链接'))
+    if (!text?.textContent) throw new Error('Selection text is missing')
+    const start = text.textContent.indexOf('链接')
+    const range = document.createRange()
+    range.setStart(text, start)
+    range.setEnd(text, start + 2)
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(range)
+    document.dispatchEvent(new Event('selectionchange'))
+  })
   await expect.poll(() => rich.evaluate(() => window.getSelection()?.toString())).toBe('链接')
   await page.getByRole('tab', { name: '工具', exact: true }).click()
   await page.getByRole('tab', { name: '排版', exact: true }).click()
@@ -338,6 +347,7 @@ test('keeps responsive workspace panels mounted and opens preview without horizo
   await page.getByRole('button', { name: '斜体', exact: true }).click()
   await expect(rich.locator('em')).toHaveCount(0)
   await page.getByRole('tab', { name: '工具', exact: true }).click()
+  await page.getByRole('tab', { name: '文档', exact: true }).click()
   await page.getByRole('button', { name: '预览文章' }).click()
   await expect(page.getByTitle('IMX 文章预览')).toBeVisible()
   await expectNoHorizontalOverflow()
@@ -426,14 +436,14 @@ test('pastes images at the active cursor in both rich and source modes', { tag: 
     document.dispatchEvent(new Event('selectionchange'))
   })
   expect(await pasteImages(page, [pngFile('rich.png', 40, 30, [12, 34, 56, 255])])).toMatchObject({ defaultPrevented: true, itemCount: 1, itemTypes: ['file:image/png'] })
-  await page.getByRole('tab', { name: '排版' }).click()
+  await page.getByRole('tab', { name: '文档' }).click()
   await expect(page.getByRole('listitem', { name: 'rich.png' })).toBeVisible()
   const richSource = await markdownSource(page)
   expect(richSource.indexOf('前面')).toBeLessThan(richSource.indexOf('![rich](images/rich.png)'))
   expect(richSource.indexOf('![rich](images/rich.png)')).toBeLessThan(richSource.indexOf('后面'))
 
-  await page.getByRole('tab', { name: '排版' }).click()
-  await page.getByRole('button', { name: '源代码' }).click()
+  await page.getByRole('tab', { name: '文档' }).click()
+  await setEditorMode(page, 'source')
   await page.getByRole('tab', { name: '文档' }).click()
   const sourceEditor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
   await sourceEditor.fill('源码前源码后')
@@ -442,7 +452,7 @@ test('pastes images at the active cursor in both rich and source modes', { tag: 
   await sourceEditor.press('ArrowRight')
   await sourceEditor.press('ArrowRight')
   expect(await pasteImages(page, [pngFile('source.png', 40, 30, [78, 90, 12, 255])])).toMatchObject({ defaultPrevented: true, itemCount: 1, itemTypes: ['file:image/png'] })
-  await page.getByRole('tab', { name: '排版' }).click()
+  await page.getByRole('tab', { name: '文档' }).click()
   await expect(page.getByRole('listitem', { name: 'source.png' })).toBeVisible()
   const sourceText = (await sourceEditor.locator('.cm-line').allTextContents()).join('\n')
   expect(sourceText.indexOf('源码前')).toBeLessThan(sourceText.indexOf('![source](images/source.png)'))

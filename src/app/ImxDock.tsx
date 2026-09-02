@@ -8,6 +8,7 @@ import './shared-dock.css'
 import './imx-dock.css'
 
 export interface ImxDockProps {
+  hidden?: boolean
   view: 'home' | 'dashboard' | 'workspace' | 'works'
   disabled: boolean
   onHome: () => void
@@ -19,6 +20,7 @@ export interface ImxDockProps {
 }
 
 export function ImxDock({
+  hidden = false,
   view,
   disabled,
   onHome,
@@ -67,7 +69,7 @@ export function ImxDock({
     action()
   }
 
-  return <><nav ref={navRef} className="imx-dock has-shared-dock" aria-label="Studio 导航">
+  return <><nav id="studio-dock" ref={navRef} className="imx-dock has-shared-dock" data-hidden={hidden || undefined} aria-hidden={hidden || undefined} inert={hidden} aria-label="Studio 导航">
     <div className="imx-dock__container" data-shared-dock="container">
       <span className="imx-dock__shell" data-shared-dock="shell" aria-hidden="true" />
       <button className="imx-dock__brand imx-dock__brand-default-logo" data-shared-dock="left" type="button" disabled={disabled} aria-label="I M P S，返回首页" onClick={onHome}>

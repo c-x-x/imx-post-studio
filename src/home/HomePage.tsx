@@ -42,5 +42,17 @@ export function HomePage({ disabled, onArticle, onDashboard, onGithub }: HomePag
       </ol>
       <p>不连接 GitHub 也能完整使用本地写作、预览和 ZIP 导入导出。建议定期导出备份；是否在博客公开发布仍取决于文章的 draft 标记及站点构建配置。</p>
     </section>
+
+    <section className="home-section" aria-labelledby="shortcuts-title">
+      <div className="home-section-heading"><p>SHORTCUTS</p><h2 id="shortcuts-title">把常用操作留给键盘</h2></div>
+      <dl className="home-shortcuts">
+        <div><dt><kbd>⌘ / Ctrl</kbd><span>+</span><kbd>B</kbd></dt><dd>加粗</dd></div>
+        <div><dt><kbd>⌘ / Ctrl</kbd><span>+</span><kbd>I</kbd></dt><dd>斜体</dd></div>
+        <div><dt><kbd>⌘ / Ctrl</kbd><span>+</span><kbd>Z</kbd></dt><dd>撤销</dd></div>
+        <div><dt><kbd>⌘ / Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>Z</kbd></dt><dd>重做</dd></div>
+        <div><dt><kbd>/</kbd></dt><dd>在空行打开快捷插入</dd></div>
+        <div><dt><kbd>Tab</kbd></dt><dd>在代码块中缩进</dd></div>
+      </dl>
+    </section>
   </section>
 }
