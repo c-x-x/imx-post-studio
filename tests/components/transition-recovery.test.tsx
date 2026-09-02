@@ -87,6 +87,32 @@ describe('workspace transitions', () => {
     expect(screen.getByRole('status')).toHaveTextContent('已保存到本地草稿')
   })
 
+  it('shows draft-open recovery choices on the draft page when the current article cannot be saved', async () => {
+    const savedDraft = createArticleDraft()
+    savedDraft.meta.title = '已有草稿'
+    savedDraft.meta.slug = 'saved-draft'
+    list.mockResolvedValue([savedDraft])
+    render(<App />)
+    await startWorkspace()
+    fireEvent.change(screen.getByLabelText('摘要'), { target: { value: '尚未命名但不能丢失' } })
+
+    fireEvent.click(screen.getByRole('button', { name: '草稿' }))
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    expect(screen.getByRole('region', { name: '草稿' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '打开' }))
+    await act(async () => { await Promise.resolve() })
+
+    const dialog = screen.getByRole('dialog', { name: '无法打开草稿' })
+    expect(dialog).toHaveTextContent('文章未命名，未保存至本地草稿')
+    expect(dialog).toHaveTextContent('当前写作内容尚未安全保存')
+    expect(screen.getByRole('region', { name: '草稿' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: '文章工作区' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '重试保存' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '放弃未保存更改' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '导出恢复备份' })).toBeInTheDocument()
+  })
+
   it('reports an unnamed push failure only in the editor status area', async () => {
     render(<App />)
     await startWorkspace()

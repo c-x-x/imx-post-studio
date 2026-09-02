@@ -439,7 +439,7 @@ export function App() {
   }
   const unnamed = !hasDraftTitle(draft)
   const transitionMessage = failedTransition
-    ? `保存当前草稿失败，未执行“${failedTransition.label}”：${failedTransition.message}`
+    ? `保存当前草稿失败，无法${failedTransition.label}：${failedTransition.message}`
     : ''
   const status = saveStatus.state === 'saving'
     ? '正在保存…'
@@ -560,6 +560,16 @@ export function App() {
       </div>
     </section>}
     {newArticlePromptOpen ? <TransitionConfirmDialog busy={transitioning || intakeBusy} error={newArticlePromptError} onCancel={cancelNewArticle} onDiscard={() => void deleteAndContinueNewArticle()} onSave={() => void saveAndContinueNewArticle()} returnFocus={() => confirmReturnFocus.current} /> : null}
+    {failedTransition && view !== 'workspace' ? <AccessibleDialog title={`无法${failedTransition.label}`} onClose={() => setTransitionFailure(undefined)} returnFocus={() => null} closeOnEscape={!transitioning}>
+      <p>{failedTransition.message}</p>
+      <p>当前写作内容尚未安全保存。请选择重试保存、放弃未保存更改，或先导出恢复备份。</p>
+      <div className="dialog-actions">
+        <button type="button" disabled={transitioning || intakeBusy} onClick={retryFailedTransition}>重试保存</button>
+        <button type="button" disabled={transitioning || intakeBusy} onClick={() => void discardFailedTransition()}>放弃未保存更改</button>
+        <button type="button" disabled={transitioning || intakeBusy} onClick={() => void exportRecovery()}>导出恢复备份</button>
+        <DialogClose>{(close) => <button type="button" disabled={transitioning} onClick={close}>取消</button>}</DialogClose>
+      </div>
+    </AccessibleDialog> : null}
     {previewOpen ? <AccessibleDialog title="IMX 文章预览" className="preview-dialog" onClose={closePreview} returnFocus={() => previewTrigger.current}><DialogClose>{(close) => <PreviewFrame meta={draft.meta} rendered={rendered} css={previewCss} theme={theme} onToggleTheme={toggleTheme} onClose={() => close()} />}</DialogClose></AccessibleDialog> : null}
     {githubOpen ? <Suspense fallback={<p role="status">正在准备推送…</p>}><GithubPanel mode="push" draft={draft} onOpen={openDraft} onPushed={completePush} onClose={() => setGithubOpen(false)} returnFocus={() => githubTrigger.current} /></Suspense> : null}
   </main>
