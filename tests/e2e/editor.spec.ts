@@ -403,7 +403,7 @@ test('keeps responsive workspace panels mounted and opens preview without horizo
   await expectNoHorizontalOverflow()
 })
 
-test('sizes the mobile writing surface to short content instead of forcing a full-screen blank area', async ({ page }) => {
+test('sizes the mobile writing surface from the available viewport instead of capping it at a small fixed area', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/')
   await page.getByRole('button', { name: '开始写文章' }).click()
@@ -413,8 +413,8 @@ test('sizes the mobile writing surface to short content instead of forcing a ful
 
   const panel = page.locator('.workspace-editor')
   const panelHeight = await panel.evaluate((element) => element.getBoundingClientRect().height)
-  expect(panelHeight).toBeGreaterThan(300)
-  expect(panelHeight).toBeLessThan(520)
+  expect(panelHeight).toBeGreaterThan(600)
+  expect(panelHeight).toBeLessThan(720)
   const [panelWidth, editorWidth] = await Promise.all([
     panel.evaluate((element) => element.getBoundingClientRect().width),
     page.locator('.markdown-editor').evaluate((element) => element.getBoundingClientRect().width),
