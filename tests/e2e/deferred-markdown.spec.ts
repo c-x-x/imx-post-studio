@@ -35,6 +35,36 @@ test('applies a link to the selected text while other Markdown in the line is pe
   await expect(editor).toContainText('尾部')
 })
 
+test('wraps selected text with toolbar Markdown without leaving a persistent inline mark', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '写作', exact: true }).click()
+  await page.getByRole('tab', { name: '排版' }).click()
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await editor.fill('选中文字')
+  await editor.evaluate((element) => {
+    const text = element.querySelector('p')?.firstChild
+    if (!text) throw new Error('Selectable text is missing')
+    const range = document.createRange()
+    range.selectNodeContents(text)
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(range)
+    document.dispatchEvent(new Event('selectionchange'))
+  })
+
+  const boldButton = page.getByRole('button', { name: '加粗', exact: true })
+  await boldButton.click()
+  await expect(editor).toContainText('**选中文字**')
+  await expect(editor.locator('strong')).toHaveCount(0)
+  await expect(editor.locator('.editor-toolbar-markdown-marker')).toHaveCount(2)
+  await expect(boldButton).toHaveAttribute('aria-pressed', 'false')
+
+  await editor.locator('p').last().click()
+  await editor.pressSequentially('普通输入')
+  await expect(editor.locator('strong')).toHaveText('选中文字')
+  await expect(editor.locator('strong')).not.toContainText('普通输入')
+  await expect(boldButton).toHaveAttribute('aria-pressed', 'false')
+})
+
 test('defers typed Markdown until leaving the paragraph and keeps toolbar formatting immediate', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: '写作', exact: true }).click()
@@ -135,16 +165,15 @@ test('reveals rendered inline source on click and only reparses complete syntax'
   await expect(editor.locator('[data-math="inline"]')).toHaveCount(0)
   await expect(editor.locator('strong')).toHaveText('粗体')
 
-  await otherParagraph.click()
-  await editor.press('End')
-  await editor.press('Enter')
-  for (const [button, text] of [['高亮', '高亮'], ['下标', '2'], ['上标', '2']] as const) {
-    await page.getByRole('button', { name: button, exact: true }).click()
-    await editor.pressSequentially(text)
-    await page.getByRole('button', { name: button, exact: true }).click()
-    await editor.pressSequentially(' ')
-  }
   for (const [selector, markdown, button] of [['mark', '<mark>高亮</mark>', '高亮'], ['sub', '<sub>2</sub>', '下标'], ['sup', '<sup>2</sup>', '上标']] as const) {
+    const trailingParagraph = editor.locator('p').last()
+    await trailingParagraph.click()
+    await page.getByRole('button', { name: button, exact: true }).click()
+    await editor.pressSequentially(button === '高亮' ? '高亮' : '2')
+    await expect(editor).toContainText(markdown)
+    await expect(page.getByRole('button', { name: button, exact: true })).toHaveAttribute('aria-pressed', 'false')
+    await otherParagraph.click()
+    await expect(editor.locator(selector)).toBeVisible()
     await editor.locator(selector).click()
     await expect(editor.locator(selector)).toHaveCount(0)
     await expect(editor).toContainText(markdown)
@@ -213,9 +242,9 @@ test('inserts muted source placeholders from empty text-style controls', async (
   ] as const
 
   for (const [index, format] of formats.entries()) {
-    const paragraph = editor.locator('p').last()
-    await paragraph.click()
+    await editor.locator('p').last().click()
     await page.getByRole('button', { name: format.button, exact: true }).click()
+    const paragraph = editor.locator('p:has(.editor-toolbar-markdown-marker)').last()
     await expect(paragraph).toContainText(`${format.open}${format.close}`)
     const toolbarMarkers = paragraph.locator('.editor-toolbar-markdown-marker')
     await expect(toolbarMarkers).toHaveCount(2)

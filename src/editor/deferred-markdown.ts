@@ -3,12 +3,13 @@ import type {} from '@tiptap/markdown'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { isHistoryTransaction } from '@tiptap/pm/history'
 import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state'
-import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 
 interface DeferredState {
   pending: Set<number>
   literals: DecorationSet
   toolbarMarkers: DecorationSet
+  toolbarCaret: number | null
   paused: boolean
   revealed: RevealedInlineSource | null
 }
@@ -18,6 +19,8 @@ const pendingKey = new PluginKey<DeferredState>('deferredMarkdown')
 const pauseKey = 'deferredMarkdownPaused'
 const revealKey = 'deferredMarkdownReveal'
 export const toolbarMarkdownMarkersKey = 'deferredMarkdownToolbarMarkers'
+export const toolbarMarkdownCaretKey = 'deferredMarkdownToolbarCaret'
+const consumeToolbarCaretKey = 'deferredMarkdownConsumeToolbarCaret'
 const blockPrefix = /^(?:#{1,6}\s|>\s|[-+*]\s|\d+[.)]\s)/
 
 // Parsed text has already lost its Markdown escapes. Remember its literal
@@ -254,6 +257,22 @@ export const DeferredMarkdown = Extension.create({
     let blurred = false
     let revealAfterCommit = false
     let revealScheduled = false
+    const insertAtToolbarCaret = (view: EditorView, from: number, text: string) => {
+      const deferred = pendingKey.getState(view.state)
+      if (!deferred || deferred.toolbarCaret === null) return false
+      const caret = deferred.toolbarCaret
+      const closingMarker = deferred.toolbarMarkers.find()
+        .find((marker) => marker.from === caret && marker.to > marker.from)
+      if (from !== caret && from !== closingMarker?.to) return false
+      const transaction = view.state.tr.insertText(text, caret, caret)
+      transaction.setSelection(TextSelection.create(transaction.doc, caret + text.length))
+      // Keep the explicit caret boundary for the whole toolbar-authored
+      // source. WebKit otherwise remaps the second and later characters to
+      // the opposite side of adjacent marker decorations.
+      transaction.setMeta(toolbarMarkdownCaretKey, caret + text.length)
+      view.dispatch(transaction.scrollIntoView())
+      return true
+    }
     return [new Plugin<DeferredState>({
       key: pendingKey,
       state: {
@@ -261,6 +280,7 @@ export const DeferredMarkdown = Extension.create({
           pending: new Set(),
           literals: DecorationSet.create(state.doc, literalMarkers(state.doc)),
           toolbarMarkers: DecorationSet.empty,
+          toolbarCaret: null,
           paused: false,
           revealed: null,
         }),
@@ -271,6 +291,7 @@ export const DeferredMarkdown = Extension.create({
             pending: new Set(),
             literals: DecorationSet.create(nextState.doc, literalMarkers(nextState.doc)),
             toolbarMarkers: DecorationSet.empty,
+            toolbarCaret: null,
             paused: false,
             revealed: null,
           }
@@ -280,6 +301,14 @@ export const DeferredMarkdown = Extension.create({
           let toolbarMarkers = committed
             ? DecorationSet.empty
             : previous.toolbarMarkers.map(transaction.mapping, nextState.doc)
+          let toolbarCaret = previous.toolbarCaret
+          if (toolbarCaret !== null) {
+            const mapped = transaction.mapping.mapResult(toolbarCaret, 1)
+            toolbarCaret = mapped.deleted ? null : mapped.pos
+          }
+          const addedToolbarCaret = transaction.getMeta(toolbarMarkdownCaretKey) as number | undefined
+          if (typeof addedToolbarCaret === 'number') toolbarCaret = addedToolbarCaret
+          if (transaction.getMeta(consumeToolbarCaretKey)) toolbarCaret = null
           const addedToolbarMarkers = transaction.getMeta(toolbarMarkdownMarkersKey) as Array<{ from: number; to: number }> | undefined
           if (addedToolbarMarkers?.length) {
             toolbarMarkers = toolbarMarkers.add(nextState.doc, addedToolbarMarkers.map(({ from, to }) =>
@@ -326,11 +355,23 @@ export const DeferredMarkdown = Extension.create({
             pending.add(nextReveal.block)
           }
           if (revealed && (committed?.includes(revealed.block) || !pending.has(revealed.block))) revealed = null
-          return { pending, literals, toolbarMarkers, paused: transaction.getMeta(pauseKey) ?? previous.paused, revealed }
+          return { pending, literals, toolbarMarkers, toolbarCaret, paused: transaction.getMeta(pauseKey) ?? previous.paused, revealed }
         },
       },
       appendTransaction(transactions, _oldState, state) {
         if (composing || editor.view.composing || pendingKey.getState(state)?.paused || transactions.some(isHistoryTransaction)) return null
+        const toolbarState = pendingKey.getState(state)
+        const activeBlock = textblockPosition(state)
+        const activeNode = activeBlock === null ? null : state.doc.nodeAt(activeBlock)
+        const editingToolbarSource = activeBlock !== null && activeNode
+          ? toolbarState?.toolbarMarkers.find(activeBlock, activeBlock + activeNode.nodeSize).length
+          : 0
+        if (editingToolbarSource) return null
+        // Toolbar markers must remain literal while the user types between
+        // them. A toolbar click temporarily blurs the editor, so committing
+        // this same insertion transaction would erase the stored caret before
+        // focus can return.
+        if (transactions.some((transaction) => transaction.getMeta(toolbarMarkdownMarkersKey))) return null
         if (transactions.some((transaction) => transaction.getMeta(pendingKey))) {
           if (!blurred && !pendingKey.getState(state)?.revealed && state.selection.empty) {
             return revealSourceAtSelection(editor, state, state.selection.from)
@@ -342,7 +383,11 @@ export const DeferredMarkdown = Extension.create({
           const revealed = revealSourceAtSelection(editor, state, state.selection.from)
           if (revealed) return revealed
         }
-        const active = blurred ? null : textblockPosition(state)
+        // A formatting button owns the interaction even though the browser's
+        // focus transition can report the editor as blurred. Keep its marker
+        // line active until the selection actually moves away.
+        const hasToolbarMarkers = Boolean(toolbarState?.toolbarMarkers.find().length)
+        const active = blurred && !hasToolbarMarkers ? null : textblockPosition(state)
         const pending = pendingKey.getState(state)?.pending
         if (!pending?.size || !editor.markdown) return null
         const transaction = state.tr
@@ -385,6 +430,9 @@ export const DeferredMarkdown = Extension.create({
         }
       },
       props: {
+        handleTextInput(view, from, _to, text) {
+          return insertAtToolbarCaret(view, from, text)
+        },
         handleClick(view, position, event) {
           const target = event.target instanceof Element
             ? event.target.closest('strong, em, s, code, mark, sub, sup, [data-math="inline"]')
@@ -404,9 +452,12 @@ export const DeferredMarkdown = Extension.create({
           const deferred = pendingKey.getState(state)
           const closingToolbarMarker = state.selection.empty
             ? deferred?.toolbarMarkers.find(state.selection.from, $from.end())
-              .find((marker) => marker.from === state.selection.from)
+              .find((marker) => marker.from === state.selection.from && marker.to > marker.from)
             : undefined
           if (closingToolbarMarker) {
+            view.dispatch(view.state.tr
+              .setMeta(consumeToolbarCaretKey, true)
+              .setMeta('addToHistory', false))
             return editor.chain()
               .setTextSelection(closingToolbarMarker.to)
               .splitBlock()
@@ -462,10 +513,28 @@ export const DeferredMarkdown = Extension.create({
         },
         decorations(state) {
           if (composing) return null
+          const deferred = pendingKey.getState(state)
+          const toolbarDecorations: Decoration[] = [
+            ...(deferred?.toolbarMarkers.find() ?? []),
+            ...(deferred?.toolbarCaret === null || deferred?.toolbarCaret === undefined ? [] : [
+              // Adjacent decorated markers such as <mark></mark> form an
+              // ambiguous DOM boundary in WebKit/Chromium. An empty widget
+              // gives the native selection a stable position between them;
+              // it carries no document text and follows the toolbar caret.
+              Decoration.widget(deferred.toolbarCaret, () => {
+                const boundary = document.createElement('span')
+                boundary.className = 'editor-toolbar-caret-boundary'
+                boundary.setAttribute('aria-hidden', 'true')
+                return boundary
+              }, { side: -1 }),
+            ]),
+          ]
           const position = textblockPosition(state)
-          if (position === null || !pendingKey.getState(state)?.pending.has(position)) return null
+          if (position === null || !deferred?.pending.has(position)) {
+            return toolbarDecorations.length ? DecorationSet.create(state.doc, toolbarDecorations) : null
+          }
           const node = state.doc.nodeAt(position)
-          if (!node) return null
+          if (!node) return toolbarDecorations.length ? DecorationSet.create(state.doc, toolbarDecorations) : null
           const decorations: Decoration[] = []
           node.forEach((child, offset) => {
             if (!canInterpretText(child)) return
@@ -476,10 +545,17 @@ export const DeferredMarkdown = Extension.create({
           })
           return DecorationSet.create(state.doc, [
             ...decorations,
-            ...(pendingKey.getState(state)?.toolbarMarkers.find() ?? []),
+            ...toolbarDecorations,
           ])
         },
         handleDOMEvents: {
+          beforeinput(view, event) {
+            const input = event as InputEvent
+            if (input.isComposing || input.inputType !== 'insertText' || !input.data) return false
+            if (!insertAtToolbarCaret(view, view.state.selection.from, input.data)) return false
+            event.preventDefault()
+            return true
+          },
           focus() { blurred = false; return false },
           blur(view, event) {
             // Formatting controls are part of editing, not a request to parse

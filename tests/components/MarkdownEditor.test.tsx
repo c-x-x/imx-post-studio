@@ -60,6 +60,37 @@ describe('MarkdownEditor', () => {
     expect(within(editor).getByText('正文').tagName).toBe('P')
   })
 
+  it('parses complete standard Markdown when pasted', async () => {
+    render(<ControlledEditor />)
+    const editor = screen.getByRole('textbox', { name: 'Markdown 编辑器' })
+    const markdown = [
+      '## 主题',
+      '',
+      '包含 **加粗**、*斜体* 与 ~~删除线~~。',
+      '',
+      '```bash',
+      'git add .',
+      'git commit -m "test"',
+      '```',
+      '',
+      '- 第一项',
+      '- 第二项',
+    ].join('\n')
+    fireEvent.paste(editor, { clipboardData: {
+      files: [],
+      items: [],
+      getData: (type: string) => type === 'text/plain' ? markdown : '',
+    } })
+
+    expect(within(editor).getByRole('heading', { level: 2, name: '主题' })).toBeInTheDocument()
+    expect(editor.querySelector('strong')).toHaveTextContent('加粗')
+    expect(editor.querySelector('em')).toHaveTextContent('斜体')
+    expect(editor.querySelector('s')).toHaveTextContent('删除线')
+    expect(editor.querySelector('pre code')).toHaveTextContent('git add .')
+    expect(within(editor).getAllByRole('listitem')).toHaveLength(2)
+    await waitFor(() => expect(screen.getByTestId('markdown')).toHaveTextContent('```bash'))
+  })
+
   it('always keeps one clickable empty caret line below the current last line', async () => {
     render(<ControlledEditor initial="第一行" />)
     const editor = screen.getByRole('textbox', { name: 'Markdown 编辑器' })

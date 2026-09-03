@@ -144,12 +144,12 @@ export function SettingsDialog({ onClose, returnFocus }: SettingsDialogProps) {
     <div className="settings-safety"><strong>发布安全保护已启用</strong><p>作品删除需要再次确认；推送冲突不会强制覆盖；未保存内容切换页面前会先尝试保存。</p></div>
     <div className="settings-reset">
       <div><strong>恢复默认设置</strong><p>只重置本页偏好，不会删除草稿、作品、图片或 GitHub 登录。</p></div>
-      {resetArmed ? <div className="settings-reset__confirm" role="alert"><span>再次确认后立即恢复默认值。</span><button type="button" onClick={() => {
+      {resetArmed ? <div className="settings-reset__confirm" role="alert"><span>再次确认后立即恢复默认值。</span><button className="settings-reset__confirm-action" type="button" onClick={() => {
         setStorageWarning(resetStudioSettings() ? '' : '浏览器阻止了本地存储，本次设置仅在当前页面有效。')
         setCommitTemplate(DEFAULT_STUDIO_SETTINGS.commitMessageTemplate)
         setResetArmed(false)
-      }}>确认重置</button><button type="button" onClick={() => setResetArmed(false)}>取消</button></div>
-        : <button type="button" onClick={() => setResetArmed(true)}>恢复默认设置</button>}
+      }}>确认重置</button><button className="settings-reset__cancel" type="button" onClick={() => setResetArmed(false)}>取消</button></div>
+        : <button className="settings-reset__trigger" type="button" onClick={() => setResetArmed(true)}>恢复默认设置</button>}
     </div>
   </div>
 

@@ -1128,6 +1128,42 @@ body.dialog-open {
   accent-color: var(--imx-accent);
 }
 
+/* iOS Safari gives unchecked checkboxes a glossy native bevel that can
+   overflow their intended bounds. Keep settings checkboxes consistent across
+   platforms while preserving the native input's semantics and hit target. */
+.settings-check input[type='checkbox'],
+.settings-choice input[type='checkbox'] {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  min-width: 18px;
+  min-height: 18px;
+  padding: 0;
+  border: 1.5px solid var(--imx-line-strong);
+  border-radius: 6px;
+  background-color: var(--imx-paper);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 13px 13px;
+  box-shadow: none;
+}
+
+.settings-check input[type='checkbox']:checked,
+.settings-choice input[type='checkbox']:checked {
+  border-color: var(--imx-accent);
+  background-color: var(--imx-accent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='white' stroke-linecap='round' stroke-linejoin='round' stroke-width='2.4' d='m3 8 3 3 7-7'/%3E%3C/svg%3E");
+}
+
+.settings-check input[type='checkbox']:focus-visible,
+.settings-choice input[type='checkbox']:focus-visible {
+  outline: 2px solid var(--imx-accent);
+  outline-offset: 3px;
+}
+
+.settings-check input[type='checkbox']:disabled,
+.settings-choice input[type='checkbox']:disabled { opacity: .55; }
+
 .settings-choice {
   margin: 0;
   padding: 8px;
@@ -1179,6 +1215,41 @@ body.dialog-open {
   gap: 18px;
 }
 
+.settings-reset__trigger,
+.settings-reset__confirm button {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: .46rem .78rem;
+  border: 1px solid var(--imx-line);
+  border-radius: 999px;
+  color: var(--imx-accent-hover);
+  background: var(--imx-accent-soft);
+  box-shadow: none;
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 700;
+  transition: border-color .2s ease, color .2s ease, background-color .2s ease;
+}
+
+.settings-reset__trigger { align-self: center; }
+
+.settings-reset__trigger:hover:not(:disabled),
+.settings-reset__confirm button:hover:not(:disabled) {
+  border-color: rgba(122, 90, 50, .32);
+  background: var(--imx-paper-alt);
+}
+
+.settings-reset__confirm .settings-reset__confirm-action {
+  border-color: color-mix(in srgb, var(--imx-danger) 32%, transparent);
+  color: var(--imx-danger-strong);
+  background: var(--imx-danger-bg);
+}
+
+.settings-reset__confirm .settings-reset__cancel {
+  color: var(--imx-ink-secondary);
+  background: transparent;
+}
+
 .settings-reset__confirm {
   display: flex;
   align-items: center;
@@ -1205,6 +1276,8 @@ body.dialog-open {
 
   .settings-reset,
   .settings-preview { align-items: stretch; flex-direction: column; }
+
+  .settings-reset__trigger { align-self: flex-start; }
 
   .settings-reset__confirm { justify-content: flex-start; text-align: left; }
 }

@@ -1,6 +1,46 @@
 import { expect, test } from '@playwright/test'
 import { setEditorMode } from '../helpers/editor-mode'
 
+test('renders settings checkboxes consistently on mobile browsers', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/')
+  await page.getByRole('button', { name: '打开设置' }).click()
+
+  const checkbox = page.getByRole('checkbox', { name: /新文章默认设为精选/ })
+  await expect(checkbox).toBeVisible()
+  await expect(checkbox).not.toBeChecked()
+  await expect(checkbox).toHaveCSS('appearance', 'none')
+  await expect(checkbox).toHaveCSS('box-shadow', 'none')
+  expect(await checkbox.evaluate((element) => {
+    const bounds = element.getBoundingClientRect()
+    return { width: bounds.width, height: bounds.height }
+  })).toEqual({ width: 18, height: 18 })
+
+  await checkbox.click()
+  await expect(checkbox).toBeChecked()
+  await expect(checkbox).toHaveCSS('background-color', 'rgb(122, 90, 50)')
+  await expect.poll(() => checkbox.evaluate((element) => getComputedStyle(element).backgroundImage)).not.toBe('none')
+})
+
+test('keeps the reset-settings action visually secondary', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/')
+  await page.getByRole('button', { name: '打开设置' }).click()
+  await page.getByRole('tab', { name: '安全与数据' }).click()
+
+  const resetCard = page.locator('.settings-reset')
+  const reset = page.getByRole('button', { name: '恢复默认设置' })
+  await expect(reset).toHaveCSS('border-radius', '999px')
+  await expect(reset).toHaveCSS('box-shadow', 'none')
+  await expect(reset).toHaveCSS('background-color', 'rgba(122, 90, 50, 0.08)')
+  expect((await reset.boundingBox())!.width).toBeLessThan((await resetCard.boundingBox())!.width / 2)
+
+  await reset.click()
+  await expect(page.getByRole('alert')).toContainText('再次确认后立即恢复默认值')
+  await expect(page.getByRole('button', { name: '确认重置' })).toHaveCSS('background-color', 'rgb(249, 238, 234)')
+  await expect(page.getByRole('button', { name: '取消' })).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+})
+
 test('keeps a single complete I M P S logo before, during and after hovering', async ({ page }, testInfo) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   await page.goto('/')
@@ -124,8 +164,8 @@ test('warns on browser exit only until the current changes reach the draft libra
 
   await page.getByRole('button', { name: '写作', exact: true }).click()
   await expect(page.getByLabel('标题')).toHaveValue('首页往返时仍在内存')
-  await expect(page.getByRole('status')).toContainText('已保存到本地草稿')
-  expect(await page.evaluate(() => window.dispatchEvent(new Event('beforeunload', { cancelable: true })))).toBe(true)
+  await expect(page.getByRole('status')).toContainText('文章编辑器已打开')
+  expect(await page.evaluate(() => window.dispatchEvent(new Event('beforeunload', { cancelable: true })))).toBe(false)
 })
 
 test('collapses the settings sidebar, expands the editor, and restores the preference', async ({ page }) => {
@@ -300,10 +340,13 @@ test('formats the selected text from the right sidebar without resetting the edi
   await actions.getByRole('tab', { name: '排版' }).click()
   await expect(page.locator('#panel-write').locator('.editor-toolbar')).toHaveCount(0)
   await actions.getByRole('button', { name: '加粗', exact: true }).click()
-  await expect(editor.locator('strong')).toHaveText('保留选区')
-  await expect(actions.getByRole('button', { name: '加粗', exact: true })).toHaveAttribute('aria-pressed', 'true')
-  await editor.press('ControlOrMeta+z')
   await expect(editor.locator('strong')).toHaveCount(0)
+  await expect(editor).toContainText('**保留选区**')
+  await expect(actions.getByRole('button', { name: '加粗', exact: true })).toHaveAttribute('aria-pressed', 'false')
+  await editor.locator('p').last().click()
+  await editor.pressSequentially('普通输入')
+  await expect(editor.locator('strong')).toHaveText('保留选区')
+  await expect(editor.locator('strong')).not.toContainText('普通输入')
 
   await page.setViewportSize({ width: 390, height: 844 })
   await page.getByRole('tab', { name: '写作', exact: true }).click()
@@ -314,13 +357,24 @@ test('formats the selected text from the right sidebar without resetting the edi
     expect(await historyButton.evaluate((element) => getComputedStyle(element).color)).not.toBe('rgba(0, 0, 0, 0)')
     expect((await historyButton.boundingBox())?.width).toBeGreaterThanOrEqual(50)
   }
-  await editor.press('ControlOrMeta+a')
+  await editor.locator('strong').evaluate((element) => {
+    const range = document.createRange()
+    range.selectNodeContents(element)
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+    document.dispatchEvent(new Event('selectionchange'))
+  })
   await page.getByRole('tab', { name: '工具', exact: true }).click()
   await expect(actions.getByRole('button', { name: '斜体' })).toBeVisible()
   expect(await actions.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
   await actions.getByRole('button', { name: '斜体' }).click()
   await expect(editor).toBeVisible()
-  await expect(editor.locator('em')).toHaveText('保留选区')
+  await expect(editor).toContainText('*保留选区*')
+  await expect(editor.locator('strong')).toHaveText('保留选区')
+  await expect(editor.locator('em')).toHaveCount(0)
+  await editor.locator('p').filter({ hasText: '普通输入' }).click()
+  await expect(editor.locator('strong em')).toHaveText('保留选区')
   await setEditorMode(page, 'source')
   await expect(page.locator('.cm-line').first()).toContainText('保留选区')
   await setEditorMode(page, 'rich')

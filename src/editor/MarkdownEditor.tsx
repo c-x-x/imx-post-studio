@@ -15,13 +15,13 @@ import { mediaAlt } from '../media/names'
 import type { EditorMode } from './editor-mode'
 import type { EditorFont } from './editor-font'
 import { extractEditorOutline } from './outline'
-import { clipboardImages, type PastedImageRequest } from './paste'
+import { clipboardImages, containsPastedMarkdown, type PastedImageRequest } from './paste'
 import { AlwaysTrailingParagraph, CalloutBlock, FootnoteDefinition, FootnoteReference, MathBlock, MathInline, MermaidBlock, RawMarkdownBlock, RawMarkdownInline, SafeCodeBlock, SafeTable, SpecialBlockInput, Subscript, Superscript, TextHighlight } from './markdown-extensions'
 import { TableDialog, type MarkdownTableDimensions } from './TableDialog'
 import { LinkDialog } from './LinkDialog'
 import { SyntaxDialog, type SyntaxDialogValue } from './SyntaxDialog'
 import { CalloutDialog, type CalloutKind } from './CalloutDialog'
-import { DeferredMarkdown, editorMarkdown, pauseDeferredMarkdown, toolbarMarkdownMarkersKey } from './deferred-markdown'
+import { DeferredMarkdown, editorMarkdown, pauseDeferredMarkdown, toolbarMarkdownCaretKey, toolbarMarkdownMarkersKey } from './deferred-markdown'
 import type { SourceMarkdownEditorHandle } from './SourceMarkdownEditor'
 import { AccessibleDialog } from '../app/AccessibleDialog'
 import './editor-fonts.css'
@@ -30,10 +30,6 @@ import './editor.css'
 const SourceMarkdownEditor = lazy(() => import('./SourceMarkdownEditor'))
 const lowlight = createLowlight(common)
 type InlineSyntaxDialogKind = 'math-inline' | 'image'
-
-function containsSpecialMarkdown(value: string): boolean {
-  return /```mermaid\b|^\s*\$\$\s*$|\$(?!\$)(?!\s)[^\n$]+(?<!\s)\$|\[\^[^\]\n]+\]|>\s*\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/im.test(value)
-}
 
 export interface MarkdownEditorHandle {
   focusPosition(position: number): void
@@ -427,16 +423,17 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           const clipboardEvent = event as ClipboardEvent
           const files = clipboardImages(clipboardEvent.clipboardData)
           const activeEditor = richEditorRef.current
-          const plainText = clipboardEvent.clipboardData?.getData('text/plain').trim() ?? ''
-          if (files.length === 0 && activeEditor?.markdown && containsSpecialMarkdown(plainText)) {
+          const plainText = clipboardEvent.clipboardData?.getData('text/plain') ?? ''
+          const markdownText = plainText.trim()
+          if (files.length === 0 && activeEditor?.markdown && containsPastedMarkdown(markdownText)) {
             clipboardEvent.preventDefault()
-            const parsed = activeEditor.markdown.parse(plainText)
+            const parsed = activeEditor.markdown.parse(markdownText)
             activeEditor.chain().focus().insertContent(parsed.content ?? []).run()
             return true
           }
-          if (files.length === 0 && activeEditor && !activeEditor.state.selection.empty && /^https?:\/\/\S+$/i.test(plainText)) {
+          if (files.length === 0 && activeEditor && !activeEditor.state.selection.empty && /^https?:\/\/\S+$/i.test(markdownText)) {
             clipboardEvent.preventDefault()
-            activeEditor.chain().focus().setLink({ href: plainText }).run()
+            activeEditor.chain().focus().setLink({ href: markdownText }).run()
             return true
           }
           const prepare = preparePastedImagesRef.current
@@ -734,22 +731,67 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     if (command(editor.chain().focus()).run()) onFormatApplied?.()
   }
 
-  const runInlineFormat = (command: (chain: ChainedCommands) => ChainedCommands, open: string, close: string) => {
+  const runInlineFormat = (open: string, close: string) => {
     if (!editor || editor.isDestroyed || disabled || mode !== 'rich') return
-    const { from, to } = editor.state.selection
-    if (from !== to) {
-      runFormat(command)
-      return
+    let { from, to } = editor.state.selection
+    if (!editor.state.selection.$from.sameParent(editor.state.selection.$to)
+      || !editor.state.selection.$from.parent.isTextblock) {
+      const textRanges: Array<{ from: number; to: number }> = []
+      editor.state.doc.nodesBetween(from, to, (node, position) => {
+        if (!node.isTextblock) return true
+        const range = {
+          from: Math.max(from, position + 1),
+          to: Math.min(to, position + node.nodeSize - 1),
+        }
+        if (range.from < range.to) textRanges.push(range)
+        return false
+      })
+      // Ctrl/Cmd+A also selects the permanent empty caret line. Normalize a
+      // single real text block so inline Markdown stays inside that paragraph.
+      if (textRanges.length === 1) ({ from, to } = textRanges[0])
     }
-    const transaction = editor.state.tr.insertText(`${open}${close}`, from)
-    transaction.setSelection(TextSelection.create(transaction.doc, from + open.length))
+    // Clicking the permanent empty caret paragraph can produce a structural
+    // selection whose numeric range is non-empty even though it contains no
+    // text. Treat it like a caret for toolbar placeholder behavior.
+    const emptySelection = from === to || editor.state.doc.textBetween(from, to, '') === ''
+    const nextSelection = emptySelection
+      ? { from: from + open.length, to: from + open.length }
+      : { from: from + open.length, to: to + open.length }
+    const transaction = editor.state.tr
+      .insert(to, editor.schema.text(close))
+      .insert(from, editor.schema.text(open))
+      .setStoredMarks([])
+    transaction.setSelection(TextSelection.create(transaction.doc, nextSelection.from, nextSelection.to))
     transaction.setMeta(toolbarMarkdownMarkersKey, [
       { from, to: from + open.length },
-      { from: from + open.length, to: from + open.length + close.length },
+      { from: to + open.length, to: to + open.length + close.length },
     ])
-    editor.view.dispatch(transaction.scrollIntoView())
+    if (emptySelection) transaction.setMeta(toolbarMarkdownCaretKey, nextSelection.from)
+    // A toolbar click blurs the contenteditable before this transaction is
+    // dispatched. Keep parsing paused through all synchronous appended
+    // transactions, then resume after focus and caret state are stable.
+    pauseDeferredMarkdown(editor, true)
     editor.view.focus()
+    editor.view.dispatch(transaction.scrollIntoView())
+    queueMicrotask(() => {
+      if (!editor.isDestroyed) pauseDeferredMarkdown(editor, false)
+    })
     onFormatApplied?.()
+    // Mobile toolbar actions can switch the visible workspace panel during the
+    // click. Restore the exact source selection after that layout change so
+    // typing always lands between empty markers and selected text stays selected.
+    const restoreSelection = () => {
+      if (editor.isDestroyed || editor.state.doc !== transaction.doc) return
+      if (editor.state.selection.from !== nextSelection.from || editor.state.selection.to !== nextSelection.to) return
+      const restore = editor.state.tr
+      restore.setSelection(TextSelection.create(restore.doc, nextSelection.from, nextSelection.to))
+      restore.setStoredMarks([]).setMeta('addToHistory', false)
+      editor.view.dispatch(restore)
+      editor.view.focus()
+    }
+    const requestFrame = editor.view.dom.ownerDocument.defaultView?.requestAnimationFrame
+    if (requestFrame) requestFrame(restoreSelection)
+    else queueMicrotask(restoreSelection)
   }
 
   const applySyntax = (dialog: NonNullable<typeof syntaxDialog>, input: SyntaxDialogValue) => {
@@ -841,13 +883,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const toolbar = <div className="editor-toolbar" data-editor-controls role="toolbar" aria-label="Markdown 格式">
       <div className="editor-tool-group" role="group" aria-label="文字样式">
         <h3>文字样式</h3>
-        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.bold)} disabled={disabled || mode === 'source' || !activeFormats?.canBold} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat((chain) => chain.toggleBold(), '**', '**')}>加粗</button>
-        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.italic)} disabled={disabled || mode === 'source' || !activeFormats?.canItalic} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat((chain) => chain.toggleItalic(), '*', '*')}>斜体</button>
-        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.strike)} disabled={disabled || mode === 'source' || !activeFormats?.canStrike} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat((chain) => chain.toggleStrike(), '~~', '~~')}>删除线</button>
-        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.code)} disabled={disabled || mode === 'source' || !activeFormats?.canCode} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat((chain) => chain.toggleCode(), '`', '`')}>行内代码</button>
-        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.highlight)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat((chain) => chain.toggleMark('textHighlight'), '<mark>', '</mark>')}>高亮</button>
-        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.subscript)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat((chain) => chain.unsetMark('superscript').toggleMark('subscript'), '<sub>', '</sub>')}>下标</button>
-        <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.superscript)} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat((chain) => chain.unsetMark('subscript').toggleMark('superscript'), '<sup>', '</sup>')}>上标</button>
+        <button type="button" aria-pressed="false" disabled={disabled || mode === 'source' || !activeFormats?.canBold} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat('**', '**')}>加粗</button>
+        <button type="button" aria-pressed="false" disabled={disabled || mode === 'source' || !activeFormats?.canItalic} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat('*', '*')}>斜体</button>
+        <button type="button" aria-pressed="false" disabled={disabled || mode === 'source' || !activeFormats?.canStrike} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat('~~', '~~')}>删除线</button>
+        <button type="button" aria-pressed="false" disabled={disabled || mode === 'source' || !activeFormats?.canCode} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat('`', '`')}>行内代码</button>
+        <button type="button" aria-pressed="false" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat('<mark>', '</mark>')}>高亮</button>
+        <button type="button" aria-pressed="false" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat('<sub>', '</sub>')}>下标</button>
+        <button type="button" aria-pressed="false" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat('<sup>', '</sup>')}>上标</button>
       </div>
       <div className="editor-tool-group" role="group" aria-label="段落结构">
         <h3>段落结构</h3>

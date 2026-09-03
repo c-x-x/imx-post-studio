@@ -338,14 +338,14 @@ test('keeps responsive workspace panels mounted and opens preview without horizo
   await page.getByRole('tab', { name: '工具', exact: true }).click()
   await page.getByRole('tab', { name: '排版', exact: true }).click()
   await page.getByRole('button', { name: '斜体', exact: true }).click()
-  await expect(rich.locator('em')).toHaveText('链接')
-  await expect(rich).toBeFocused()
-  await page.getByRole('tab', { name: '工具', exact: true }).click()
-  await expect(page.getByRole('button', { name: '斜体', exact: true })).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.getByRole('button', { name: '斜体', exact: true })).toHaveCSS('box-shadow', /3px 5px/)
-  await page.getByRole('toolbar', { name: 'Markdown 格式' }).screenshot({ path: test.info().outputPath('format-toolbar.png') })
-  await page.getByRole('button', { name: '斜体', exact: true }).click()
   await expect(rich.locator('em')).toHaveCount(0)
+  await expect(rich).toContainText('*链接*')
+  await expect(rich).toBeFocused()
+  await rich.locator('p').last().click()
+  await expect(rich.locator('em')).toHaveText('链接')
+  await page.getByRole('tab', { name: '工具', exact: true }).click()
+  await expect(page.getByRole('button', { name: '斜体', exact: true })).toHaveAttribute('aria-pressed', 'false')
+  await page.getByRole('toolbar', { name: 'Markdown 格式' }).screenshot({ path: test.info().outputPath('format-toolbar.png') })
   await page.getByRole('tab', { name: '工具', exact: true }).click()
   await page.getByRole('tab', { name: '文档', exact: true }).click()
   await page.getByRole('button', { name: '预览文章' }).click()
@@ -711,6 +711,41 @@ test('edits pasted Mermaid, math, callout and footnote blocks in the document', 
   })
   await editor.pressSequentially('中文脚注内容')
   expect(await markdownSource(page)).toContain('[^1]: 中文脚注内容')
+})
+
+test('renders pasted headings, fenced code and inline Markdown as structured content', { tag: ['@critical'] }, async ({ page }) => {
+  await beginArticle(page)
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  const markdown = [
+    '## 主题',
+    '',
+    '包含 **加粗**、*斜体* 与 ~~删除线~~。',
+    '',
+    '```bash',
+    'git add .',
+    'git commit -m "修复粘贴"',
+    '```',
+    '',
+    '- 第一项',
+    '- 第二项',
+  ].join('\n')
+  const prevented = await editor.evaluate((element, source) => {
+    const transfer = new DataTransfer()
+    transfer.setData('text/plain', source)
+    const event = new Event('paste', { bubbles: true, cancelable: true })
+    Object.defineProperty(event, 'clipboardData', { configurable: true, value: transfer })
+    element.dispatchEvent(event)
+    return event.defaultPrevented
+  }, markdown)
+
+  expect(prevented).toBe(true)
+  await expect(editor.getByRole('heading', { level: 2, name: '主题' })).toBeVisible()
+  await expect(editor.locator('strong')).toContainText('加粗')
+  await expect(editor.locator('em')).toContainText('斜体')
+  await expect(editor.locator('s')).toContainText('删除线')
+  await expect(editor.locator('pre code')).toContainText('git add .')
+  await expect(editor.getByRole('listitem')).toHaveCount(2)
+  expect(await markdownSource(page)).toContain('```bash')
 })
 
 test('edits, previews, jumps to, and progressively degrades a footnote definition', async ({ page }) => {
