@@ -9,6 +9,11 @@ const browserCoverage: Record<string, RegExp> = {
 }
 
 export default defineConfig(fullConfig, {
+  // The two WebKit smoke workflows are interaction-heavy and contend for the
+  // same small GitHub-hosted runner. Serial CI execution prevents WebKit from
+  // spending the entire per-test timeout waiting for otherwise-ready controls
+  // to become stable; the full local suite keeps its normal worker settings.
+  workers: 1,
   projects: fullConfig.projects?.map((project) => ({
     ...project,
     grep: browserCoverage[project.name ?? ''] ?? /@critical/,
