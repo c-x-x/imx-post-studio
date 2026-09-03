@@ -16,7 +16,9 @@ describe('CoverPanel', () => {
     expect(screen.getByRole('heading', { name: '文章封面' })).toBeInTheDocument()
     expect(screen.getByLabelText('选择封面')).toHaveAttribute('accept', 'image/jpeg,image/png,image/webp')
     expect(screen.getByLabelText('当前封面')).toHaveTextContent('封面')
-    fireEvent.click(screen.getByRole('button', { name: '删除封面' }))
+    const remove = screen.getByRole('button', { name: '删除封面' })
+    expect(remove).toHaveClass('media-item-action')
+    fireEvent.click(remove)
     expect(onRemove).toHaveBeenCalledWith('cover')
   })
 

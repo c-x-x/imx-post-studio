@@ -163,7 +163,7 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
 .dialog-actions button,
 .dashboard-heading button,
 .slug-control button,
-.media-list button {
+.media-item-action {
   min-height: 38px;
   padding: .52rem .78rem;
   border: 1px solid var(--imx-line);
@@ -179,7 +179,7 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
 .draft-actions button:hover:not(:disabled),
 .dialog-actions button:hover:not(:disabled),
 .slug-control button:hover:not(:disabled),
-.media-list button:hover:not(:disabled) {
+.media-item-action:hover:not(:disabled) {
   border-color: rgba(122, 90, 50, .35);
   color: var(--imx-accent-hover);
   background: var(--imx-paper);
@@ -667,9 +667,10 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
   font-size: .8rem;
 }
 
-.cover-item button {
+.media-item-action {
   min-height: 30px;
   padding: .35rem .55rem;
+  margin-left: 4px;
   font-size: .72rem;
 }
 
@@ -816,8 +817,6 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
   overflow-wrap: anywhere;
   font-size: .8rem;
 }
-
-.media-list button { min-height: 30px; padding: .35rem .55rem; margin-left: 4px; font-size: .72rem; }
 
 .bundle-actions { display: grid; gap: 10px; }
 
@@ -1413,6 +1412,15 @@ body.dialog-open {
 
 @media (max-width: 720px) {
   .app-shell { padding: 84px 9px 28px; }
+  .app-shell[data-view='workspace'] .workspace-editor,
+  .workspace-editor {
+    height: auto;
+    min-height: 0;
+  }
+  .workspace-editor .markdown-editor {
+    flex: 0 0 auto;
+    min-height: min(42dvh, 360px);
+  }
   .home-principles,
   .home-workflow,
   .home-shortcuts,

@@ -44,6 +44,16 @@ describe('deferred Markdown input', () => {
     expect(editor.view.dom.querySelector('strong')).toHaveTextContent('尚未完成')
   })
 
+  it('keeps four typed asterisks as an empty bold source when leaving the line', () => {
+    setup().commands.insertContent({ type: 'text', text: '****' })
+    editor.commands.splitBlock()
+
+    expect(editor.view.dom.querySelector('hr')).toBeNull()
+    expect(editor.state.doc.firstChild?.type.name).toBe('paragraph')
+    expect(editor.state.doc.firstChild?.textContent).toBe('****')
+    expect(editorMarkdown(editor).trim()).toBe('****')
+  })
+
   it('renders typed bold on Enter and starts the next paragraph without inline toolbar styles', () => {
     setup().commands.insertContent({ type: 'text', text: '**Markdown 加粗**' })
     editor.commands.splitBlock()

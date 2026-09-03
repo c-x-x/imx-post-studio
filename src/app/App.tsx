@@ -255,7 +255,7 @@ export function App() {
     }
   }
 
-  const executeNewArticle = () => {
+  const executeNewArticle = (nextView: View = 'workspace') => {
     const next = createArticleDraft(new Date(), {
       toc: studioSettings.defaultToc,
       featured: studioSettings.defaultFeatured,
@@ -267,7 +267,7 @@ export function App() {
     setHasUnsavedChanges(false)
     setTab('settings')
     setInspectorView('settings')
-    setView('workspace')
+    setView(nextView)
     setNotice('已创建新文章')
   }
 
@@ -410,6 +410,30 @@ export function App() {
     if (!failure || transitionDecisionInFlight.current || transitionInFlight.current) return
     transitionDecisionInFlight.current = true
     void requestTransition(failure.continue, failure.label, failure.retainsCurrent).finally(() => { transitionDecisionInFlight.current = false })
+  }
+  const deleteFailedTransition = async () => {
+    const failure = failedTransitionRef.current
+    if (!failure || failure.kind !== 'autosave' || transitionDecisionInFlight.current || transitionInFlight.current || intakeBusyRef.current) return
+    const deletedId = draftRef.current.id
+    const retainedView = view
+    transitionDecisionInFlight.current = true
+    transitionInFlight.current = true
+    setTransitioning(true)
+    try {
+      await draftRepository.delete(deletedId)
+      await githubOrigins.delete(deletedId)
+      setTransitionFailure(undefined)
+      executeNewArticle(retainedView)
+      if (failure.retainsCurrent) setNotice('当前文章已删除')
+      else await failure.continue()
+    } catch (cause) {
+      const detail = errorMessage(cause)
+      setTransitionFailure({ ...failure, id: ++transitionId.current, message: detail.startsWith('删除文章失败：') ? detail : `删除文章失败：${detail}` })
+    } finally {
+      transitionInFlight.current = false
+      transitionDecisionInFlight.current = false
+      setTransitioning(false)
+    }
   }
   const discardFailedTransition = async () => {
     const failure = failedTransitionRef.current
@@ -628,7 +652,7 @@ export function App() {
       <p className="field-error">原因：{failedTransition.message}</p>
       {transitionBackupError ? <p className="field-error" role="alert">{transitionBackupError}</p> : null}
       <div className="dialog-actions">
-        <button type="button" disabled={transitioning || intakeBusy} onClick={retryFailedTransition}>{failedTransition.kind === 'autosave' ? '重试自动保存' : '重试操作'}</button>
+        <button type="button" aria-label={failedTransition.kind === 'autosave' ? '删除当前文章' : undefined} disabled={transitioning || intakeBusy} onClick={failedTransition.kind === 'autosave' ? () => void deleteFailedTransition() : retryFailedTransition}>{failedTransition.kind === 'autosave' ? '删除' : '重试操作'}</button>
         {failedTransition.kind === 'autosave' && !failedTransition.retainsCurrent ? <button type="button" disabled={transitioning || intakeBusy} onClick={() => void discardFailedTransition()}>放弃未保存更改并继续</button> : null}
         {failedTransition.kind === 'autosave' && failedTransition.retainsCurrent ? <button type="button" disabled={transitioning || intakeBusy} onClick={() => setTransitionFailure(undefined)}>继续浏览，暂不打开其他文章</button> : null}
         <button type="button" disabled={transitioning || intakeBusy} onClick={() => void exportTransitionRecovery()}>导出恢复备份</button>

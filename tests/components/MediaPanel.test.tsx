@@ -80,5 +80,6 @@ describe('MediaPanel intake', () => {
     expect(screen.queryByLabelText('选择封面')).not.toBeInTheDocument()
     expect(screen.getByRole('listitem', { name: 'body.webp' })).toBeInTheDocument()
     expect(screen.queryByRole('listitem', { name: 'cover.webp' })).not.toBeInTheDocument()
+    expect(screen.getByRole('listitem', { name: 'body.webp' }).querySelectorAll('.media-item-action')).toHaveLength(2)
   })
 })

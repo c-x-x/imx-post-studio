@@ -401,7 +401,12 @@ export const DeferredMarkdown = Extension.create({
           if (revealed?.block === position && !completeRevealedSyntax(state, revealed)) continue
           const node = state.doc.nodeAt(position)
           if (!node || !canDefer(node)) continue
-          const parsed = editor.schema.nodeFromJSON(editor.markdown.parse(lineMarkdown(editor, node, position, pendingKey.getState(state)?.literals)))
+          const markdown = lineMarkdown(editor, node, position, pendingKey.getState(state)?.literals)
+          // Four adjacent asterisks are the editor's empty bold source. CommonMark
+          // also accepts them as a thematic break, so keep this exact source
+          // editable instead of turning it into a horizontal rule on blur/tap.
+          if (markdown === '****') continue
+          const parsed = editor.schema.nodeFromJSON(editor.markdown.parse(markdown))
           const $position = state.doc.resolve(position)
           if (!$position.parent.canReplace($position.index(), $position.index() + 1, parsed.content)) continue
           if (!parsed.content.eq(state.doc.content.cut(position, position + node.nodeSize))) {

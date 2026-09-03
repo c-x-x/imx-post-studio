@@ -116,7 +116,7 @@ export function MediaPanel({ draftId = 'default-draft', media, body, onAddBatch,
     </div>
     {error ? <p className="field-error" role="alert">{error}</p> : null}
     <ul className="media-list" aria-label="已添加图片">
-      {bodyMedia.map((asset) => <li key={asset.id} aria-label={asset.name}><span>{asset.name}</span><div><button type="button" onClick={() => onInsertImage(asset)} disabled={disabled}>插入</button><button type="button" disabled={disabled} onClick={(event) => requestRemove(asset, event.currentTarget)}>删除</button></div></li>)}
+      {bodyMedia.map((asset) => <li key={asset.id} aria-label={asset.name}><span>{asset.name}</span><div><button className="media-item-action" type="button" onClick={() => onInsertImage(asset)} disabled={disabled}>插入</button><button className="media-item-action" type="button" disabled={disabled} onClick={(event) => requestRemove(asset, event.currentTarget)}>删除</button></div></li>)}
     </ul>
     {removal ? <AccessibleDialog title="删除已引用图片？" onClose={closeRemoval} returnFocus={() => removalTrigger.current ?? panelRef.current}><p>正文仍引用 images/{removal.name}。删除会让最终导出无法通过校验。</p><div className="dialog-actions"><DialogClose>{(close) => <button type="button" disabled={disabled} onClick={close}>取消</button>}</DialogClose><button type="button" disabled={disabled} onClick={() => { onRemove(removal.id); closeRemoval(); panelRef.current?.focus() }}>删除图片</button></div></AccessibleDialog> : null}
   </section>

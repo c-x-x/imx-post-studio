@@ -90,7 +90,7 @@ export function CoverPanel({ draftId = 'default-draft', cover, onReplace, onRemo
     <label className="file-button">选择封面<input disabled={disabled} aria-label="选择封面" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { void selectCover(event.target.files?.[0]); event.currentTarget.value = '' }} /></label>
     <p className="cover-help">支持 JPEG、PNG 或 WebP；裁剪后保存为 cover.webp。</p>
     {error ? <p className="field-error" role="alert">{error}</p> : null}
-    {cover ? <div className="cover-item" aria-label="当前封面"><span>封面</span><button type="button" disabled={disabled} aria-label="删除封面" onClick={() => onRemove(cover.id)}>删除</button></div> : null}
+    {cover ? <div className="cover-item" aria-label="当前封面"><span>封面</span><button className="media-item-action" type="button" disabled={disabled} aria-label="删除封面" onClick={() => onRemove(cover.id)}>删除</button></div> : null}
     {pendingCover ? <CoverCropDialog disabled={disabled} source={pendingCover} onCancel={() => setPendingCover(undefined)} onComplete={(asset) => { onReplace(asset); setPendingCover(undefined) }} /> : null}
   </section>
 }

@@ -117,7 +117,7 @@ describe('workspace transitions', () => {
     expect(dialog).toHaveTextContent('自动保存失败，因此无法安全打开草稿')
     expect(screen.getByRole('region', { name: '草稿' })).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: '文章工作区' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '重试自动保存' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '删除当前文章' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '放弃未保存更改并继续' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '导出恢复备份' })).toBeInTheDocument()
   })
@@ -275,7 +275,7 @@ describe('workspace transitions', () => {
 
     expect(screen.getByRole('region', { name: '草稿' })).toBeInTheDocument()
     expect(screen.getByRole('dialog', { name: '当前写作区有无法自动保存的文章' })).toHaveTextContent('Quota exceeded')
-    expect(screen.getByRole('button', { name: '重试自动保存' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '删除当前文章' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '继续浏览，暂不打开其他文章' })).toBeInTheDocument()
   })
 
@@ -363,23 +363,27 @@ describe('workspace transitions', () => {
     expect(screen.getByRole('region', { name: '草稿' })).toBeInTheDocument()
   })
 
-  it('does not let discard race a retry continuation', async () => {
-    let resolveRetry: (() => void) | undefined
+  it('deletes the unsaved article without letting another recovery action race it', async () => {
+    let resolveDelete: (() => void) | undefined
     put.mockRejectedValueOnce(new Error('Quota exceeded'))
-    put.mockImplementationOnce(() => new Promise<void>((resolve) => { resolveRetry = resolve }))
+    remove.mockImplementationOnce(() => new Promise<void>((resolve) => { resolveDelete = resolve }))
     render(<App />)
     await startWorkspace()
     fireEvent.change(screen.getByLabelText('标题'), { target: { value: '需要恢复的文章' } })
     fireEvent.click(screen.getByRole('button', { name: '草稿' }))
     await act(async () => { await Promise.resolve() })
 
-    fireEvent.click(screen.getByRole('button', { name: '重试自动保存' }))
+    fireEvent.click(screen.getByRole('button', { name: '删除当前文章' }))
     expect(screen.getByRole('button', { name: '继续浏览，暂不打开其他文章' })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: '继续浏览，暂不打开其他文章' }))
-    await act(async () => { resolveRetry?.() })
+    await act(async () => { resolveDelete?.() })
 
     expect(screen.getByRole('region', { name: '草稿' })).toBeInTheDocument()
-    expect(put).toHaveBeenCalledTimes(2)
+    expect(screen.queryByRole('dialog', { name: '当前写作区有无法自动保存的文章' })).not.toBeInTheDocument()
+    expect(remove).toHaveBeenCalledOnce()
+    expect(put).toHaveBeenCalledOnce()
+    fireEvent.click(screen.getByRole('button', { name: '写作' }))
+    expect(screen.getByLabelText('标题')).toHaveValue('')
   })
 
   it('blocks new, dashboard, and import transitions while delayed cover validation is active', async () => {

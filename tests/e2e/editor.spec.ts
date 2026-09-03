@@ -275,6 +275,37 @@ test('has no serious or critical axe violations on the home, dashboard, and work
   expect(workspaceResults.violations.filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')).toEqual([])
 })
 
+test('keeps cover and body image delete actions visually consistent', async ({ page }) => {
+  await beginArticle(page)
+  await page.getByLabel('选择封面').setInputFiles(pngFile('cover-source.png', 320, 180, [31, 112, 180, 255]))
+  await page.getByRole('button', { name: '使用此封面' }).click()
+  await page.getByLabel('添加正文图片').setInputFiles(pngFile('body-source.png', 320, 180, [232, 121, 36, 255]))
+
+  const coverDelete = page.getByRole('button', { name: '删除封面' })
+  const bodyDelete = page.getByRole('listitem', { name: 'body-source.png' }).getByRole('button', { name: '删除' })
+  await expect(coverDelete).toBeVisible()
+  await expect(bodyDelete).toBeVisible()
+
+  const styleProperties = [
+    'background-color',
+    'border-top-color',
+    'border-top-style',
+    'border-top-width',
+    'border-radius',
+    'box-shadow',
+    'color',
+    'font-size',
+    'min-height',
+    'padding-left',
+    'padding-right',
+  ]
+  const computedStyles = async (selector: typeof coverDelete) => selector.evaluate((element, properties) => {
+    const style = getComputedStyle(element)
+    return Object.fromEntries(properties.map((property) => [property, style.getPropertyValue(property)]))
+  }, styleProperties)
+  expect(await computedStyles(coverDelete)).toEqual(await computedStyles(bodyDelete))
+})
+
 test('keeps keyboard focus in the export dialog', async ({ page }) => {
   await beginArticle(page)
   await fillMetadata(page)
@@ -355,6 +386,20 @@ test('keeps responsive workspace panels mounted and opens preview without horizo
   await page.getByRole('tab', { name: '设置', exact: true }).click()
   await expect(page.getByLabel('标题')).toHaveValue(ARTICLE_TITLE)
   await expectNoHorizontalOverflow()
+})
+
+test('sizes the mobile writing surface to short content instead of forcing a full-screen blank area', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/')
+  await page.getByRole('button', { name: '开始写文章' }).click()
+  await page.getByRole('tab', { name: '写作' }).click()
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await editor.fill('短内容')
+
+  const panelHeight = await page.locator('.workspace-editor').evaluate((element) => element.getBoundingClientRect().height)
+  expect(panelHeight).toBeGreaterThan(300)
+  expect(panelHeight).toBeLessThan(520)
+  await expect(editor.locator('p').last()).toBeEmpty()
 })
 
 test('renders usable code blocks and keeps the preview back control stationary', { tag: '@critical' }, async ({ page, browserName }) => {

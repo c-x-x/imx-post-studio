@@ -782,7 +782,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     // typing always lands between empty markers and selected text stays selected.
     const restoreSelection = () => {
       if (editor.isDestroyed || editor.state.doc !== transaction.doc) return
-      if (editor.state.selection.from !== nextSelection.from || editor.state.selection.to !== nextSelection.to) return
       const restore = editor.state.tr
       restore.setSelection(TextSelection.create(restore.doc, nextSelection.from, nextSelection.to))
       restore.setStoredMarks([]).setMeta('addToHistory', false)
@@ -790,7 +789,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       editor.view.focus()
     }
     const requestFrame = editor.view.dom.ownerDocument.defaultView?.requestAnimationFrame
-    if (requestFrame) requestFrame(restoreSelection)
+    if (requestFrame) requestFrame(() => {
+      restoreSelection()
+      // iOS Safari can move the native selection once more when the writing
+      // panel finishes becoming visible. A second frame corrects that drift;
+      // the document identity guard above stops as soon as real input occurs.
+      requestFrame(restoreSelection)
+    })
     else queueMicrotask(restoreSelection)
   }
 

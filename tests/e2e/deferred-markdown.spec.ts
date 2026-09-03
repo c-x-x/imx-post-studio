@@ -1,6 +1,40 @@
 import { expect, test } from '@playwright/test'
 import { setEditorMode } from '../helpers/editor-mode'
 
+test('keeps four asterisks editable instead of rendering a divider after a mobile blur', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/')
+  await page.getByRole('button', { name: '开始写文章' }).click()
+  await page.getByRole('tab', { name: '写作' }).click()
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await editor.click()
+  await editor.pressSequentially('****')
+  await editor.evaluate((element) => (element as HTMLElement).blur())
+
+  await expect(editor.locator('hr')).toHaveCount(0)
+  await expect(editor.locator('p').first()).toHaveText('****')
+})
+
+test('keeps mobile subscript and superscript input inside their source tags', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/')
+  await page.getByRole('button', { name: '开始写文章' }).click()
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+
+  for (const [button, tag, text] of [['下标', 'sub', '2'], ['上标', 'sup', '3']] as const) {
+    await page.getByRole('tab', { name: '写作' }).click()
+    await editor.locator('p').last().click()
+    await page.getByRole('tab', { name: '工具' }).click()
+    await page.getByRole('tab', { name: '排版' }).click()
+    await page.getByRole('button', { name: button, exact: true }).click()
+    await expect(page.getByRole('tab', { name: '写作' })).toHaveAttribute('aria-selected', 'true')
+    await editor.pressSequentially(text)
+    await expect(editor).toContainText(`<${tag}>${text}</${tag}>`)
+    await editor.press('Enter')
+    await expect(editor.locator(tag).last()).toHaveText(text)
+  }
+})
+
 test('applies a link to the selected text while other Markdown in the line is pending', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: '写作', exact: true }).click()
