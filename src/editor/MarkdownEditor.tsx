@@ -8,7 +8,6 @@ import { Markdown } from '@tiptap/markdown'
 import { TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
-import Image from '@tiptap/extension-image'
 import { common, createLowlight } from 'lowlight'
 import type { MediaAsset } from '../metadata/article'
 import { mediaAlt } from '../media/names'
@@ -16,7 +15,7 @@ import type { EditorMode } from './editor-mode'
 import type { EditorFont } from './editor-font'
 import { extractEditorOutline } from './outline'
 import { clipboardImages, containsPastedMarkdown, type PastedImageRequest } from './paste'
-import { AlwaysTrailingParagraph, CalloutBlock, FootnoteDefinition, FootnoteReference, MathBlock, MathInline, MermaidBlock, RawMarkdownBlock, RawMarkdownInline, SafeCodeBlock, SafeTable, SpecialBlockInput, Subscript, Superscript, TextHighlight } from './markdown-extensions'
+import { AlwaysTrailingParagraph, CalloutBlock, FootnoteDefinition, FootnoteReference, MathBlock, MathInline, MermaidBlock, RawMarkdownBlock, RawMarkdownInline, SafeCodeBlock, SafeImage, SafeTable, SpecialBlockInput, Subscript, Superscript, TextHighlight } from './markdown-extensions'
 import { TableDialog, type MarkdownTableDimensions } from './TableDialog'
 import { LinkDialog } from './LinkDialog'
 import { SyntaxDialog, type SyntaxDialogValue } from './SyntaxDialog'
@@ -29,7 +28,7 @@ import './editor.css'
 
 const SourceMarkdownEditor = lazy(() => import('./SourceMarkdownEditor'))
 const lowlight = createLowlight(common)
-type InlineSyntaxDialogKind = 'math-inline' | 'image'
+type InlineSyntaxDialogKind = 'math-inline'
 
 export interface MarkdownEditorHandle {
   focusPosition(position: number): void
@@ -343,7 +342,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       TableCell,
       TaskList,
       TaskItem.configure({ nested: true }),
-      Image.configure({ inline: true, allowBase64: false }),
+      SafeImage.configure({ inline: false, allowBase64: false }),
       TextHighlight,
       Subscript,
       Superscript,
@@ -454,10 +453,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               const target = unchanged ? { from, to } : activeEditor.state.selection
               const safeFrom = Math.max(1, Math.min(max, target.from))
               const safeTo = Math.max(safeFrom, Math.min(max, target.to))
-              const content = assets.flatMap((asset, index) => [
-                { type: 'image', attrs: { src: `images/${asset.name}`, alt: mediaAlt(asset.name) } },
-                ...(index < assets.length - 1 ? [{ type: 'hardBreak' }] : []),
-              ])
+              const content = assets.map((asset) => (
+                { type: 'image', attrs: { src: `images/${asset.name}`, alt: mediaAlt(asset.name) } }
+              ))
               activeEditor.chain().focus().setTextSelection({ from: safeFrom, to: safeTo }).insertContent(content).run()
               commit(assets, editorMarkdown(activeEditor))
             })
@@ -477,10 +475,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           void prepare({ files, selection: { from: position, to: position }, value: current }).then((assets) => {
             const currentEditor = richEditorRef.current
             if (!currentEditor || currentEditor.isDestroyed || assets.length === 0 || modeRef.current !== 'rich') return
-            const content = assets.flatMap((asset, index) => [
-              { type: 'image', attrs: { src: `images/${asset.name}`, alt: mediaAlt(asset.name) } },
-              ...(index < assets.length - 1 ? [{ type: 'hardBreak' }] : []),
-            ])
+            const content = assets.map((asset) => (
+              { type: 'image', attrs: { src: `images/${asset.name}`, alt: mediaAlt(asset.name) } }
+            ))
             const safePosition = Math.max(1, Math.min(currentEditor.state.doc.content.size, position))
             currentEditor.chain().focus().insertContentAt(safePosition, content).run()
             commit(assets, editorMarkdown(currentEditor))
@@ -517,7 +514,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       handleDoubleClickOn(_view, pos, node) {
         const currentEditor = richEditorRef.current
         const dialogs: Record<string, { kind: InlineSyntaxDialogKind; initial: SyntaxDialogValue }> = {
-          image: { kind: 'image', initial: { primary: String(node.attrs.alt ?? ''), secondary: String(node.attrs.title ?? '') } },
           mathInline: { kind: 'math-inline', initial: { primary: String(node.attrs.latex ?? '') } },
         }
         const dialog = dialogs[node.type.name]
@@ -650,10 +646,15 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   useEffect(() => {
     if (!editor) return
     const root = editor.view.dom
-    root.querySelectorAll<HTMLImageElement>('img[src]').forEach((image) => {
-      const source = image.getAttribute('src') ?? ''
+    root.querySelectorAll<HTMLImageElement>('img[data-markdown-src]').forEach((image) => {
+      const source = image.dataset.markdownSrc ?? ''
       const resolved = mediaUrls.get(source)
-      if (resolved && image.src !== resolved) image.src = resolved
+      const missing = source.startsWith('images/') && !resolved
+      image.closest<HTMLElement>('.image-block-preview')?.toggleAttribute('data-missing-media', missing)
+      if (missing) image.setAttribute('aria-hidden', 'true')
+      else image.removeAttribute('aria-hidden')
+      const nextSource = resolved ?? source
+      if (image.getAttribute('src') !== nextSource) image.setAttribute('src', nextSource)
     })
   }, [editor, mediaUrls, value])
 
@@ -802,11 +803,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const applySyntax = (dialog: NonNullable<typeof syntaxDialog>, input: SyntaxDialogValue) => {
     if (!editor || disabled) return
     if (typeof dialog.nodePos === 'number') {
-      const attributes = dialog.kind === 'image'
-        ? { alt: input.primary, title: input.secondary || null }
-        : { latex: input.primary }
-      const nodeName = dialog.kind === 'image' ? 'image' : 'mathInline'
-      editor.chain().focus().setNodeSelection(dialog.nodePos).updateAttributes(nodeName, attributes).run()
+      editor.chain().focus().setNodeSelection(dialog.nodePos).updateAttributes('mathInline', { latex: input.primary }).run()
     } else if (dialog.kind === 'math-inline') {
       editor.chain().focus().insertContent({ type: 'mathInline', attrs: { latex: input.primary } }).run()
     }

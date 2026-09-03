@@ -637,6 +637,85 @@
 }
 .markdown-block-empty { color: var(--imx-ink-muted); font-family: var(--imx-font-ui); font-size: .85rem; }
 
+.markdown-editor .tiptap .image-block-view {
+  overflow: hidden;
+  border: 1px solid transparent;
+  background: transparent;
+  box-shadow: none;
+}
+.markdown-editor .tiptap .image-block-view[data-editing='true'] {
+  border: 1px solid var(--imx-ink);
+  background: transparent;
+  box-shadow: none;
+}
+.image-block-view .markdown-block-source {
+  border-bottom: 1px solid var(--imx-ink);
+  background: transparent;
+}
+.image-block-view .markdown-block-source textarea {
+  min-height: 1.65em;
+  resize: none;
+  overflow: hidden;
+}
+.image-block-preview {
+  display: grid;
+  place-items: center;
+  min-height: 3rem;
+  padding: 1rem;
+  overflow: visible;
+  background: transparent;
+}
+.image-block-preview img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 70vh;
+  border-radius: 10px;
+  pointer-events: none;
+}
+.image-block-missing {
+  display: none;
+  place-items: center;
+  gap: .55rem;
+  min-height: 7rem;
+  color: var(--imx-ink-muted);
+  font-family: var(--imx-font-ui);
+  font-size: .82rem;
+  text-align: center;
+}
+.markdown-editor .tiptap .image-block-preview[data-missing-media] img { display: none; }
+.image-block-preview[data-missing-media] .image-block-missing { display: grid; }
+.image-block-missing-icon {
+  position: relative;
+  display: block;
+  width: 3rem;
+  height: 2.4rem;
+  border: 2px solid currentColor;
+  border-radius: 5px;
+}
+.image-block-missing-icon::before {
+  content: '';
+  position: absolute;
+  left: .45rem;
+  bottom: .42rem;
+  width: 1.7rem;
+  height: 1rem;
+  border-left: 2px solid currentColor;
+  border-top: 2px solid currentColor;
+  transform: skewY(-36deg) rotate(8deg);
+}
+.image-block-missing-icon::after {
+  content: '';
+  position: absolute;
+  top: .42rem;
+  right: .48rem;
+  width: .4rem;
+  height: .4rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
 .markdown-editor .tiptap .mermaid-block-view {
   overflow: hidden;
   border: 1px solid transparent;

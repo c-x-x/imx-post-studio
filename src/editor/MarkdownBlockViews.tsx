@@ -313,6 +313,102 @@ function DelimitedBlockSource({ props, attribute, label, open, close, parse, inp
   </label>
 }
 
+function imageMarkdown(props: ReactNodeViewProps): string {
+  const alt = String(props.node.attrs.alt ?? '')
+  const src = String(props.node.attrs.src ?? '')
+  const title = String(props.node.attrs.title ?? '')
+  return title ? `![${alt}](${src} "${title}")` : `![${alt}](${src})`
+}
+
+function parsedImageAttributes(props: ReactNodeViewProps, value: string): Record<string, unknown> | null {
+  const markdown = props.editor.markdown
+  if (!markdown) return null
+  const parsed = markdown.parse(value)
+  const only = parsed.content?.length === 1 ? parsed.content[0] : undefined
+  const image = only?.type === 'image'
+    ? only
+    : only?.type === 'paragraph' && only.content?.length === 1 && only.content[0].type === 'image'
+      ? only.content[0]
+      : undefined
+  return image?.attrs ?? null
+}
+
+function ImageBlockSource({ props, inputRef }: {
+  props: ReactNodeViewProps
+  inputRef: RefObject<HTMLTextAreaElement | null>
+}) {
+  const canonical = imageMarkdown(props)
+  const [draft, setDraft] = useState(canonical)
+  const composing = useRef(false)
+  useEffect(() => {
+    if (!composing.current) setDraft(canonical)
+  }, [canonical])
+  useLayoutEffect(() => {
+    if (inputRef.current) resizeTextarea(inputRef.current)
+  }, [draft, inputRef])
+
+  const update = (next: string, selectionOffset: number) => {
+    setDraft(next)
+    if (composing.current) return
+    const attributes = parsedImageAttributes(props, next)
+    if (!attributes) {
+      degradeBlockToPlainText(props, next, selectionOffset)
+      return
+    }
+    props.updateAttributes({
+      src: attributes.src ?? '',
+      alt: attributes.alt ?? '',
+      title: attributes.title ?? null,
+    })
+  }
+
+  return <label className="markdown-block-source markdown-image-source">
+    <textarea
+      ref={inputRef}
+      aria-label="图片 Markdown 源码"
+      rows={1}
+      data-autosize="true"
+      data-initial-caret="2"
+      spellCheck={false}
+      value={draft}
+      onChange={(event) => {
+        update(event.currentTarget.value, event.currentTarget.selectionStart)
+        resizeTextarea(event.currentTarget)
+      }}
+      onCompositionStart={() => { composing.current = true }}
+      onCompositionEnd={(event) => {
+        composing.current = false
+        update(event.currentTarget.value, event.currentTarget.selectionStart)
+      }}
+      onKeyDown={(event) => sourceKeyDown(event, props)}
+    />
+  </label>
+}
+
+export function ImageBlockView(props: ReactNodeViewProps) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const editing = useBlockEditing(props, rootRef, inputRef)
+  const src = String(props.node.attrs.src ?? '')
+  const alt = String(props.node.attrs.alt ?? '')
+  const title = String(props.node.attrs.title ?? '')
+  return <NodeViewWrapper
+    ref={rootRef}
+    className="markdown-special-block image-block-view"
+    data-editing={editing || undefined}
+    data-image-block="true"
+  >
+    {editing ? <ImageBlockSource props={props} inputRef={inputRef} /> : null}
+    <div className="markdown-block-preview image-block-preview" aria-label="图片预览">
+      <img src={src} data-markdown-src={src} alt={alt} title={title || undefined} draggable={false} />
+      <span className="image-block-missing" role="img" aria-label="图片文件已删除">
+        <span className="image-block-missing-icon" aria-hidden="true" />
+        <span>图片文件已删除</span>
+      </span>
+    </div>
+  </NodeViewWrapper>
+}
+
 export function MathBlockView(props: ReactNodeViewProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)

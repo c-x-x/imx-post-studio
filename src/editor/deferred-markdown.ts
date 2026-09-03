@@ -2,7 +2,7 @@ import { Extension, type Editor, type JSONContent } from '@tiptap/core'
 import type {} from '@tiptap/markdown'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { isHistoryTransaction } from '@tiptap/pm/history'
-import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state'
+import { Plugin, PluginKey, Selection, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 
 interface DeferredState {
@@ -390,33 +390,47 @@ export const DeferredMarkdown = Extension.create({
         const active = blurred && !hasToolbarMarkers ? null : textblockPosition(state)
         const pending = pendingKey.getState(state)?.pending
         if (!pending?.size || !editor.markdown) return null
-        const transaction = state.tr
-        const committed: number[] = []
-        // Back-to-front replacements leave the remaining block positions stable.
-        for (const position of [...pending].sort((a, b) => b - a)) {
-          const revealed = pendingKey.getState(state)?.revealed
-          const insideRevealedSource = revealed?.block === position
-            && state.selection.from >= revealed.from && state.selection.to <= revealed.to
-          if (position === active && (!revealed || insideRevealedSource)) continue
-          if (revealed?.block === position && !completeRevealedSyntax(state, revealed)) continue
-          const node = state.doc.nodeAt(position)
-          if (!node || !canDefer(node)) continue
-          const markdown = lineMarkdown(editor, node, position, pendingKey.getState(state)?.literals)
-          // Four adjacent asterisks are the editor's empty bold source. CommonMark
-          // also accepts them as a thematic break, so keep this exact source
-          // editable instead of turning it into a horizontal rule on blur/tap.
-          if (markdown === '****') continue
-          const parsed = editor.schema.nodeFromJSON(editor.markdown.parse(markdown))
-          const $position = state.doc.resolve(position)
-          if (!$position.parent.canReplace($position.index(), $position.index() + 1, parsed.content)) continue
-          if (!parsed.content.eq(state.doc.content.cut(position, position + node.nodeSize))) {
-            committed.push(position)
-            transaction.replaceWith(position, position + node.nodeSize, parsed.content)
+          const transaction = state.tr
+          const committed: number[] = []
+          let restoredImagePosition: number | null = null
+          // Back-to-front replacements leave the remaining block positions stable.
+          for (const position of [...pending].sort((a, b) => b - a)) {
+            const revealed = pendingKey.getState(state)?.revealed
+            const insideRevealedSource = revealed?.block === position
+              && state.selection.from >= revealed.from && state.selection.to <= revealed.to
+            if (revealed?.block === position && !completeRevealedSyntax(state, revealed)) continue
+            const node = state.doc.nodeAt(position)
+            if (!node || !canDefer(node)) continue
+            const markdown = lineMarkdown(editor, node, position, pendingKey.getState(state)?.literals)
+            // Four adjacent asterisks are the editor's empty bold source. CommonMark
+            // also accepts them as a thematic break, so keep this exact source
+            // editable instead of turning it into a horizontal rule on blur/tap.
+            if (markdown === '****') continue
+            const parsed = editor.schema.nodeFromJSON(editor.markdown.parse(markdown))
+            const restoresStandaloneImage = parsed.childCount === 1 && parsed.firstChild?.type.name === 'image'
+            // Ordinary inline syntax remains visible until the caret leaves its
+            // line. A repaired standalone image is different: it was an image
+            // block immediately before its syntax was broken, so restore it as
+            // soon as the closing marker makes the whole line valid again.
+            if (position === active && (!revealed || insideRevealedSource) && !restoresStandaloneImage) continue
+            const $position = state.doc.resolve(position)
+            if (!$position.parent.canReplace($position.index(), $position.index() + 1, parsed.content)) continue
+            if (!parsed.content.eq(state.doc.content.cut(position, position + node.nodeSize))) {
+              committed.push(position)
+              transaction.replaceWith(position, position + node.nodeSize, parsed.content)
+              if (position === active && restoresStandaloneImage) restoredImagePosition = position
+            }
           }
-        }
-        if (!committed.length) return null
-        revealAfterCommit = true
-        return transaction.setMeta(pendingKey, committed)
+          if (!committed.length) return null
+          if (restoredImagePosition !== null) {
+            const imagePosition = transaction.mapping.map(restoredImagePosition, -1)
+            const image = transaction.doc.nodeAt(imagePosition)
+            if (image?.type.name === 'image') {
+              transaction.setSelection(Selection.near(transaction.doc.resolve(imagePosition + image.nodeSize), 1))
+            }
+          }
+          revealAfterCommit = true
+          return transaction.setMeta(pendingKey, committed)
       },
       view() {
         return {

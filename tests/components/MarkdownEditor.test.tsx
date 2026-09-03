@@ -99,6 +99,30 @@ describe('MarkdownEditor', () => {
     expect(screen.getByTestId('markdown').textContent).toBe('第一行')
   })
 
+  it('opens image blocks as Markdown source and degrades broken syntax to plain text', async () => {
+    const user = userEvent.setup()
+    const { container } = render(<ControlledEditor initial="![photo](images/photo.jpg)" />)
+    const editor = screen.getByRole('textbox', { name: 'Markdown 编辑器' })
+    const preview = screen.getByLabelText('图片预览')
+    expect(preview.querySelector('img')).toHaveAttribute('src', 'images/photo.jpg')
+    await waitFor(() => expect(editor.querySelector(':scope > p:last-child')).toBeInTheDocument())
+
+    await user.click(preview)
+    const source = screen.getByLabelText('图片 Markdown 源码')
+    await waitFor(() => expect(source).toHaveFocus())
+    expect(source).toHaveValue('![photo](images/photo.jpg)')
+    ;(source as HTMLTextAreaElement).setSelectionRange(source.textContent?.length ?? 0, source.textContent?.length ?? 0)
+    await user.keyboard('{End}{Backspace}')
+
+    expect(container.querySelector('.image-block-view')).not.toBeInTheDocument()
+    expect(editor).toHaveTextContent('![photo](images/photo.jpg')
+    expect(editor).toHaveFocus()
+    await user.keyboard(')')
+    await waitFor(() => expect(container.querySelector('.image-block-view')).toBeInTheDocument())
+    expect(screen.queryByLabelText('图片 Markdown 源码')).not.toBeInTheDocument()
+    expect(screen.getByTestId('markdown')).toHaveTextContent('![photo](images/photo.jpg)')
+  })
+
   it('loads safe semantic text-style tags as editable marks', () => {
     render(<ControlledEditor initial="<mark>高亮</mark> <sub>下标</sub> <sup>上标</sup>" />)
     const editor = screen.getByRole('textbox', { name: 'Markdown 编辑器' })

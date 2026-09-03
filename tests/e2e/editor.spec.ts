@@ -533,6 +533,55 @@ test('pastes images at the active cursor in both rich and source modes', { tag: 
   expect(sourceText.indexOf('![source](images/source.png)')).toBeLessThan(sourceText.indexOf('源码后'))
 })
 
+test('edits a rendered image like a formula block and keeps a clickable line below it', { tag: ['@critical', '@webkit-smoke'] }, async ({ page }) => {
+  await beginArticle(page)
+  await page.getByLabel('添加正文图片').setInputFiles(pngFile('editable.png', 320, 180, [117, 76, 172, 255]))
+  await page.getByRole('listitem', { name: 'editable.png' }).getByRole('button', { name: '插入' }).click()
+
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  const imageBlock = page.locator('.image-block-view')
+  const preview = page.getByLabel('图片预览')
+  await expect(imageBlock).toBeVisible()
+  await expect(preview.locator('img')).toHaveAttribute('src', /^blob:/)
+
+  const trailingParagraph = editor.locator(':scope > p').last()
+  await expect(trailingParagraph).toBeVisible()
+  await trailingParagraph.click()
+  await editor.pressSequentially('图片下方正文')
+  expect(await markdownSource(page)).toContain('![editable](images/editable.png)\n\n图片下方正文')
+
+  await preview.click()
+  let source = page.getByLabel('图片 Markdown 源码')
+  await expect(source).toBeFocused()
+  await expect(source).toHaveValue('![editable](images/editable.png)')
+  await source.evaluate((element) => {
+    const textarea = element as HTMLTextAreaElement
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length)
+  })
+  await source.press('Backspace')
+
+  await expect(imageBlock).toHaveCount(0)
+  await expect(source).toHaveCount(0)
+  await expect(editor).toContainText('![editable](images/editable.png')
+  await expect(editor).toBeFocused()
+  await editor.pressSequentially(')')
+  await expect(imageBlock).toBeVisible()
+  await expect(preview.locator('img')).toHaveAttribute('src', /^blob:/)
+
+  await page.getByRole('listitem', { name: 'editable.png' }).getByRole('button', { name: '删除' }).click()
+  const removalDialog = page.getByRole('dialog', { name: '删除已引用图片？' })
+  await expect(removalDialog).toBeVisible()
+  await removalDialog.getByRole('button', { name: '删除图片' }).click()
+  await expect(page.getByRole('img', { name: '图片文件已删除' })).toBeVisible()
+  await expect(preview.locator('img')).toBeHidden()
+  expect(await markdownSource(page)).toContain('![editable](images/editable.png)')
+
+  await preview.click()
+  source = page.getByLabel('图片 Markdown 源码')
+  await expect(source).toBeFocused()
+  await expect(source).toHaveValue('![editable](images/editable.png)')
+})
+
 test('selects a callout type in a dialog and focuses its body', async ({ page }) => {
   await beginArticle(page)
   const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })

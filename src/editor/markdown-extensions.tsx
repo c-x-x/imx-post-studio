@@ -1,12 +1,13 @@
 import { Extension, Mark, Node, mergeAttributes, type JSONContent, type MarkdownParseHelpers, type MarkdownRendererHelpers, type MarkdownToken } from '@tiptap/core'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
+import Image from '@tiptap/extension-image'
 import { Table } from '@tiptap/extension-table'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import { Plugin, NodeSelection } from '@tiptap/pm/state'
 import { isHistoryTransaction } from '@tiptap/pm/history'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import katex from 'katex'
-import { CalloutBlockView, FootnoteDefinitionView, FootnoteReferenceView, MathBlockView, MermaidBlockView } from './MarkdownBlockViews'
+import { CalloutBlockView, FootnoteDefinitionView, FootnoteReferenceView, ImageBlockView, MathBlockView, MermaidBlockView } from './MarkdownBlockViews'
 
 function longestBacktickRun(value: string): number {
   return Math.max(0, ...Array.from(value.matchAll(/`+/g), (match) => match[0].length))
@@ -68,6 +69,11 @@ export const SafeTable = Table.extend({
   renderMarkdown(node: JSONContent, helpers: MarkdownRendererHelpers) {
     return renderSafeTable(node, helpers)
   },
+})
+
+/** Renders Markdown images as editable blocks instead of unreachable inline atoms. */
+export const SafeImage = Image.extend({
+  addNodeView() { return ReactNodeViewRenderer(ImageBlockView) },
 })
 
 function semanticMark(name: string, tag: 'mark' | 'sub' | 'sup') {
