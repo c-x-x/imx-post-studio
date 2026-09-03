@@ -1,1 +1,1 @@
-export type EditorFont = 'serif' | 'sans' | 'mono' | 'wenkai' | 'smiley'
+export type EditorFont = 'serif' | 'wenkai'

@@ -201,11 +201,21 @@
 
 @media (max-width: 620px) {
   .editor-status-bar { grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; padding-inline: 8px; }
-  .editor-history-actions button { width: 34px; min-width: 34px; padding-inline: 0; overflow: hidden; color: transparent; }
-  .editor-history-actions button::first-letter { color: var(--imx-ink-secondary); }
+  .editor-history-actions { gap: 4px; }
+  .editor-history-actions button {
+    width: auto;
+    min-width: 50px;
+    padding-inline: .55rem;
+    overflow: visible;
+    color: var(--imx-ink-secondary);
+    white-space: nowrap;
+  }
 }
 
 .imx-rich-content .editor-markdown-marker { color: var(--imx-ink-muted); }
+.imx-rich-content .editor-toolbar-markdown-marker {
+  color: color-mix(in srgb, var(--imx-ink-muted) 56%, transparent);
+}
 .imx-rich-content s { text-decoration: line-through; }
 
 .editor-mode-toggle {
@@ -280,7 +290,7 @@
   border-radius: 14px;
   padding: .3rem .75rem;
   color: var(--imx-ink-secondary);
-  background: var(--imx-surface);
+  background: var(--imx-paper);
   box-shadow: 0 8px 24px rgba(43, 33, 22, .12);
   font: inherit;
   font-size: .76rem;
@@ -293,7 +303,7 @@
 .editor-code-language:hover,
 .editor-code-language:focus {
   border-color: color-mix(in srgb, var(--imx-accent) 42%, var(--imx-line));
-  background: var(--imx-accent-soft);
+  background: color-mix(in srgb, var(--imx-accent) 8%, var(--imx-paper));
 }
 
 @media (max-width: 640px) {
@@ -315,10 +325,14 @@
 }
 
 .markdown-editor[data-font='serif'] { --imx-editor-font: var(--imx-font-reading); }
-.markdown-editor[data-font='sans'] { --imx-editor-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif; }
-.markdown-editor[data-font='mono'] { --imx-editor-font: var(--imx-font-mono); }
 .markdown-editor[data-font='wenkai'] { --imx-editor-font: 'IMPS LXGW WenKai', var(--imx-font-reading); }
-.markdown-editor[data-font='smiley'] { --imx-editor-font: 'IMPS Smiley Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif; }
+
+/* LXGW WenKai Screen ships as regular only. The app normally disables synthetic
+   weight globally, so opt this editor font back in to keep strong text distinct. */
+.markdown-editor[data-font='wenkai'] .cm-editor,
+.markdown-editor[data-font='wenkai'] .tiptap {
+  font-synthesis: weight style;
+}
 
 .markdown-editor .cm-editor {
   min-height: 100%;
@@ -416,6 +430,8 @@
   font-weight: 700;
   line-height: 1.35;
   text-decoration: none;
+  padding-bottom: .35em;
+  border-bottom: 1px solid color-mix(in srgb, var(--imx-accent) 18%, var(--imx-line));
 }
 .markdown-editor .tiptap h1 { font-size: 1.85em; }
 .markdown-editor .tiptap h2 { font-size: 1.55em; }
@@ -516,34 +532,329 @@
 
 .markdown-editor .tiptap [data-math] {
   color: var(--imx-ink);
-  cursor: default;
+  cursor: pointer;
 }
 
-.markdown-editor .tiptap [data-math='block'] {
+.markdown-editor .tiptap .markdown-special-block {
+  position: relative;
   margin: 1rem 0;
-  overflow-x: auto;
   border: 1px solid var(--imx-line);
   border-radius: 14px;
-  padding: 1rem;
-  text-align: center;
   background: var(--imx-gutter);
+  cursor: pointer;
+  transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
 }
 
-.markdown-editor .tiptap aside[data-callout] {
-  margin: 1rem 0;
-  border: 1px solid color-mix(in srgb, var(--imx-accent) 35%, var(--imx-line));
-  border-left: 4px solid var(--imx-accent);
-  border-radius: 12px;
-  padding: .85rem 1rem;
+.markdown-editor .tiptap .markdown-special-block[data-editing='true'] {
+  border-color: color-mix(in srgb, var(--imx-accent) 72%, var(--imx-line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--imx-accent) 14%, transparent);
+  cursor: text;
+}
+
+.markdown-block-source {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: .7rem .8rem;
+  border-bottom: 1px solid var(--imx-line);
+  background: color-mix(in srgb, var(--imx-panel) 68%, var(--imx-gutter));
+  cursor: text;
+}
+
+.markdown-block-source-label {
+  color: var(--imx-ink-muted);
+  font-family: var(--imx-font-ui);
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+}
+
+.markdown-block-source textarea {
+  width: 100%;
+  min-height: 5.4rem;
+  resize: vertical;
+  border: 0;
+  outline: 0;
+  padding: 0;
+  color: var(--imx-ink);
+  background: transparent;
+  caret-color: var(--imx-accent);
+  font-family: var(--imx-font-mono);
+  font-size: .9rem;
+  line-height: 1.65;
+  tab-size: 2;
+}
+
+.markdown-delimited-source textarea {
+  white-space: pre-wrap;
+}
+
+.markdown-block-preview {
+  min-height: 5rem;
+  padding: 1rem;
+  overflow-x: auto;
+  color: var(--imx-ink);
+  background: var(--imx-panel);
+  cursor: pointer;
+}
+
+.markdown-editor .tiptap .math-block-view {
+  overflow: hidden;
+  border: 1px solid transparent;
+  background: transparent;
+  box-shadow: none;
+}
+.markdown-editor .tiptap .math-block-view[data-editing='true'] {
+  border: 1px solid var(--imx-ink);
+  background: transparent;
+  box-shadow: none;
+}
+.math-block-view .markdown-block-source {
+  gap: .3rem;
+  border-bottom: 1px solid var(--imx-ink);
+  background: transparent;
+}
+.math-block-view .markdown-block-source textarea {
+  min-height: 1.65em;
+  resize: none;
+  overflow: hidden;
+}
+.markdown-block-delimiter {
+  color: var(--imx-ink);
+  font-family: var(--imx-font-mono);
+  font-size: .9rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.math-block-preview { display: grid; place-items: center; text-align: center; background: transparent; }
+.math-block-preview .katex-display { margin: .35rem 0; }
+.math-block-empty {
+  color: var(--imx-ink);
+  font-family: var(--imx-font-reading);
+  font-size: 1.35rem;
+  font-style: italic;
+  line-height: 1.4;
+}
+.markdown-block-empty { color: var(--imx-ink-muted); font-family: var(--imx-font-ui); font-size: .85rem; }
+
+.markdown-editor .tiptap .mermaid-block-view {
+  overflow: hidden;
+  border: 1px solid transparent;
+  background: transparent;
+  box-shadow: none;
+}
+.markdown-editor .tiptap .mermaid-block-view[data-editing='true'] {
+  border: 1px solid var(--imx-ink);
+  background: transparent;
+  box-shadow: none;
+}
+.mermaid-block-view .markdown-block-source {
+  gap: .3rem;
+  border-bottom: 1px solid var(--imx-ink);
+  background: transparent;
+}
+.mermaid-block-view .markdown-block-source textarea {
+  min-height: 1.65em;
+  resize: none;
+  overflow: hidden;
+}
+.mermaid-block-preview {
+  display: grid;
+  place-items: center;
+  gap: .5rem;
+  min-height: 8rem;
+  padding: 1rem;
+  background: transparent;
+}
+.mermaid-block-preview .mermaid-svg { display: grid; place-items: center; width: 100%; }
+.mermaid-block-preview svg { display: block; width: auto; max-width: 100%; height: auto; }
+.mermaid-block-preview .mermaid-svg,
+.mermaid-block-preview .mermaid-svg * { pointer-events: none; }
+.mermaid-block-preview small { color: var(--imx-danger, #b33a2b); font-family: var(--imx-font-ui); }
+.mermaid-block-empty {
+  color: var(--imx-ink);
+  font-family: var(--imx-font-reading);
+  font-size: 1.35rem;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.markdown-editor .tiptap .callout-block-view {
+  --callout-color: #238636;
+  --callout-bg: color-mix(in srgb, var(--callout-color) 9%, var(--imx-paper));
+  border: 0;
+  border-left: 4px solid var(--callout-color);
+  border-radius: 0 12px 12px 0;
+  padding: .8rem 1rem;
+  background: var(--callout-bg);
+  overflow: hidden;
+  box-shadow: none;
+}
+
+.markdown-editor .tiptap .callout-block-view[data-callout='tip'] {
+  --callout-color: #d97706;
+}
+
+.markdown-editor .tiptap .callout-block-view[data-callout='important'] { --callout-color: #b8860b; }
+.markdown-editor .tiptap .callout-block-view[data-callout='warning'] { --callout-color: #d13c3c; }
+.markdown-editor .tiptap .callout-block-view[data-callout='caution'] { --callout-color: #2672d9; }
+.markdown-editor .tiptap .callout-block-view[data-editing='true'] {
+  border-color: transparent;
+  border-left-color: var(--callout-color);
+  background: var(--callout-bg);
+  box-shadow: none;
+}
+
+.callout-block-title {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  margin: 0;
+  color: var(--callout-color);
+  font-family: var(--imx-font-ui);
+  font-weight: 750;
+}
+
+.callout-block-view > p { margin: .4rem 0 0; white-space: pre-wrap; }
+.callout-block-view .markdown-block-source {
+  margin: .5rem 0 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+.callout-block-view .markdown-block-source-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.callout-block-view .markdown-block-source textarea {
+  min-height: 1.65em;
+  resize: none;
+  overflow: hidden;
+  font-family: inherit;
+}
+
+.footnote-reference-view {
+  position: relative;
+  display: inline-block;
+  color: var(--imx-accent);
+  font-family: var(--imx-font-ui);
+  font-size: .76em;
+  font-weight: 750;
+  vertical-align: super;
+  cursor: pointer;
+  border-radius: 4px;
+  outline: 0;
+}
+
+.footnote-reference-view:hover,
+.footnote-reference-view:focus-visible {
+  color: var(--imx-accent-hover);
   background: var(--imx-accent-soft);
 }
 
-.markdown-editor .tiptap aside[data-callout] > * { display: block; margin: 0; }
-.markdown-editor .tiptap aside[data-callout] > p { margin-top: .35rem; white-space: pre-wrap; }
-
-.markdown-editor .tiptap pre[data-mermaid-source] {
-  border-style: dashed;
+.footnote-reference-view::after {
+  content: attr(data-description);
+  position: absolute;
+  z-index: 100;
+  left: 50%;
+  bottom: calc(100% + .65rem);
+  width: max-content;
+  max-width: min(22rem, 70vw);
+  padding: .55rem .7rem;
+  border: 1px solid var(--imx-line-strong);
+  border-radius: 9px;
+  color: var(--imx-ink);
+  background: var(--imx-paper, #fbfaf7);
+  box-shadow: var(--imx-shadow-md);
+  font-family: var(--imx-font-ui);
+  font-size: .82rem;
+  font-weight: 450;
+  line-height: 1.45;
   white-space: pre-wrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 4px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.footnote-reference-view:hover::after,
+.footnote-reference-view:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.markdown-editor .tiptap .footnote-definition-view {
+  display: block;
+  padding: .35rem .15rem;
+  border: 0;
+  border-radius: 0;
+  color: var(--imx-ink-muted);
+  background: transparent;
+  box-shadow: none;
+  font-family: var(--imx-font-mono);
+  font-size: .9em;
+  line-height: 1.7;
+  cursor: text;
+}
+.footnote-definition-content {
+  color: var(--imx-ink-muted);
+  outline: 0;
+  white-space: pre-wrap;
+}
+.footnote-definition-placeholder {
+  color: var(--imx-ink-muted);
+  opacity: .52;
+  cursor: text;
+  user-select: none;
+}
+
+.callout-dialog { width: min(100%, 500px); }
+.callout-dialog-help { margin: 0 0 14px; color: var(--imx-ink-muted); font-size: .82rem; line-height: 1.6; }
+.callout-dialog-options { display: grid; gap: 9px; }
+.callout-dialog-option {
+  --callout-option-color: #238636;
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  min-height: 72px;
+  border: 1px solid var(--imx-line);
+  border-left: 5px solid var(--callout-option-color);
+  border-radius: 14px;
+  padding: 12px 14px;
+  color: var(--imx-ink);
+  background: var(--imx-control);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
+}
+.callout-dialog-option[data-callout='tip'] { --callout-option-color: #d97706; }
+.callout-dialog-option[data-callout='important'] { --callout-option-color: #b8860b; }
+.callout-dialog-option[data-callout='warning'] { --callout-option-color: #d13c3c; }
+.callout-dialog-option[data-callout='caution'] { --callout-option-color: #2672d9; }
+.callout-dialog-option:hover,
+.callout-dialog-option:focus-visible {
+  border-top-color: var(--imx-line-strong);
+  border-right-color: var(--imx-line-strong);
+  border-bottom-color: var(--imx-line-strong);
+  background: var(--imx-paper-alt);
+  box-shadow: var(--imx-shadow-sm);
+}
+.callout-dialog-option:focus-visible { outline: 2px solid var(--imx-accent); outline-offset: 2px; }
+.callout-dialog-option-label { font-size: .95rem; font-weight: 760; }
+.callout-dialog-option-description { color: var(--imx-ink-muted); font-size: .78rem; line-height: 1.45; }
+
+.inline-math-preview {
+  display: grid;
+  place-items: center;
+  min-height: 4.4rem;
+  border: 1px solid var(--imx-line);
+  border-radius: 12px;
+  padding: .8rem;
+  overflow-x: auto;
+  color: var(--imx-ink);
+  background: var(--imx-gutter);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .markdown-editor .tiptap .markdown-special-block { transition: none; }
+  .callout-dialog-option { transition: none; }
 }
 
 .markdown-editor[data-focus-mode='true'] .tiptap > * { opacity: .32; transition: opacity 160ms ease; }

@@ -308,6 +308,12 @@ test('formats the selected text from the right sidebar without resetting the edi
   await page.setViewportSize({ width: 390, height: 844 })
   await page.getByRole('tab', { name: '写作', exact: true }).click()
   await expect(status).toHaveCSS('text-align', 'center')
+  for (const name of ['撤销', '重做']) {
+    const historyButton = page.getByRole('button', { name, exact: true })
+    await expect(historyButton).toBeVisible()
+    expect(await historyButton.evaluate((element) => getComputedStyle(element).color)).not.toBe('rgba(0, 0, 0, 0)')
+    expect((await historyButton.boundingBox())?.width).toBeGreaterThanOrEqual(50)
+  }
   await editor.press('ControlOrMeta+a')
   await page.getByRole('tab', { name: '工具', exact: true }).click()
   await expect(actions.getByRole('button', { name: '斜体' })).toBeVisible()

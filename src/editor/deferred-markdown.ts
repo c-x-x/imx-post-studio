@@ -2,16 +2,22 @@ import { Extension, type Editor, type JSONContent } from '@tiptap/core'
 import type {} from '@tiptap/markdown'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { isHistoryTransaction } from '@tiptap/pm/history'
-import { Plugin, PluginKey, TextSelection, type EditorState } from '@tiptap/pm/state'
+import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 
 interface DeferredState {
   pending: Set<number>
   literals: DecorationSet
+  toolbarMarkers: DecorationSet
   paused: boolean
+  revealed: RevealedInlineSource | null
 }
+type InlineSourceKind = 'bold' | 'italic' | 'strike' | 'code' | 'highlight' | 'subscript' | 'superscript' | 'math'
+interface RevealedInlineSource { block: number; from: number; to: number; kind: InlineSourceKind }
 const pendingKey = new PluginKey<DeferredState>('deferredMarkdown')
 const pauseKey = 'deferredMarkdownPaused'
+const revealKey = 'deferredMarkdownReveal'
+export const toolbarMarkdownMarkersKey = 'deferredMarkdownToolbarMarkers'
 const blockPrefix = /^(?:#{1,6}\s|>\s|[-+*]\s|\d+[.)]\s)/
 
 // Parsed text has already lost its Markdown escapes. Remember its literal
@@ -20,7 +26,7 @@ function literalMarkers(doc: ProseMirrorNode, from = 0, to = doc.content.size): 
   const markers: Decoration[] = []
   doc.nodesBetween(from, to, (node, position) => {
     if (!canInterpretText(node)) return
-    for (const match of (node.text ?? '').matchAll(/[\\*_~`[\]#>+.\-!()]/g)) {
+    for (const match of (node.text ?? '').matchAll(/[\\*_~`$[\]#>+.\-!()]/g)) {
       const start = position + match.index
       markers.push(Decoration.inline(start, start + 1, {}))
     }
@@ -38,7 +44,7 @@ function rawText(child: ProseMirrorNode, position: number, literals: DecorationS
   return (child.text ?? '').split('').map((character, index) => {
     if (protectedPositions.has(position + index)) return `\\${character}`
     return character === '&' ? '&amp;' : character === '<' ? '&lt;' : character === '>' ? '&gt;' : character
-  }).join('')
+  }).join('').replace(/&lt;(\/?(?:mark|sub|sup))&gt;/g, '<$1>')
 }
 
 function canInterpretText(node: ProseMirrorNode): boolean {
@@ -54,7 +60,7 @@ function canDefer(node: ProseMirrorNode | null): boolean {
   if (!node || !['paragraph', 'heading'].includes(node.type.name)) return false
   let syntax = blockPrefix.test(node.textContent)
   node.forEach((child) => {
-    if (canInterpretText(child) && /[*_~`[]/.test(child.text ?? '')) syntax = true
+    if (canInterpretText(child) && /[*_~`$[<]/.test(child.text ?? '')) syntax = true
   })
   return syntax
 }
@@ -65,7 +71,7 @@ function introducesSyntax(before: string, after: string): boolean {
   let end = after.length
   let oldEnd = before.length
   while (end > start && oldEnd > start && after[end - 1] === before[oldEnd - 1]) { end -= 1; oldEnd -= 1 }
-  return /[*_~`[\]]/.test(after.slice(start, end)) || (blockPrefix.test(after) && !blockPrefix.test(before))
+  return /[*_~`$[\]<]/.test(after.slice(start, end)) || (blockPrefix.test(after) && !blockPrefix.test(before))
 }
 
 // Retain inherited styles without escaping newly typed inline Markdown.
@@ -89,7 +95,7 @@ function lineMarkdown(editor: Editor, node: ProseMirrorNode, position: number, l
   node.forEach((child, offset) => {
     if (child.isText && child.marks.length === 0) {
       text += rawText(child, position + 1 + offset, literals)
-    } else if (canInterpretText(child) && /[*_~`[]/.test(child.text ?? '')) {
+    } else if (canInterpretText(child) && /[*_~`$[]/.test(child.text ?? '')) {
       text += markedTextMarkdown(editor, child, position + 1 + offset, literals)
     } else if (child.type.name === 'hardBreak') {
       text += '  \n'
@@ -102,16 +108,137 @@ function lineMarkdown(editor: Editor, node: ProseMirrorNode, position: number, l
   return `${'#'.repeat(Number(node.attrs.level))} ${text}`
 }
 
+function childMatchesInlineKind(child: ProseMirrorNode, kind: InlineSourceKind): boolean {
+  if (kind === 'math') return child.type.name === 'mathInline'
+  const markNames: Record<Exclude<InlineSourceKind, 'math'>, string> = {
+    bold: 'bold',
+    italic: 'italic',
+    strike: 'strike',
+    code: 'code',
+    highlight: 'textHighlight',
+    subscript: 'subscript',
+    superscript: 'superscript',
+  }
+  return child.marks.some((mark) => mark.type.name === markNames[kind])
+}
+
+function inlineKindAtSelection(state: EditorState): InlineSourceKind | null {
+  if (!state.selection.empty) return null
+  const markKinds: Array<[string, InlineSourceKind]> = [
+    ['bold', 'bold'],
+    ['italic', 'italic'],
+    ['strike', 'strike'],
+    ['code', 'code'],
+    ['textHighlight', 'highlight'],
+    ['subscript', 'subscript'],
+    ['superscript', 'superscript'],
+  ]
+  const marks = state.selection.$from.marks()
+  const marked = markKinds.find(([name]) => marks.some((mark) => mark.type.name === name))
+  if (marked) return marked[1]
+  const { nodeBefore, nodeAfter } = state.selection.$from
+  return nodeBefore?.type.name === 'mathInline' || nodeAfter?.type.name === 'mathInline' ? 'math' : null
+}
+
+function inlineRevealTransaction(editor: Editor, state: EditorState, position: number, kind: InlineSourceKind): Transaction | null {
+  const $position = state.doc.resolve(position)
+  let depth = $position.depth
+  while (depth > 0 && !$position.node(depth).isTextblock) depth -= 1
+  if (depth === 0) return null
+  const block = $position.before(depth)
+  const node = $position.node(depth)
+  if (!['paragraph', 'heading'].includes(node.type.name) || pendingKey.getState(state)?.pending.has(block)) return null
+
+  const literals = pendingKey.getState(state)?.literals
+  let source = ''
+  let selected: { from: number; to: number; caret: number } | null = null
+  node.forEach((child, offset) => {
+    const childPosition = block + 1 + offset
+    const segment = child.isText && child.marks.length === 0
+      ? rawText(child, childPosition, literals)
+      : child.type.name === 'hardBreak'
+        ? '  \n'
+        : editor.markdown!.serialize({ type: 'paragraph', content: [child.toJSON()] })
+    const segmentStart = source.length
+    source += segment
+    const containsClick = position >= childPosition && position <= childPosition + child.nodeSize
+    if (!containsClick || !childMatchesInlineKind(child, kind)) return
+    const contentIndex = child.text ? Math.max(0, segment.indexOf(child.text)) : 0
+    const textOffset = child.isText ? Math.max(0, Math.min(child.text?.length ?? 0, position - childPosition)) : 0
+    selected = {
+      from: segmentStart,
+      to: segmentStart + segment.length,
+      caret: child.type.name === 'mathInline'
+        ? segmentStart + Math.max(1, segment.length - 1)
+        : position === childPosition + child.nodeSize
+          ? segmentStart + segment.length
+        : segmentStart + contentIndex + textOffset,
+    }
+  })
+  if (!source || !selected) return null
+  const selectedSource = selected as { from: number; to: number; caret: number }
+  if (selectedSource.to <= selectedSource.from) return null
+
+  const from = block + 1
+  const transaction = state.tr.replaceWith(from, block + node.nodeSize - 1, state.schema.text(source))
+  const revealed = {
+    block,
+    from: from + selectedSource.from,
+    to: from + selectedSource.to,
+    kind,
+  }
+  transaction.setSelection(TextSelection.create(transaction.doc, from + selectedSource.caret))
+  transaction.setMeta(revealKey, revealed)
+  return transaction.scrollIntoView()
+}
+
+function revealSourceAtSelection(editor: Editor, state: EditorState, position: number, kind?: InlineSourceKind): Transaction | null {
+  const resolvedKind = kind ?? inlineKindAtSelection(state)
+  return resolvedKind ? inlineRevealTransaction(editor, state, position, resolvedKind) : null
+}
+
+function revealInlineSource(editor: Editor, position: number, kind: InlineSourceKind): boolean {
+  const transaction = revealSourceAtSelection(editor, editor.state, position, kind)
+  if (!transaction) return false
+  editor.view.dispatch(transaction)
+  return true
+}
+
+function completeRevealedSyntax(state: EditorState, revealed: RevealedInlineSource): boolean {
+  const source = state.doc.textBetween(revealed.from, revealed.to, '')
+  const patterns: Record<InlineSourceKind, RegExp> = {
+    bold: /^\*\*[\s\S]+\*\*$/,
+    italic: /^\*[\s\S]+\*$/,
+    strike: /^~~[\s\S]+~~$/,
+    code: /^(`+)[\s\S]+\1$/,
+    highlight: /^<mark>[\s\S]+<\/mark>$/,
+    subscript: /^<sub>[\s\S]+<\/sub>$/,
+    superscript: /^<sup>[\s\S]+<\/sup>$/,
+    math: /^\$(?!\$)[^\n$]+\$$/,
+  }
+  return patterns[revealed.kind].test(source)
+}
+
 /** Save the typed source, not the serializer's escaped literal asterisks. */
 export function editorMarkdown(editor: Editor): string {
   const pending = pendingKey.getState(editor.state)?.pending
-  if (!pending?.size || !editor.markdown) return editor.getMarkdown()
+  if (!editor.markdown) return editor.getMarkdown()
+  const trailingCaretLine = editor.state.doc.lastChild?.type.name === 'paragraph'
+    && editor.state.doc.lastChild.content.size === 0
+  if (!pending?.size) {
+    const json = editor.state.doc.toJSON() as JSONContent
+    if (trailingCaretLine && json.content?.length) json.content.pop()
+    return editor.markdown.serialize(json)
+  }
   const serialize = (node: ProseMirrorNode, position: number): JSONContent => {
     if (pending.has(position)) return { type: 'rawMarkdownBlock', attrs: { raw: lineMarkdown(editor, node, position) } }
     const json = node.toJSON() as JSONContent
     if (node.childCount) {
       json.content = []
-      node.forEach((child, offset) => json.content!.push(serialize(child, position + 1 + offset)))
+      node.forEach((child, offset, index) => {
+        if (node === editor.state.doc && trailingCaretLine && index === node.childCount - 1) return
+        json.content!.push(serialize(child, position + 1 + offset))
+      })
     }
     return json
   }
@@ -125,19 +252,39 @@ export const DeferredMarkdown = Extension.create({
     const editor = this.editor
     let composing = false
     let blurred = false
+    let revealAfterCommit = false
+    let revealScheduled = false
     return [new Plugin<DeferredState>({
       key: pendingKey,
       state: {
-        init: (_, state) => ({ pending: new Set(), literals: DecorationSet.create(state.doc, literalMarkers(state.doc)), paused: false }),
+        init: (_, state) => ({
+          pending: new Set(),
+          literals: DecorationSet.create(state.doc, literalMarkers(state.doc)),
+          toolbarMarkers: DecorationSet.empty,
+          paused: false,
+          revealed: null,
+        }),
         apply(transaction, previous, oldState, nextState) {
           // Source-mode/import replacements are already parsed Markdown. Do not
           // reinterpret intentionally escaped literal markers as newly typed syntax.
           if (transaction.getMeta('preventUpdate') !== undefined) return {
-            pending: new Set(), literals: DecorationSet.create(nextState.doc, literalMarkers(nextState.doc)), paused: false,
+            pending: new Set(),
+            literals: DecorationSet.create(nextState.doc, literalMarkers(nextState.doc)),
+            toolbarMarkers: DecorationSet.empty,
+            paused: false,
+            revealed: null,
           }
           const pending = new Set<number>()
           const committed = transaction.getMeta(pendingKey) as number[] | undefined
           let literals = previous.literals.map(transaction.mapping, nextState.doc)
+          let toolbarMarkers = committed
+            ? DecorationSet.empty
+            : previous.toolbarMarkers.map(transaction.mapping, nextState.doc)
+          const addedToolbarMarkers = transaction.getMeta(toolbarMarkdownMarkersKey) as Array<{ from: number; to: number }> | undefined
+          if (addedToolbarMarkers?.length) {
+            toolbarMarkers = toolbarMarkers.add(nextState.doc, addedToolbarMarkers.map(({ from, to }) =>
+              Decoration.inline(from, to, { class: 'editor-toolbar-markdown-marker' })))
+          }
           if (committed) {
             for (const position of committed) {
               const from = transaction.mapping.map(position, -1)
@@ -163,11 +310,38 @@ export const DeferredMarkdown = Extension.create({
                 introducesSyntax(oldState.selection.$from.parent.textContent, node.textContent)) pending.add(position)
             }
           }
-          return { pending, literals, paused: transaction.getMeta(pauseKey) ?? previous.paused }
+          let revealed = previous.revealed
+          if (revealed) {
+            const mappedBlock = transaction.mapping.mapResult(revealed.block, 1)
+            revealed = mappedBlock.deleted ? null : {
+              block: mappedBlock.pos,
+              from: transaction.mapping.map(revealed.from, 1),
+              to: transaction.mapping.map(revealed.to, -1),
+              kind: revealed.kind,
+            }
+          }
+          const nextReveal = transaction.getMeta(revealKey) as RevealedInlineSource | undefined
+          if (nextReveal) {
+            revealed = nextReveal
+            pending.add(nextReveal.block)
+          }
+          if (revealed && (committed?.includes(revealed.block) || !pending.has(revealed.block))) revealed = null
+          return { pending, literals, toolbarMarkers, paused: transaction.getMeta(pauseKey) ?? previous.paused, revealed }
         },
       },
       appendTransaction(transactions, _oldState, state) {
-        if (composing || editor.view.composing || pendingKey.getState(state)?.paused || transactions.some((tr) => tr.getMeta(pendingKey) || isHistoryTransaction(tr))) return null
+        if (composing || editor.view.composing || pendingKey.getState(state)?.paused || transactions.some(isHistoryTransaction)) return null
+        if (transactions.some((transaction) => transaction.getMeta(pendingKey))) {
+          if (!blurred && !pendingKey.getState(state)?.revealed && state.selection.empty) {
+            return revealSourceAtSelection(editor, state, state.selection.from)
+          }
+          return null
+        }
+        const canRevealSelection = !blurred && !pendingKey.getState(state)?.revealed && state.selection.empty
+        if (canRevealSelection && transactions.some((transaction) => transaction.selectionSet && !transaction.docChanged)) {
+          const revealed = revealSourceAtSelection(editor, state, state.selection.from)
+          if (revealed) return revealed
+        }
         const active = blurred ? null : textblockPosition(state)
         const pending = pendingKey.getState(state)?.pending
         if (!pending?.size || !editor.markdown) return null
@@ -175,7 +349,11 @@ export const DeferredMarkdown = Extension.create({
         const committed: number[] = []
         // Back-to-front replacements leave the remaining block positions stable.
         for (const position of [...pending].sort((a, b) => b - a)) {
-          if (position === active) continue
+          const revealed = pendingKey.getState(state)?.revealed
+          const insideRevealedSource = revealed?.block === position
+            && state.selection.from >= revealed.from && state.selection.to <= revealed.to
+          if (position === active && (!revealed || insideRevealedSource)) continue
+          if (revealed?.block === position && !completeRevealedSyntax(state, revealed)) continue
           const node = state.doc.nodeAt(position)
           if (!node || !canDefer(node)) continue
           const parsed = editor.schema.nodeFromJSON(editor.markdown.parse(lineMarkdown(editor, node, position, pendingKey.getState(state)?.literals)))
@@ -186,13 +364,54 @@ export const DeferredMarkdown = Extension.create({
             transaction.replaceWith(position, position + node.nodeSize, parsed.content)
           }
         }
-        return committed.length ? transaction.setMeta(pendingKey, committed) : null
+        if (!committed.length) return null
+        revealAfterCommit = true
+        return transaction.setMeta(pendingKey, committed)
+      },
+      view() {
+        return {
+          update(view) {
+            if (!revealAfterCommit || revealScheduled) return
+            revealAfterCommit = false
+            if (blurred || pendingKey.getState(view.state)?.revealed || !view.state.selection.empty) return
+            revealScheduled = true
+            queueMicrotask(() => {
+              revealScheduled = false
+              if (view.isDestroyed || blurred || pendingKey.getState(view.state)?.revealed || !view.state.selection.empty) return
+              const transaction = revealSourceAtSelection(editor, view.state, view.state.selection.from)
+              if (transaction) view.dispatch(transaction)
+            })
+          },
+        }
       },
       props: {
+        handleClick(view, position, event) {
+          const target = event.target instanceof Element
+            ? event.target.closest('strong, em, s, code, mark, sub, sup, [data-math="inline"]')
+            : null
+          if (!target || !view.dom.contains(target) || (target.matches('code') && target.closest('pre'))) return false
+          const kinds: Record<string, InlineSourceKind> = {
+            STRONG: 'bold', EM: 'italic', S: 'strike', CODE: 'code', MARK: 'highlight',
+            SUB: 'subscript', SUP: 'superscript',
+          }
+          const kind = target.matches('[data-math="inline"]') ? 'math' : kinds[target.tagName]
+          return kind ? revealInlineSource(editor, position, kind) : false
+        },
         handleKeyDown(view, event) {
           if (event.key !== 'Enter' || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey || composing || view.composing) return false
           const state = view.state
           const { $from } = state.selection
+          const deferred = pendingKey.getState(state)
+          const closingToolbarMarker = state.selection.empty
+            ? deferred?.toolbarMarkers.find(state.selection.from, $from.end())
+              .find((marker) => marker.from === state.selection.from)
+            : undefined
+          if (closingToolbarMarker) {
+            return editor.chain()
+              .setTextSelection(closingToolbarMarker.to)
+              .splitBlock()
+              .run()
+          }
           const ancestors = Array.from({ length: $from.depth + 1 }, (_, depth) => $from.node(depth).type.name)
           const activeInlineStyle = ['bold', 'italic', 'strike', 'code'].some((mark) => editor.isActive(mark))
           const listItem = ancestors.includes('taskItem') ? 'taskItem' : ancestors.includes('listItem') ? 'listItem' : null
@@ -222,7 +441,6 @@ export const DeferredMarkdown = Extension.create({
             }).run()
           }
           const position = textblockPosition(state)
-          const deferred = pendingKey.getState(state)
           if (position === null || deferred?.paused || !deferred?.pending.has(position) || !editor.markdown || !state.selection.empty) return false
           const node = state.doc.nodeAt(position)!
           if (state.selection.$from.parentOffset !== node.content.size) return false
@@ -251,12 +469,15 @@ export const DeferredMarkdown = Extension.create({
           const decorations: Decoration[] = []
           node.forEach((child, offset) => {
             if (!canInterpretText(child)) return
-            for (const match of (child.text ?? '').matchAll(/(?<!\\)(?:^#{1,6}(?=\s)|[*_~`]+|[[\]])/g)) {
+            for (const match of (child.text ?? '').matchAll(/(?<!\\)(?:^#{1,6}(?=\s)|[*_~`$]+|<\/?(?:mark|sub|sup)>|[[\]])/g)) {
               const from = position + 1 + offset + match.index
               decorations.push(Decoration.inline(from, from + match[0].length, { class: 'editor-markdown-marker' }))
             }
           })
-          return DecorationSet.create(state.doc, decorations)
+          return DecorationSet.create(state.doc, [
+            ...decorations,
+            ...(pendingKey.getState(state)?.toolbarMarkers.find() ?? []),
+          ])
         },
         handleDOMEvents: {
           focus() { blurred = false; return false },

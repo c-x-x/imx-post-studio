@@ -102,11 +102,8 @@ export function SettingsDialog({ onClose, returnFocus }: SettingsDialogProps) {
     </fieldset>
     <fieldset className="settings-choice settings-font-choice">
       <legend>编辑器字体</legend>
-      <label data-font="serif"><input type="radio" name="editor-font" value="serif" checked={settings.editorFont === 'serif'} onChange={() => save({ editorFont: 'serif' })} /><span><strong>阅读字体</strong><small>适合中文长文写作的衬线字体。</small></span></label>
-      <label data-font="sans"><input type="radio" name="editor-font" value="sans" checked={settings.editorFont === 'sans'} onChange={() => save({ editorFont: 'sans' })} /><span><strong>清晰字体</strong><small>使用系统无衬线字体，界面更简洁。</small></span></label>
-      <label data-font="mono"><input type="radio" name="editor-font" value="mono" checked={settings.editorFont === 'mono'} onChange={() => save({ editorFont: 'mono' })} /><span><strong>等宽字体</strong><small>中英文字符节奏统一，适合技术写作。</small></span></label>
+      <label data-font="serif"><input type="radio" name="editor-font" value="serif" checked={settings.editorFont === 'serif'} onChange={() => save({ editorFont: 'serif' })} /><span><strong>默认字体</strong><small>使用 Studio 默认的中文阅读字体。</small></span></label>
       <label data-font="wenkai"><input type="radio" name="editor-font" value="wenkai" checked={settings.editorFont === 'wenkai'} onChange={() => save({ editorFont: 'wenkai' })} /><span><strong>文艺字体 · 霞鹜文楷</strong><small>自然的楷体笔意，兼顾个性和长文阅读。</small></span></label>
-      <label data-font="smiley"><input type="radio" name="editor-font" value="smiley" checked={settings.editorFont === 'smiley'} onChange={() => save({ editorFont: 'smiley' })} /><span><strong>潮流字体 · 得意黑</strong><small>窄斜几何造型，适合更有视觉张力的写作。</small></span></label>
     </fieldset>
     <fieldset className="settings-choice">
       <legend>专注写作</legend>

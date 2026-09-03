@@ -1,18 +1,19 @@
 import { Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from '@tiptap/markdown'
+import { TextSelection } from '@tiptap/pm/state'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import { afterEach, describe, expect, it } from 'vitest'
-import { DeferredMarkdown, editorMarkdown, pauseDeferredMarkdown } from '../../src/editor/deferred-markdown'
-import { RawMarkdownBlock } from '../../src/editor/markdown-extensions'
+import { DeferredMarkdown, editorMarkdown, pauseDeferredMarkdown, toolbarMarkdownMarkersKey } from '../../src/editor/deferred-markdown'
+import { MathInline, RawMarkdownBlock, RawMarkdownInline, Subscript, Superscript, TextHighlight } from '../../src/editor/markdown-extensions'
 
 let editor: Editor
 afterEach(() => editor?.destroy())
 
 function setup(content = '') {
   editor = new Editor({
-    extensions: [StarterKit, TaskList, TaskItem, Markdown, RawMarkdownBlock, DeferredMarkdown],
+    extensions: [StarterKit, TaskList, TaskItem, MathInline, TextHighlight, Subscript, Superscript, Markdown, RawMarkdownBlock, RawMarkdownInline, DeferredMarkdown],
     content, contentType: 'markdown', enableInputRules: ['codeBlock', 'horizontalRule'],
   })
   return editor
@@ -71,6 +72,26 @@ describe('deferred Markdown input', () => {
     expect(editor.view.dom.querySelector('em')).toHaveTextContent('工具栏样式')
     expect(editor.view.dom.querySelector('s')).toHaveTextContent('工具栏样式')
     expect(editor.state.selection.$from.parent.textContent).toBe('普通下一行')
+  })
+
+  it('reveals inline source but keeps headings rendered when the caret enters', async () => {
+    setup('**123**\n\n### 标题')
+    editor.commands.setTextSelection(4)
+    expect(editor.state.doc.firstChild?.textContent).toBe('**123**')
+    expect(editor.state.selection.$from.parentOffset).toBe('**123**'.length)
+    expect(editor.view.dom.querySelector('strong')).toBeNull()
+    expect(editor.isActive('bold')).toBe(false)
+    expect(editor.view.dom.querySelectorAll('.editor-markdown-marker')).toHaveLength(2)
+
+    let headingPosition = 0
+    editor.state.doc.descendants((node, position) => {
+      if (node.type.name === 'heading') headingPosition = position
+    })
+    editor.commands.setTextSelection(headingPosition + 2)
+    await Promise.resolve()
+    expect(editor.view.dom.querySelector('h3')).toHaveTextContent('标题')
+    expect(editor.isActive('heading', { level: 3 })).toBe(true)
+    expect(editor.view.dom.querySelector('.editor-markdown-marker')).toBeNull()
   })
 
   it('continues lists on Enter without carrying inline toolbar styles', () => {
@@ -145,6 +166,30 @@ describe('deferred Markdown input', () => {
     expect(editor.view.dom.querySelector('strong')).toHaveTextContent('已有加粗')
   })
 
+  it('recognizes directly typed inline math when leaving the paragraph', () => {
+    setup().commands.insertContent({ type: 'text', text: '能量 $E=mc^2$' })
+    expect(editorMarkdown(editor)).toBe('能量 $E=mc^2$')
+    editor.commands.splitBlock()
+    expect(editor.state.doc.firstChild?.child(1).type.name).toBe('mathInline')
+    expect(editor.getMarkdown()).toContain('$E=mc^2$')
+  })
+
+  it('recognizes safe semantic text-style tags when leaving the paragraph', () => {
+    setup().commands.insertContent({ type: 'text', text: '**前一段**' })
+    editor.commands.splitBlock()
+    const from = editor.state.selection.from
+    const transaction = editor.state.tr.insertText('<mark></mark>', from)
+    transaction.setSelection(TextSelection.create(transaction.doc, from + 6))
+    transaction.setMeta(toolbarMarkdownMarkersKey, [
+      { from, to: from + 6 },
+      { from: from + 6, to: from + 13 },
+    ])
+    editor.view.dispatch(transaction)
+    editor.commands.insertContent({ type: 'text', text: '高亮' })
+    editor.view.dom.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    expect(editor.view.dom.querySelector('mark')).toHaveTextContent('高亮')
+  })
+
   it('commits a complete line when focus leaves the editor', () => {
     setup().commands.insertContent({ type: 'text', text: '**粗体** *斜体*' })
     editor.view.dom.dispatchEvent(new FocusEvent('blur'))
@@ -193,10 +238,14 @@ describe('deferred Markdown input', () => {
     expect(editor.view.dom.querySelector('pre')).toHaveTextContent('**not bold**')
   })
 
-  it('keeps toolbar headings immediate and permits undoing a committed line', () => {
+  it('keeps toolbar headings rendered and permits undoing a committed line', () => {
     setup().commands.toggleHeading({ level: 2 })
+    expect(editor.state.doc.firstChild?.type.name).toBe('heading')
     expect(editor.isActive('heading', { level: 2 })).toBe(true)
-    editor.commands.setParagraph()
+    expect(editor.view.dom.querySelector('.editor-markdown-marker')).toBeNull()
+    editor.commands.insertContent('标题')
+    editor.commands.splitBlock()
+    expect(editor.state.doc.firstChild?.type.name).toBe('heading')
     editor.commands.insertContent({ type: 'text', text: '~~撤销测试~~' })
     editor.commands.splitBlock()
     expect(editor.view.dom.querySelector('s')).toHaveTextContent('撤销测试')

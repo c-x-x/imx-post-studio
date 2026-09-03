@@ -47,8 +47,7 @@ function normalize(value: unknown): StudioSettings {
     defaultFeatured: typeof source.defaultFeatured === 'boolean' ? source.defaultFeatured : DEFAULT_STUDIO_SETTINGS.defaultFeatured,
     defaultEditorMode: source.defaultEditorMode === 'source' || source.defaultEditorMode === 'rich'
       ? source.defaultEditorMode : DEFAULT_STUDIO_SETTINGS.defaultEditorMode,
-    editorFont: source.editorFont === 'serif' || source.editorFont === 'sans' || source.editorFont === 'mono'
-      || source.editorFont === 'wenkai' || source.editorFont === 'smiley'
+    editorFont: source.editorFont === 'serif' || source.editorFont === 'wenkai'
       ? source.editorFont : DEFAULT_STUDIO_SETTINGS.editorFont,
     focusMode: typeof source.focusMode === 'boolean' ? source.focusMode : DEFAULT_STUDIO_SETTINGS.focusMode,
     typewriterMode: typeof source.typewriterMode === 'boolean' ? source.typewriterMode : DEFAULT_STUDIO_SETTINGS.typewriterMode,

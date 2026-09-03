@@ -22,17 +22,20 @@
 .article-page .article-content .katex-display { overflow-x: auto; overflow-y: hidden; padding-block: .35rem; }
 
 .article-page .article-content blockquote.callout {
-  border: 1px solid color-mix(in srgb, var(--article-accent) 34%, var(--article-soft-line));
-  border-left: 4px solid var(--article-accent);
+  --callout-color: #238636;
+  border: 1px solid color-mix(in srgb, var(--callout-color) 34%, var(--article-soft-line));
+  border-left: 4px solid var(--callout-color);
   border-radius: 14px;
   padding: 1rem 1.1rem;
-  background: color-mix(in srgb, var(--article-accent) 8%, var(--article-surface));
+  background: color-mix(in srgb, var(--callout-color) 8%, var(--article-surface));
 }
 
-.article-page .article-content .callout-title { display: block; margin-bottom: .4rem; color: var(--article-ink); }
+.article-page .article-content .callout-title { display: block; margin-bottom: .4rem; color: var(--callout-color); }
 .article-page .article-content blockquote.callout > p { margin: .35rem 0 0; }
-.article-page .article-content blockquote.callout[data-callout='warning'],
-.article-page .article-content blockquote.callout[data-callout='caution'] { border-left-color: #c46b28; }
+.article-page .article-content blockquote.callout[data-callout='tip'] { --callout-color: #d97706; }
+.article-page .article-content blockquote.callout[data-callout='important'] { --callout-color: #b8860b; }
+.article-page .article-content blockquote.callout[data-callout='warning'] { --callout-color: #d13c3c; }
+.article-page .article-content blockquote.callout[data-callout='caution'] { --callout-color: #2672d9; }
 
 .article-page .article-content .mermaid {
   margin: 1.25rem 0;

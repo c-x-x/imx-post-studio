@@ -167,7 +167,7 @@ function decorateCallouts() {
       node.properties.dataCallout = match[1].toLowerCase()
       node.children.unshift({
         type: 'element', tagName: 'strong', properties: { className: ['callout-title'] },
-        children: [{ type: 'text', value: ({ NOTE: '说明', TIP: '技巧', IMPORTANT: '重要', WARNING: '警告', CAUTION: '注意' } as Record<string, string>)[match[1].toUpperCase()] }],
+        children: [{ type: 'text', value: ({ NOTE: '提醒内容', TIP: '建议内容', IMPORTANT: '重要内容', WARNING: '警告内容', CAUTION: '注意内容' } as Record<string, string>)[match[1].toUpperCase()] }],
       })
     })
   }

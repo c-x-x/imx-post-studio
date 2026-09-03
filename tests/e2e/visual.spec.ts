@@ -99,6 +99,25 @@ test.describe('Preview typography and contrast', () => {
     })
   })
 
+  test('keeps WenKai bold text distinct by allowing synthetic weight', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('imx-post-studio:preferences:v1', JSON.stringify({ editorFont: 'wenkai' }))
+    })
+    await page.goto('/')
+    await page.getByRole('button', { name: '写作', exact: true }).click()
+    await setEditorMode(page, 'source')
+    await page.getByRole('textbox', { name: 'Markdown 编辑器' }).fill('正常 **粗体**')
+    await setEditorMode(page, 'rich')
+
+    const editor = page.locator('.markdown-editor')
+    const strong = editor.locator('.tiptap strong')
+    await expect(editor).toHaveAttribute('data-font', 'wenkai')
+    await expect(strong).toHaveText('粗体')
+    await expect(strong).toHaveCSS('font-weight', '700')
+    const synthesis = await editor.locator('.tiptap').evaluate((element) => getComputedStyle(element).fontSynthesis)
+    expect(synthesis).toContain('weight')
+  })
+
   test('uses the approved dark preview palette', async ({ page }) => {
     await seedPreview(page)
     await page.locator('.preview-surface').getByRole('button', { name: '切换到深色主题' }).click()

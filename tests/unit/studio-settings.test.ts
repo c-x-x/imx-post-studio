@@ -33,6 +33,18 @@ describe('Studio settings', () => {
     expect(readStudioSettings()).toEqual(DEFAULT_STUDIO_SETTINGS)
   })
 
+  it('migrates removed editor fonts back to the default font', () => {
+    for (const editorFont of ['sans', 'mono', 'smiley']) {
+      const stored = JSON.stringify({ editorFont })
+      localStorage.setItem('imx-post-studio:preferences:v1', stored)
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'imx-post-studio:preferences:v1',
+        newValue: stored,
+      }))
+      expect(readStudioSettings().editorFont).toBe('serif')
+    }
+  })
+
   it('renders safe one-line GitHub messages from supported variables', () => {
     expect(renderCommitMessage('post: {title} ({slug})', { title: '标题\n换行', slug: 'article' }))
       .toBe('post: 标题 换行 (article)')

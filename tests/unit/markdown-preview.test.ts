@@ -134,6 +134,7 @@ describe('renderMarkdown', () => {
     expect(rendered.html).toContain('class="katex"')
     expect(rendered.html).toContain('class="callout"')
     expect(rendered.html).toContain('data-callout="tip"')
+    expect(rendered.html).toContain('建议内容')
     expect(rendered.html).not.toMatch(/<script|onerror=/i)
   })
 

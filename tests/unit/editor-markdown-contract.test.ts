@@ -6,8 +6,9 @@ import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import Image from '@tiptap/extension-image'
 import { common, createLowlight } from 'lowlight'
+import { TextSelection } from '@tiptap/pm/state'
 import { afterEach, describe, expect, it } from 'vitest'
-import { CalloutBlock, MathBlock, MathInline, MermaidBlock, RawMarkdownBlock, RawMarkdownInline, SafeCodeBlock, SafeTable, Subscript, Superscript, TextHighlight } from '../../src/editor/markdown-extensions'
+import { CalloutBlock, FootnoteDefinition, FootnoteReference, MathBlock, MathInline, MermaidBlock, RawMarkdownBlock, RawMarkdownInline, SafeCodeBlock, SafeTable, SpecialBlockInput, Subscript, Superscript, TextHighlight } from '../../src/editor/markdown-extensions'
 
 const editors: Editor[] = []
 
@@ -34,9 +35,12 @@ function createEditor(markdown: string) {
       MathInline,
       CalloutBlock,
       MermaidBlock,
+      FootnoteReference,
+      FootnoteDefinition,
       RawMarkdownBlock,
       RawMarkdownInline,
       Markdown,
+      SpecialBlockInput,
     ],
     content: markdown,
     contentType: 'markdown',
@@ -106,6 +110,39 @@ describe('current rich Markdown contract', () => {
     expect(output).toContain('```mermaid\ngraph TD\n  A --> B\n```')
   })
 
+  it('parses footnotes as editable source-backed nodes and preserves their Markdown', () => {
+    const editor = createEditor('正文[^1]\n\n[^1]: 在此输入描述')
+    expect(editor.state.doc.firstChild?.child(1).type.name).toBe('footnoteReference')
+    expect(editor.state.doc.lastChild?.type.name).toBe('footnoteDefinition')
+    expect(editor.getMarkdown()).toBe('正文[^1]\n\n[^1]: 在此输入描述')
+  })
+
+  it('turns an incomplete footnote definition back into ordinary text without deleting it', () => {
+    const editor = createEditor('正文[^1]\n\n[^1]: 注解')
+    let definitionPosition = -1
+    editor.state.doc.descendants((node, position) => {
+      if (node.type.name === 'footnoteDefinition') definitionPosition = position
+    })
+    const definition = editor.state.doc.nodeAt(definitionPosition)
+    const colon = definition?.textContent.indexOf(':') ?? -1
+    editor.view.dispatch(editor.state.tr.delete(definitionPosition + 1 + colon, definitionPosition + 2 + colon))
+    expect(editor.state.doc.nodeAt(definitionPosition)?.type.name).toBe('paragraph')
+    expect(editor.state.doc.nodeAt(definitionPosition)?.textContent).toBe('[^1] 注解')
+    expect(editor.state.doc.firstChild?.child(1).type.name).toBe('footnoteReference')
+  })
+
+  it('deletes a footnote reference with one Backspace from the adjacent cursor', () => {
+    const editor = createEditor('正文[^1]\n\n[^1]: 注解')
+    let referenceEnd = -1
+    editor.state.doc.descendants((node, position) => {
+      if (node.type.name === 'footnoteReference') referenceEnd = position + node.nodeSize
+    })
+    editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, referenceEnd)))
+    expect(editor.commands.keyboardShortcut('Backspace')).toBe(true)
+    expect(editor.getMarkdown()).not.toContain('正文[^1]')
+    expect(editor.getMarkdown()).toContain('[^1]: 注解')
+  })
+
   it('keeps core block transformations available with extended syntax enabled', () => {
     const editor = createEditor('')
     expect(editor.commands.setHeading({ level: 2 })).toBe(true)
@@ -115,5 +152,18 @@ describe('current rich Markdown contract', () => {
     expect(editor.isActive('codeBlock')).toBe(true)
     expect(editor.commands.toggleCodeBlock()).toBe(true)
     expect(editor.can().toggleBold()).toBe(true)
+  })
+
+  it.each([
+    [['$$', 'E=mc^2', '$$'], 'mathBlock', '$$\nE=mc^2\n$$'],
+    [['```mermaid', 'flowchart TD', '```'], 'mermaidBlock', '```mermaid\nflowchart TD\n```'],
+  ])('turns a newly completed typed fence into an editable %s node', (lines, nodeName, markdown) => {
+    const editor = createEditor('')
+    editor.commands.setContent({
+      type: 'doc',
+      content: lines.map((text) => ({ type: 'paragraph', content: [{ type: 'text', text }] })),
+    })
+    expect(editor.state.doc.firstChild?.type.name).toBe(nodeName)
+    expect(editor.getMarkdown()).toContain(markdown)
   })
 })

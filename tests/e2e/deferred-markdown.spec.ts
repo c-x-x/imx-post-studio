@@ -57,9 +57,12 @@ test('defers typed Markdown until leaving the paragraph and keeps toolbar format
   await expect(editor.locator('strong')).not.toContainText('下一行普通文字')
   await page.getByRole('tab', { name: '排版' }).click()
   await page.getByRole('button', { name: '加粗' }).click()
+  await expect(editor).toContainText('****')
+  await expect(editor.locator('.editor-toolbar-markdown-marker')).toHaveCount(2)
   await editor.pressSequentially('工具栏加粗')
-  await expect(page.getByRole('button', { name: '加粗' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(editor.locator('strong')).not.toContainText('工具栏加粗')
   await editor.press('Enter')
+  await expect(editor.locator('strong').filter({ hasText: '工具栏加粗' })).toHaveText('工具栏加粗')
   await expect(page.getByRole('button', { name: '加粗' })).toHaveAttribute('aria-pressed', 'false')
   await editor.pressSequentially('工具栏后的普通文字')
   const plainAfterToolbar = editor.locator('p').filter({ hasText: '工具栏后的普通文字' })
@@ -67,6 +70,8 @@ test('defers typed Markdown until leaving the paragraph and keeps toolbar format
   await expect(plainAfterToolbar.locator('strong, em, s')).toHaveCount(0)
   await page.getByRole('button', { name: 'H2' }).click()
   await expect(editor.locator('h2')).toHaveCount(2)
+  await expect(editor.locator('h2').last()).toHaveText('工具栏后的普通文字')
+  await expect(page.getByRole('button', { name: 'H2' })).toHaveAttribute('aria-pressed', 'true')
   await setEditorMode(page, 'source')
   await expect(page.getByRole('textbox', { name: 'Markdown 编辑器' })).toContainText('~~删除文字~~')
   await expect(page.getByRole('textbox', { name: 'Markdown 编辑器' })).not.toContainText('\\*')
@@ -91,4 +96,139 @@ test('commits inline Markdown after inherited formatting and editor blur without
   await expect(editor.locator('strong').first()).toContainText('已有加粗')
   await expect(page.locator('.editor-context-hint')).toHaveCount(0)
   await expect(page.locator('.editor-save-status')).toBeVisible()
+})
+
+test('reveals rendered inline source on click and only reparses complete syntax', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '写作', exact: true }).click()
+  await setEditorMode(page, 'source')
+  const sourceEditor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await sourceEditor.fill('**粗体** *斜体* ~~删除~~ `代码`\n\n$E=mc^2$\n\n点击处')
+  await setEditorMode(page, 'rich')
+  await page.getByRole('tab', { name: '排版' }).click()
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await editor.focus()
+  const otherParagraph = editor.locator('p').filter({ hasText: '点击处' })
+  const formats = [
+    ['strong', '**粗体**', '加粗'],
+    ['em', '*斜体*', '斜体'],
+    ['s', '~~删除~~', '删除线'],
+    ['code', '`代码`', '行内代码'],
+  ] as const
+
+  for (const [selector, markdown, button] of formats) {
+    await editor.locator(selector).first().click()
+    await expect(editor.locator(selector).first()).toHaveCount(0)
+    await expect(editor).toContainText(markdown)
+    await expect(page.getByRole('button', { name: button, exact: true })).toHaveAttribute('aria-pressed', 'false')
+    await otherParagraph.click()
+    await expect(editor.locator(selector).first()).toBeVisible()
+  }
+
+  const formula = editor.locator('[data-math="inline"]')
+  await formula.locator('.katex-html').click()
+  await expect(formula).toHaveCount(0)
+  await expect(editor).toContainText('$E=mc^2$')
+  await editor.press('Delete')
+  await expect(editor).toContainText('$E=mc^2')
+  await otherParagraph.click()
+  await expect(editor.locator('[data-math="inline"]')).toHaveCount(0)
+  await expect(editor.locator('strong')).toHaveText('粗体')
+
+  await otherParagraph.click()
+  await editor.press('End')
+  await editor.press('Enter')
+  for (const [button, text] of [['高亮', '高亮'], ['下标', '2'], ['上标', '2']] as const) {
+    await page.getByRole('button', { name: button, exact: true }).click()
+    await editor.pressSequentially(text)
+    await page.getByRole('button', { name: button, exact: true }).click()
+    await editor.pressSequentially(' ')
+  }
+  for (const [selector, markdown, button] of [['mark', '<mark>高亮</mark>', '高亮'], ['sub', '<sub>2</sub>', '下标'], ['sup', '<sup>2</sup>', '上标']] as const) {
+    await editor.locator(selector).click()
+    await expect(editor.locator(selector)).toHaveCount(0)
+    await expect(editor).toContainText(markdown)
+    await expect(page.getByRole('button', { name: button, exact: true })).toHaveAttribute('aria-pressed', 'false')
+    await otherParagraph.click()
+    await expect(editor.locator(selector)).toBeVisible()
+  }
+
+  await editor.locator('strong').click()
+  await expect(editor).toContainText('**粗体**')
+  const openingBoldMarker = editor.locator('.editor-markdown-marker').filter({ hasText: '**' }).first()
+  await openingBoldMarker.evaluate((element) => {
+    const text = element.firstChild
+    if (!text) throw new Error('Bold source marker is missing')
+    const range = document.createRange()
+    range.setStart(text, 1)
+    range.collapse(true)
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(range)
+    document.dispatchEvent(new Event('selectionchange'))
+  })
+  await editor.press('Backspace')
+  await otherParagraph.click()
+  await expect(editor.locator('strong')).toHaveCount(0)
+  await expect(editor).toContainText('*粗体**')
+})
+
+test('keeps H1-H6 rendered with a visual-only divider while the caret is inside', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '写作', exact: true }).click()
+  await setEditorMode(page, 'source')
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await editor.fill(Array.from({ length: 6 }, (_, index) => `${'#'.repeat(index + 1)} 标题${index + 1}`).join('\n\n') + '\n\n普通')
+  await setEditorMode(page, 'rich')
+  await page.getByRole('tab', { name: '排版' }).click()
+
+  for (let level = 1; level <= 6; level += 1) {
+    const heading = editor.locator(`h${level}`)
+    await heading.click()
+    await expect(heading).toHaveText(`标题${level}`)
+    await expect(heading).toHaveCSS('border-bottom-style', 'solid')
+    await expect(heading).toHaveCSS('border-bottom-width', '1px')
+    await expect(page.getByRole('button', { name: `H${level}` })).toHaveAttribute('aria-pressed', 'true')
+  }
+  await expect(editor.locator('hr')).toHaveCount(0)
+  await setEditorMode(page, 'source')
+  await expect(page.getByRole('textbox', { name: 'Markdown 编辑器' })).not.toContainText('---')
+})
+
+test('inserts muted source placeholders from empty text-style controls', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '写作', exact: true }).click()
+  await setEditorMode(page, 'source')
+  await page.getByRole('textbox', { name: 'Markdown 编辑器' }).fill('\\*\n\n')
+  await setEditorMode(page, 'rich')
+  await page.getByRole('tab', { name: '排版' }).click()
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  const formats = [
+    { button: '加粗', open: '**', close: '**', selector: 'strong', text: '加粗' },
+    { button: '斜体', open: '*', close: '*', selector: 'em', text: '斜体' },
+    { button: '删除线', open: '~~', close: '~~', selector: 's', text: '删除' },
+    { button: '行内代码', open: '`', close: '`', selector: 'code', text: '代码' },
+    { button: '高亮', open: '<mark>', close: '</mark>', selector: 'mark', text: '高亮' },
+    { button: '下标', open: '<sub>', close: '</sub>', selector: 'sub', text: '2' },
+    { button: '上标', open: '<sup>', close: '</sup>', selector: 'sup', text: '2' },
+  ] as const
+
+  for (const [index, format] of formats.entries()) {
+    const paragraph = editor.locator('p').last()
+    await paragraph.click()
+    await page.getByRole('button', { name: format.button, exact: true }).click()
+    await expect(paragraph).toContainText(`${format.open}${format.close}`)
+    const toolbarMarkers = paragraph.locator('.editor-toolbar-markdown-marker')
+    await expect(toolbarMarkers).toHaveCount(2)
+    if (index === 0) {
+      const [markerColor, normalColor] = await Promise.all([
+        toolbarMarkers.first().evaluate((element) => getComputedStyle(element).color),
+        editor.locator('p').first().evaluate((element) => getComputedStyle(element).color),
+      ])
+      expect(markerColor).not.toBe(normalColor)
+    }
+    await editor.pressSequentially(format.text)
+    await expect(paragraph).toContainText(`${format.open}${format.text}${format.close}`)
+    await editor.press('Enter')
+    await expect(editor.locator(format.selector).last()).toHaveText(format.text)
+  }
 })
