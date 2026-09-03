@@ -523,9 +523,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           return false
         },
         compositionend() {
-          richComposingRef.current = false
           richCompositionPendingRef.current = true
           window.requestAnimationFrame(() => {
+            richComposingRef.current = false
             const activeEditor = richEditorRef.current
             if (!activeEditor || activeEditor.isDestroyed) return
             const next = editorMarkdown(activeEditor)

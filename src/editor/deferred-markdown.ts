@@ -450,6 +450,11 @@ export const DeferredMarkdown = Extension.create({
       },
       props: {
         handleTextInput(view, from, _to, text) {
+          // IME updates replace their current composition range repeatedly.
+          // Treating one of those updates like ordinary typing appends each
+          // pinyin candidate at the saved toolbar caret instead of replacing
+          // the previous candidate (for example: j + ji + jia + 加入).
+          if (composing || view.composing) return false
           return insertAtToolbarCaret(view, from, text)
         },
         handleClick(view, position, event) {
@@ -465,7 +470,11 @@ export const DeferredMarkdown = Extension.create({
           return kind ? revealInlineSource(editor, position, kind) : false
         },
         handleKeyDown(view, event) {
-          if (event.key !== 'Enter' || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey || composing || view.composing) return false
+          if (event.key !== 'Enter' || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey || view.composing) return false
+          // A new Enter after compositionend is a separate user action. It may
+          // arrive before our safety frame, so release the local guard now;
+          // Enter used to confirm an active candidate is still caught above.
+          composing = false
           const state = view.state
           const { $from } = state.selection
           const deferred = pendingKey.getState(state)
@@ -574,9 +583,10 @@ export const DeferredMarkdown = Extension.create({
           },
           compositionstart() { composing = true; return false },
           compositionend(view) {
-            composing = false
-            // Let the browser finish its IME transaction before updating decorations.
+            // `compositionend` can precede the browser's final replacement
+            // input. Keep custom text insertion disabled through that commit.
             requestAnimationFrame(() => {
+              composing = false
               if (!view.isDestroyed) view.dispatch(view.state.tr.setMeta('compositionFinished', true))
             })
             return false

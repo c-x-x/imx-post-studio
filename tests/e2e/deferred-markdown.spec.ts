@@ -98,10 +98,18 @@ test('does not retain pinyin while a real Chromium IME composition updates any t
         selectionStart: text.length,
         selectionEnd: text.length,
       })
+      await expect.poll(() => editor.evaluate((root) => {
+        const anchor = root.ownerDocument.getSelection()?.anchorNode
+        const element = anchor instanceof Element ? anchor : anchor?.parentElement
+        return element?.closest('p')?.textContent ?? ''
+      })).toBe(format.markdown.replace('加入', text))
     }
     await client.send('Input.insertText', { text: '加入' })
     await expect(editor).toContainText(format.markdown)
     await expect(editor).not.toContainText('jiaru')
+    await page.evaluate(() => new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    }))
     await editor.press('Enter')
     await expect(editor.locator(format.selector).last()).toHaveText('加入')
   }
@@ -374,16 +382,11 @@ test('changes a heading to ordinary text when Backspace is pressed at its start'
   await page.getByRole('button', { name: 'H2', exact: true }).click()
   const heading = editor.locator('h2', { hasText: '标题文字' })
   await expect(heading).toBeVisible()
-  const start = await heading.evaluate((element) => {
-    const text = element.firstChild
-    if (!text) throw new Error('Heading text is missing')
-    const range = document.createRange()
-    range.setStart(text, 0)
-    range.setEnd(text, 1)
-    const bounds = range.getBoundingClientRect()
-    return { x: bounds.left + .1, y: bounds.top + bounds.height / 2 }
-  })
-  await page.mouse.click(start.x, start.y)
+  await heading.click()
+  await editor.press('ArrowLeft')
+  await editor.press('ArrowLeft')
+  await editor.press('ArrowLeft')
+  await editor.press('ArrowLeft')
   expect(await heading.evaluate(() => window.getSelection()?.anchorOffset)).toBe(0)
   await editor.press('Backspace')
 
