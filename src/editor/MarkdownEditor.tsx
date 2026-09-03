@@ -373,6 +373,31 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       },
       handleKeyDown(view, event) {
         const { $from } = view.state.selection
+        let deletionCursor = $from
+        if (event.key === 'Backspace' && view.state.selection.empty) {
+          const nativeSelection = view.dom.ownerDocument.getSelection()
+          if (nativeSelection?.isCollapsed && nativeSelection.anchorNode && view.dom.contains(nativeSelection.anchorNode)) {
+            try {
+              deletionCursor = view.state.doc.resolve(view.posAtDOM(nativeSelection.anchorNode, nativeSelection.anchorOffset))
+            } catch {
+              // Fall back to ProseMirror's selection when the browser exposes
+              // a transient DOM position that cannot be mapped yet.
+            }
+          }
+        }
+        if (event.key === 'Backspace'
+          && view.state.selection.empty
+          && deletionCursor.parent.type.name === 'heading'
+          && deletionCursor.parentOffset === 0) {
+          event.preventDefault()
+          const headingPosition = deletionCursor.before(deletionCursor.depth)
+          const transaction = view.state.tr
+            .setNodeMarkup(headingPosition, view.state.schema.nodes.paragraph, {})
+          transaction.setSelection(TextSelection.create(transaction.doc, headingPosition + 1))
+          view.dispatch(transaction.scrollIntoView())
+          view.focus()
+          return true
+        }
         if ((event.key === 'Backspace' || event.key === 'Delete')
           && view.state.selection.empty
           && $from.parent.type.name === 'codeBlock'
@@ -729,7 +754,14 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
 
   const runFormat = (command: (chain: ChainedCommands) => ChainedCommands) => {
     if (!editor || editor.isDestroyed || disabled || mode !== 'rich') return
-    if (command(editor.chain().focus()).run()) onFormatApplied?.()
+    command(editor.chain().focus()).run()
+    onFormatApplied?.()
+    const requestFrame = editor.view.dom.ownerDocument.defaultView?.requestAnimationFrame
+    if (!requestFrame) return
+    requestFrame(() => requestFrame(() => {
+      if (editor.isDestroyed || richComposingRef.current || editor.view.composing) return
+      if (editor.view.dom.ownerDocument.activeElement !== editor.view.dom) editor.view.focus()
+    }))
   }
 
   const runInlineFormat = (open: string, close: string) => {
@@ -782,7 +814,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     // click. Restore the exact source selection after that layout change so
     // typing always lands between empty markers and selected text stays selected.
     const restoreSelection = () => {
-      if (editor.isDestroyed || editor.state.doc !== transaction.doc) return
+      // Once an IME composition has started, the native selection belongs to
+      // the browser. Moving it here can make iOS replace text at an old caret.
+      if (editor.isDestroyed || richComposingRef.current || editor.view.composing || editor.state.doc !== transaction.doc) return
       const restore = editor.state.tr
       restore.setSelection(TextSelection.create(restore.doc, nextSelection.from, nextSelection.to))
       restore.setStoredMarks([]).setMeta('addToHistory', false)
@@ -792,10 +826,12 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     const requestFrame = editor.view.dom.ownerDocument.defaultView?.requestAnimationFrame
     if (requestFrame) requestFrame(() => {
       restoreSelection()
-      // iOS Safari can move the native selection once more when the writing
-      // panel finishes becoming visible. A second frame corrects that drift;
-      // the document identity guard above stops as soon as real input occurs.
-      requestFrame(restoreSelection)
+      // WebKit only makes the writing panel focusable after the next paint.
+      // The follow-up may focus, but must never rewrite a live IME selection.
+      requestFrame(() => {
+        if (editor.isDestroyed || richComposingRef.current || editor.view.composing) return
+        if (editor.view.dom.ownerDocument.activeElement !== editor.view.dom) editor.view.focus()
+      })
     })
     else queueMicrotask(restoreSelection)
   }

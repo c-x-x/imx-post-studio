@@ -35,6 +35,111 @@ test('keeps mobile subscript and superscript input inside their source tags', as
   }
 })
 
+test('keeps every mobile text-style caret stable while typing', async ({ page }) => {
+  const pageErrors: string[] = []
+  page.on('pageerror', (error) => pageErrors.push(error.message))
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/')
+  await page.getByRole('button', { name: '开始写文章' }).click()
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  const formats = [
+    { button: '加粗', markdown: '**中文**', selector: 'strong' },
+    { button: '斜体', markdown: '*中文*', selector: 'em' },
+    { button: '删除线', markdown: '~~中文~~', selector: 's' },
+    { button: '行内代码', markdown: '`中文`', selector: 'code' },
+    { button: '高亮', markdown: '<mark>中文</mark>', selector: 'mark' },
+    { button: '下标', markdown: '<sub>中文</sub>', selector: 'sub' },
+    { button: '上标', markdown: '<sup>中文</sup>', selector: 'sup' },
+  ] as const
+
+  for (const format of formats) {
+    await page.getByRole('tab', { name: '写作', exact: true }).click()
+    await editor.locator('p').last().click()
+    await page.getByRole('tab', { name: '工具', exact: true }).click()
+    await page.getByRole('tab', { name: '排版', exact: true }).click()
+    await page.getByRole('button', { name: format.button, exact: true }).click()
+    await expect(editor).toBeFocused()
+    await editor.pressSequentially('中文')
+    await expect(editor).toContainText(format.markdown)
+    await editor.press('Enter')
+    await expect(editor.locator(format.selector).last()).toHaveText('中文')
+    await page.getByRole('tab', { name: '工具', exact: true }).click()
+    await expect(page.getByRole('button', { name: format.button, exact: true })).toHaveAttribute('aria-pressed', 'false')
+  }
+  expect(pageErrors).toEqual([])
+})
+
+test('does not retain pinyin while a real Chromium IME composition updates any text style', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'Chromium DevTools exposes the IME composition protocol')
+  const pageErrors: string[] = []
+  page.on('pageerror', (error) => pageErrors.push(error.message))
+  await page.goto('/')
+  await page.getByRole('button', { name: '写作', exact: true }).click()
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await page.getByRole('tab', { name: '排版', exact: true }).click()
+  const client = await page.context().newCDPSession(page)
+  const formats = [
+    { button: '加粗', markdown: '**加入**', selector: 'strong' },
+    { button: '斜体', markdown: '*加入*', selector: 'em' },
+    { button: '删除线', markdown: '~~加入~~', selector: 's' },
+    { button: '行内代码', markdown: '`加入`', selector: 'code:not(pre code)' },
+    { button: '高亮', markdown: '<mark>加入</mark>', selector: 'mark' },
+    { button: '下标', markdown: '<sub>加入</sub>', selector: 'sub' },
+    { button: '上标', markdown: '<sup>加入</sup>', selector: 'sup' },
+  ] as const
+
+  for (const format of formats) {
+    await editor.locator('p').last().click()
+    await page.getByRole('button', { name: format.button, exact: true }).click()
+    await expect(editor).toBeFocused()
+    for (const text of ['j', 'ji', 'jia', 'jiar', 'jiaru']) {
+      await client.send('Input.imeSetComposition', {
+        text,
+        selectionStart: text.length,
+        selectionEnd: text.length,
+      })
+    }
+    await client.send('Input.insertText', { text: '加入' })
+    await expect(editor).toContainText(format.markdown)
+    await expect(editor).not.toContainText('jiaru')
+    await editor.press('Enter')
+    await expect(editor.locator(format.selector).last()).toHaveText('加入')
+  }
+  expect(pageErrors).toEqual([])
+})
+
+test('returns mobile structural formatting controls to a focused writing surface', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/')
+  await page.getByRole('button', { name: '开始写文章' }).click()
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  const formats = [
+    { button: 'H2', selector: 'h2' },
+    { button: '无序列表', selector: 'ul:not([data-type="taskList"])' },
+    { button: '有序列表', selector: 'ol' },
+    { button: '任务列表', selector: 'ul[data-type="taskList"]' },
+    { button: '引用', selector: 'blockquote' },
+    { button: '代码块', selector: 'pre' },
+  ] as const
+
+  for (const [index, format] of formats.entries()) {
+    await page.getByRole('tab', { name: '写作', exact: true }).click()
+    await editor.fill(`结构${index}`)
+    await editor.getByText(`结构${index}`, { exact: true }).click()
+    await page.getByRole('tab', { name: '工具', exact: true }).click()
+    await page.getByRole('tab', { name: '排版', exact: true }).click()
+    await page.getByRole('button', { name: '正文', exact: true }).click()
+    await expect(editor).toBeFocused()
+    await editor.getByText(`结构${index}`, { exact: true }).click()
+    await page.getByRole('tab', { name: '工具', exact: true }).click()
+    await page.getByRole('tab', { name: '排版', exact: true }).click()
+    await page.getByRole('button', { name: format.button, exact: true }).click()
+    await expect(page.getByRole('tab', { name: '写作', exact: true })).toHaveAttribute('aria-selected', 'true')
+    await expect(editor).toBeFocused()
+    await expect(editor.locator(format.selector).first()).toContainText(`结构${index}`)
+  }
+})
+
 test('applies a link to the selected text while other Markdown in the line is pending', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: '写作', exact: true }).click()
@@ -255,6 +360,37 @@ test('keeps H1-H6 rendered with a visual-only divider while the caret is inside'
   await expect(editor.locator('hr')).toHaveCount(0)
   await setEditorMode(page, 'source')
   await expect(page.getByRole('textbox', { name: 'Markdown 编辑器' })).not.toContainText('---')
+})
+
+test('changes a heading to ordinary text when Backspace is pressed at its start', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/')
+  await page.getByRole('button', { name: '开始写文章' }).click()
+  await page.getByRole('tab', { name: '写作', exact: true }).click()
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await editor.fill('标题文字')
+  await page.getByRole('tab', { name: '工具', exact: true }).click()
+  await page.getByRole('tab', { name: '排版', exact: true }).click()
+  await page.getByRole('button', { name: 'H2', exact: true }).click()
+  const heading = editor.locator('h2', { hasText: '标题文字' })
+  await expect(heading).toBeVisible()
+  const start = await heading.evaluate((element) => {
+    const text = element.firstChild
+    if (!text) throw new Error('Heading text is missing')
+    const range = document.createRange()
+    range.setStart(text, 0)
+    range.setEnd(text, 1)
+    const bounds = range.getBoundingClientRect()
+    return { x: bounds.left + .1, y: bounds.top + bounds.height / 2 }
+  })
+  await page.mouse.click(start.x, start.y)
+  expect(await heading.evaluate(() => window.getSelection()?.anchorOffset)).toBe(0)
+  await editor.press('Backspace')
+
+  await expect(editor.locator('h2')).toHaveCount(0)
+  await expect(editor.locator('p').filter({ hasText: '标题文字' })).toHaveText('标题文字')
+  await page.getByRole('tab', { name: '工具', exact: true }).click()
+  await expect(page.getByRole('button', { name: '正文', exact: true })).toHaveAttribute('aria-pressed', 'true')
 })
 
 test('inserts muted source placeholders from empty text-style controls', async ({ page }) => {

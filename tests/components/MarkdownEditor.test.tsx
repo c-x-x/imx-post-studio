@@ -60,6 +60,33 @@ describe('MarkdownEditor', () => {
     expect(within(editor).getByText('正文').tagName).toBe('P')
   })
 
+  it('turns H1-H6 into paragraphs when Backspace is pressed at the text start', async () => {
+    const user = userEvent.setup()
+    render(<ControlledEditor initial={Array.from({ length: 6 }, (_, index) => `${'#'.repeat(index + 1)} 标题${index + 1}`).join('\n\n')} />)
+    const editor = screen.getByRole('textbox', { name: 'Markdown 编辑器' })
+
+    for (let level = 1; level <= 6; level += 1) {
+      const heading = within(editor).getByRole('heading', { level, name: `标题${level}` })
+      await user.click(heading)
+      const text = heading.firstChild
+      if (!text) throw new Error('Heading text is missing')
+      const range = document.createRange()
+      range.setStart(text, 0)
+      range.collapse(true)
+      window.getSelection()?.removeAllRanges()
+      window.getSelection()?.addRange(range)
+      fireEvent(document, new Event('selectionchange'))
+      await Promise.resolve()
+      fireEvent.keyDown(editor, { key: 'Backspace' })
+
+      expect(within(editor).queryByRole('heading', { level, name: `标题${level}` })).not.toBeInTheDocument()
+      expect(within(editor).getByText(`标题${level}`).tagName).toBe('P')
+    }
+    await waitFor(() => expect(screen.getByTestId('markdown').textContent).toBe(
+      Array.from({ length: 6 }, (_, index) => `标题${index + 1}`).join('\n\n'),
+    ))
+  })
+
   it('parses complete standard Markdown when pasted', async () => {
     render(<ControlledEditor />)
     const editor = screen.getByRole('textbox', { name: 'Markdown 编辑器' })

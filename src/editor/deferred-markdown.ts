@@ -266,9 +266,9 @@ export const DeferredMarkdown = Extension.create({
       if (from !== caret && from !== closingMarker?.to) return false
       const transaction = view.state.tr.insertText(text, caret, caret)
       transaction.setSelection(TextSelection.create(transaction.doc, caret + text.length))
-      // Keep the explicit caret boundary for the whole toolbar-authored
-      // source. WebKit otherwise remaps the second and later characters to
-      // the opposite side of adjacent marker decorations.
+      // Keep the logical insertion position for the whole toolbar-authored
+      // source without adding a DOM widget, which would split an IME's
+      // composition range between adjacent marker decorations.
       transaction.setMeta(toolbarMarkdownCaretKey, caret + text.length)
       view.dispatch(transaction.scrollIntoView())
       return true
@@ -531,23 +531,8 @@ export const DeferredMarkdown = Extension.create({
             : chain.splitListItem(parsed.firstChild!.type.name === 'taskList' ? 'taskItem' : 'listItem').run()
         },
         decorations(state) {
-          if (composing) return null
           const deferred = pendingKey.getState(state)
-          const toolbarDecorations: Decoration[] = [
-            ...(deferred?.toolbarMarkers.find() ?? []),
-            ...(deferred?.toolbarCaret === null || deferred?.toolbarCaret === undefined ? [] : [
-              // Adjacent decorated markers such as <mark></mark> form an
-              // ambiguous DOM boundary in WebKit/Chromium. An empty widget
-              // gives the native selection a stable position between them;
-              // it carries no document text and follows the toolbar caret.
-              Decoration.widget(deferred.toolbarCaret, () => {
-                const boundary = document.createElement('span')
-                boundary.className = 'editor-toolbar-caret-boundary'
-                boundary.setAttribute('aria-hidden', 'true')
-                return boundary
-              }, { side: -1 }),
-            ]),
-          ]
+          const toolbarDecorations: Decoration[] = deferred?.toolbarMarkers.find() ?? []
           const position = textblockPosition(state)
           if (position === null || !deferred?.pending.has(position)) {
             return toolbarDecorations.length ? DecorationSet.create(state.doc, toolbarDecorations) : null

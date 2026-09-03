@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState, type ChangeEvent } from 'react'
 import { validateCanonicalBeijingDate, type ArticleMeta } from './article'
 import { suggestSlug, validateSlug } from './slug'
 
@@ -15,6 +15,50 @@ interface ChipsInputProps {
   values: string[]
   onChange: (values: string[]) => void
   disabled: boolean
+}
+
+function resizeTextarea(textarea: HTMLTextAreaElement): void {
+  textarea.style.height = 'auto'
+  textarea.style.height = `${textarea.scrollHeight}px`
+}
+
+function AutoSizeTextarea({ id, value, disabled, describedBy, onChange }: {
+  id: string
+  value: string
+  disabled: boolean
+  describedBy?: string
+  onChange: (event: ChangeEvent<HTMLTextAreaElement>) => void
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  useLayoutEffect(() => {
+    const textarea = ref.current
+    if (!textarea) return
+    resizeTextarea(textarea)
+    if (typeof ResizeObserver === 'undefined') return
+    let previousWidth = textarea.getBoundingClientRect().width
+    const observer = new ResizeObserver(() => {
+      const width = textarea.getBoundingClientRect().width
+      if (width === previousWidth) return
+      previousWidth = width
+      resizeTextarea(textarea)
+    })
+    observer.observe(textarea)
+    return () => observer.disconnect()
+  }, [value])
+
+  return <textarea
+    ref={ref}
+    id={id}
+    className="metadata-autosize-textarea"
+    disabled={disabled}
+    rows={1}
+    value={value}
+    aria-describedby={describedBy}
+    onChange={(event) => {
+      resizeTextarea(event.currentTarget)
+      onChange(event)
+    }}
+  />
 }
 
 function ChipsInput({ id, label, values, onChange, disabled }: ChipsInputProps) {
@@ -62,7 +106,7 @@ export function MetadataPanel({ meta, onChange, disabled = false, compactHeading
     <ChipsInput id="tags" label="标签" values={meta.tags} disabled={disabled} onChange={(values) => onChange('tags', values)} />
     <div className="metadata-field">
       <label htmlFor="description">摘要</label>
-      <textarea id="description" disabled={disabled} rows={3} value={meta.description} aria-describedby="description-hint" onChange={(event) => onChange('description', event.target.value)} />
+      <AutoSizeTextarea id="description" disabled={disabled} value={meta.description} describedBy="description-hint" onChange={(event) => onChange('description', event.target.value)} />
       <p id="description-hint">推送必填：请用一段文字概括文章，用于博客列表展示；本地草稿可以暂不填写。</p>
     </div>
     <label className="check-field">

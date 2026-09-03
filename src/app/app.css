@@ -713,7 +713,10 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
   outline: 0;
 }
 
-.metadata-field textarea { resize: vertical; }
+.metadata-field .metadata-autosize-textarea {
+  resize: none;
+  overflow: hidden;
+}
 
 .slug-control {
   display: grid;
@@ -1418,7 +1421,8 @@ body.dialog-open {
     min-height: 0;
   }
   .workspace-editor .markdown-editor {
-    flex: 0 0 auto;
+    width: 100%;
+    flex: 1 1 100%;
     min-height: min(42dvh, 360px);
   }
   .home-principles,

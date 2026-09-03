@@ -306,6 +306,21 @@ test('keeps cover and body image delete actions visually consistent', async ({ p
   expect(await computedStyles(coverDelete)).toEqual(await computedStyles(bodyDelete))
 })
 
+test('auto-sizes the summary without a manual resize control', async ({ page }) => {
+  await beginArticle(page)
+  const description = page.getByLabel('摘要')
+  await expect(description).toHaveCSS('resize', 'none')
+  await expect(description).toHaveCSS('overflow', 'hidden')
+  const initialHeight = await description.evaluate((element) => element.getBoundingClientRect().height)
+
+  await description.fill('第一行\n第二行\n第三行\n第四行')
+  const expandedHeight = await description.evaluate((element) => element.getBoundingClientRect().height)
+  expect(expandedHeight).toBeGreaterThan(initialHeight)
+
+  await description.fill('缩短')
+  await expect.poll(() => description.evaluate((element) => element.getBoundingClientRect().height)).toBeLessThan(expandedHeight)
+})
+
 test('keeps keyboard focus in the export dialog', async ({ page }) => {
   await beginArticle(page)
   await fillMetadata(page)
@@ -396,9 +411,15 @@ test('sizes the mobile writing surface to short content instead of forcing a ful
   const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
   await editor.fill('短内容')
 
-  const panelHeight = await page.locator('.workspace-editor').evaluate((element) => element.getBoundingClientRect().height)
+  const panel = page.locator('.workspace-editor')
+  const panelHeight = await panel.evaluate((element) => element.getBoundingClientRect().height)
   expect(panelHeight).toBeGreaterThan(300)
   expect(panelHeight).toBeLessThan(520)
+  const [panelWidth, editorWidth] = await Promise.all([
+    panel.evaluate((element) => element.getBoundingClientRect().width),
+    page.locator('.markdown-editor').evaluate((element) => element.getBoundingClientRect().width),
+  ])
+  expect(editorWidth).toBeGreaterThan(panelWidth - 40)
   await expect(editor.locator('p').last()).toBeEmpty()
 })
 

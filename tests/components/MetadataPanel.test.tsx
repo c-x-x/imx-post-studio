@@ -49,6 +49,19 @@ describe('MetadataPanel', () => {
     expect(screen.getByText('Slug 只能包含小写英文、数字和单个连字符')).toBeInTheDocument()
   })
 
+  it('auto-sizes the summary without exposing a manual resize handle', async () => {
+    const user = userEvent.setup()
+    render(<MetadataHarness />)
+    const description = screen.getByLabelText('摘要') as HTMLTextAreaElement
+    Object.defineProperty(description, 'scrollHeight', { configurable: true, value: 96 })
+
+    await user.type(description, '第一行{enter}第二行{enter}第三行')
+
+    expect(description).toHaveClass('metadata-autosize-textarea')
+    expect(description).toHaveAttribute('rows', '1')
+    expect(description.style.height).toBe('96px')
+  })
+
   it('marks a non-canonical date invalid and associates its live validation message', async () => {
     const user = userEvent.setup()
     render(<MetadataHarness />)
