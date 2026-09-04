@@ -44,6 +44,7 @@ interface MarkdownEditorProps {
   status?: string
   statusTone?: 'info' | 'pending' | 'success' | 'error'
   statusActions?: ReactNode
+  statusTools?: ReactNode
   toolbarTarget?: HTMLElement | null
   onFormatApplied?: () => void
   preparePastedImages?: (request: PastedImageRequest) => Promise<MediaAsset[]>
@@ -289,6 +290,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   status,
   statusTone = 'info',
   statusActions,
+  statusTools,
   toolbarTarget,
   onFormatApplied,
   preparePastedImages,
@@ -961,6 +963,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       {toolbarTarget === undefined ? toolbar : null}
       <div className="editor-status-bar">
         <div className="editor-status-actions">{statusActions}</div>
+        {statusTools}
         <p className="editor-save-status" data-tone={statusTone} role="status">{status || '可以开始写作'}</p>
         <div className="editor-history-actions" role="group" aria-label="编辑历史">
           <button type="button" disabled={disabled || (mode === 'rich' ? !activeFormats?.canUndo : !sourceHistory.canUndo)} onMouseDown={(event) => event.preventDefault()} onClick={() => runHistory('undo')}>撤销</button>

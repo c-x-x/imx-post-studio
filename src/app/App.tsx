@@ -30,6 +30,8 @@ import { applyTheme, resolveInitialTheme, writeThemePreference, type AppTheme } 
 import { TransitionConfirmDialog } from './TransitionConfirmDialog'
 import { useUnsavedChangesWarning } from './use-unsaved-changes-warning'
 import { useStudioSettings } from './studio-settings'
+import { useMobileWorkspace } from './use-mobile-workspace'
+import { WorkspacePanel } from './WorkspacePanel'
 import './app.css'
 
 const GithubPanel = lazy(() => import('../github/GithubPanel'))
@@ -67,6 +69,11 @@ function downloadRecovery(blob: Blob): void {
 
 export function App() {
   const studioSettings = useStudioSettings()
+  const mobile = useMobileWorkspace()
+  const [mobilePanel, setMobilePanel] = useState<'properties' | 'document' | null>(null)
+  const propertiesTrigger = useRef<HTMLButtonElement>(null)
+  const documentTrigger = useRef<HTMLButtonElement>(null)
+  const pendingMobileImage = useRef<MediaAsset | null>(null)
   const [githubOpen, setGithubOpen] = useState(false)
   const [pendingWorkId, setPendingWorkId] = useState<string>()
   const githubTrigger = useRef<HTMLElement | null>(null)
@@ -126,6 +133,13 @@ export function App() {
   }, [])
 
   useUnsavedChangesWarning(hasUnsavedChanges)
+
+  useEffect(() => {
+    if (mobilePanel !== null || !pendingMobileImage.current) return
+    const asset = pendingMobileImage.current
+    pendingMobileImage.current = null
+    editorRef.current?.insertImage(asset.name, mediaAlt(asset.name))
+  }, [mobilePanel])
 
   useLayoutEffect(() => { draftRef.current = draft }, [draft])
   useLayoutEffect(() => { applyTheme(theme) }, [theme])
@@ -537,6 +551,10 @@ export function App() {
     ><span aria-hidden="true" /></button>
     {saveStatus.state === 'failed' ? <button type="button" disabled={transitioning || intakeBusy} onClick={() => void exportRecovery()}>导出恢复备份</button> : null}
   </>
+  const statusTools = mobile ? <div className="editor-panel-tools" role="group" aria-label="写作工具">
+    <button ref={propertiesTrigger} type="button" aria-haspopup="dialog" aria-expanded={mobilePanel === 'properties'} disabled={workspaceLocked} onClick={() => setMobilePanel('properties')}>属性</button>
+    <button ref={documentTrigger} type="button" aria-haspopup="dialog" aria-expanded={mobilePanel === 'document'} disabled={workspaceLocked} onClick={() => setMobilePanel('document')}>文档</button>
+  </div> : null
   const toggleSettings = (event: MouseEvent<HTMLButtonElement>) => {
     event.currentTarget.focus()
     setSettingsCollapsed((current) => {
@@ -601,35 +619,38 @@ export function App() {
   return <main className="app-shell" data-view={view} data-dock-hidden={view === 'workspace' && dockHidden || undefined}>
     <ImxDock hidden={view === 'workspace' && dockHidden} view={view} disabled={workspaceLocked} theme={theme} onToggleTheme={toggleTheme} onHome={() => void showHome()} onArticle={showWorkspace} onDashboard={() => void showDashboard()} onWorks={() => void showWorks()} />
     {view === 'home' ? <HomePage disabled={workspaceLocked} onArticle={showWorkspace} onDashboard={() => void showDashboard()} onGithub={() => void showWorks()} /> : view === 'dashboard' ? <DraftDashboard activeDraftId={draft.id} onOpen={openDraft} onRename={syncRenamedDraft} disabled={workspaceLocked} onDelete={(id) => { if (draftRef.current.id === id) { executeNewArticle(); setView('dashboard') } }} /> : view === 'works' ? <Suspense fallback={<p role="status">正在加载作品…</p>}><GithubPanel mode="works" draft={draft} onOpen={openDraft} onClose={showWorkspace} returnFocus={() => null} /></Suspense> : <section className="workspace" aria-label="文章工作区" aria-busy={workspaceLocked} data-inspector-collapsed={settingsCollapsed} data-actions-collapsed={actionsCollapsed}>
-      <nav className="workspace-tabs" data-editor-controls role="tablist" aria-label="工作区视图">
+      {!mobile ? <nav className="workspace-tabs" data-editor-controls role="tablist" aria-label="工作区视图">
         {([['settings', '设置'], ['write', '写作'], ['actions', '工具']] as const).map(([id, label]) => <button key={id} id={`tab-${id}`} type="button" disabled={workspaceLocked} role="tab" aria-selected={tab === id} aria-controls={`panel-${id}`} onClick={() => setTab(id)}>{label}</button>)}
-      </nav>
-      <div className="workspace-grid" data-tab={tab}>
-        <aside id="panel-settings" className="workspace-panel workspace-inspector" role="tabpanel" aria-labelledby="tab-settings">
-          <nav className="inspector-view-tabs" role="tablist" aria-label="左侧栏视图">
+      </nav> : null}
+      <div className="workspace-grid" data-tab={mobile ? 'write' : tab}>
+        <WorkspacePanel mobile={mobile} open={mobilePanel === 'properties'} title="属性" busy={workspaceLocked} onClose={() => setMobilePanel(null)} returnFocus={() => propertiesTrigger.current}>
+        <aside id="panel-settings" className="workspace-panel workspace-inspector" role={mobile ? undefined : 'tabpanel'} aria-label={mobile ? '文章属性' : undefined} aria-labelledby={mobile ? undefined : 'tab-settings'}>
+          {!mobile ? <nav className="inspector-view-tabs" role="tablist" aria-label="左侧栏视图">
             <button id="inspector-tab-settings" type="button" role="tab" aria-selected={inspectorView === 'settings'} aria-controls="inspector-settings" onClick={() => setInspectorView('settings')}>属性</button>
             <button id="inspector-tab-outline" type="button" role="tab" aria-selected={inspectorView === 'outline'} aria-controls="inspector-outline" onClick={() => setInspectorView('outline')}>大纲</button>
-          </nav>
-          {inspectorView === 'settings'
-            ? <div id="inspector-settings" className="inspector-settings-panel" role="tabpanel" aria-labelledby="inspector-tab-settings">
+          </nav> : null}
+          {mobile || inspectorView === 'settings'
+            ? <div id="inspector-settings" className="inspector-settings-panel" role={mobile ? undefined : 'tabpanel'} aria-labelledby={mobile ? undefined : 'inspector-tab-settings'}>
                 <MetadataPanel compactHeading disabled={workspaceLocked} meta={draft.meta} onChange={(field, value) => dispatchDraft({ type: 'set-meta', field, value })} />
                 <CoverPanel draftId={draft.id} cover={draft.media.find((asset) => asset.kind === 'cover')} disabled={transitioning} onReplace={(asset) => dispatchDraft({ type: 'replace-cover', asset })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onIntakeBusyChange={(busy) => setIntakeSourceBusy('cover', busy)} />
               </div>
             : <OutlinePanel markdown={draft.body} onSelect={focusOutlineHeading} />}
         </aside>
+        </WorkspacePanel>
         <button className="inspector-toggle" type="button" aria-controls="panel-settings" aria-expanded={!settingsCollapsed} aria-label={settingsCollapsed ? '展开文章设置' : '折叠文章设置'} title={settingsCollapsed ? '展开文章设置' : '折叠文章设置'} onClick={toggleSettings}><span aria-hidden="true">{settingsCollapsed ? '›' : '‹'}</span></button>
-        <section id="panel-write" className="workspace-panel workspace-editor" role="tabpanel" aria-labelledby="tab-write"><h2 className="visually-hidden">写作</h2><MarkdownEditor key={draft.id} initialMode={studioSettings.defaultEditorMode} font={studioSettings.editorFont} focusMode={studioSettings.focusMode} typewriterMode={studioSettings.typewriterMode} disabled={workspaceLocked} ref={editorRef} value={draft.body} media={draft.media} status={status} statusTone={statusTone} statusActions={statusActions} toolbarTarget={formatToolbarTarget} onFormatApplied={() => setTab('write')} preparePastedImages={preparePastedImages} onCommitPastedImages={(assets, body) => dispatchDraft({ type: 'paste-body-media', assets, body })} resolveMediaUrl={resolveEditorMediaUrl} onChange={(body) => {
+        <section id="panel-write" className="workspace-panel workspace-editor" role={mobile ? undefined : 'tabpanel'} aria-label={mobile ? '写作' : undefined} aria-labelledby={mobile ? undefined : 'tab-write'}><h2 className="visually-hidden">写作</h2><MarkdownEditor key={draft.id} initialMode={mobile ? 'source' : studioSettings.defaultEditorMode} font={studioSettings.editorFont} focusMode={studioSettings.focusMode} typewriterMode={studioSettings.typewriterMode} disabled={workspaceLocked} ref={editorRef} value={draft.body} media={draft.media} status={status} statusTone={statusTone} statusActions={statusActions} statusTools={statusTools} toolbarTarget={mobile ? null : formatToolbarTarget} onFormatApplied={() => setTab('write')} preparePastedImages={preparePastedImages} onCommitPastedImages={(assets, body) => dispatchDraft({ type: 'paste-body-media', assets, body })} resolveMediaUrl={resolveEditorMediaUrl} onChange={(body) => {
           if (draft.id !== draftRef.current.id) return
           if (body === draftRef.current.body) return
           dispatchDraft({ type: 'set-body', body })
         }} /></section>
         <button className="actions-toggle" type="button" aria-controls="panel-actions" aria-expanded={!actionsCollapsed} aria-label={actionsCollapsed ? '展开文章操作' : '折叠文章操作'} title={actionsCollapsed ? '展开文章操作' : '折叠文章操作'} onClick={toggleActions}><span aria-hidden="true">{actionsCollapsed ? '‹' : '›'}</span></button>
+        <WorkspacePanel mobile={mobile} open={mobilePanel === 'document'} title="文档" busy={workspaceLocked} onClose={() => setMobilePanel(null)} returnFocus={() => documentTrigger.current}>
         <aside id="panel-actions" className="workspace-actions" aria-label="文章工具">
-          <nav className="inspector-view-tabs" data-editor-controls role="tablist" aria-label="右侧栏视图">
+          {!mobile ? <nav className="inspector-view-tabs" data-editor-controls role="tablist" aria-label="右侧栏视图">
             <button id="actions-tab-article" type="button" role="tab" aria-selected={actionsView === 'article'} aria-controls="actions-article" onClick={() => setActionsView('article')}>文档</button>
             <button id="actions-tab-format" type="button" role="tab" aria-selected={actionsView === 'format'} aria-controls="actions-format" onClick={() => setActionsView('format')}>排版</button>
-          </nav>
-          <div id="actions-article" className="actions-article-panel" role="tabpanel" aria-labelledby="actions-tab-article" hidden={actionsView !== 'article'}>
+          </nav> : null}
+          <div id="actions-article" className="actions-article-panel" role={mobile ? undefined : 'tabpanel'} aria-labelledby={mobile ? undefined : 'actions-tab-article'} hidden={!mobile && actionsView !== 'article'}>
           <div className="article-actions"><button ref={previewTrigger} className="article-save" type="button" disabled={workspaceLocked} onClick={openPreview}>预览文章</button></div>
           <section className="sidebar-tool-group" aria-label="文档操作">
           <h3>文档操作</h3>
@@ -638,12 +659,17 @@ export function App() {
           <p className="sidebar-tool-hint">自动保存到本地；推送将更新 GitHub 博客。</p>
           </section>
           <BundleActions disabled={workspaceLocked} draft={draft} onReplace={replaceImportedDraft} onNew={openImportedAsNew} onStatus={setNotice} onImportFocusRequest={(target) => { importFocusTarget.current = target; setImportFocusVersion((current) => current + 1) }} />
-          <MediaPanel draftId={draft.id} disabled={transitioning} media={draft.media} body={draft.body} onAddBatch={(assets) => dispatchDraft({ type: 'add-media-batch', assets })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onInsertImage={(asset) => { editorRef.current?.insertImage(asset.name, mediaAlt(asset.name)); setTab('write') }} onIntakeBusyChange={(busy) => setIntakeSourceBusy('body', busy)} />
+          <MediaPanel draftId={draft.id} disabled={transitioning} media={draft.media} body={draft.body} onAddBatch={(assets) => dispatchDraft({ type: 'add-media-batch', assets })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onInsertImage={(asset) => {
+            if (mobile) { pendingMobileImage.current = asset; setMobilePanel(null) }
+            else editorRef.current?.insertImage(asset.name, mediaAlt(asset.name))
+            setTab('write')
+          }} onIntakeBusyChange={(busy) => setIntakeSourceBusy('body', busy)} />
           </div>
-          <div id="actions-format" className="actions-format-panel" role="tabpanel" aria-labelledby="actions-tab-format" hidden={actionsView !== 'format'}>
+          {!mobile ? <div id="actions-format" className="actions-format-panel" role="tabpanel" aria-labelledby="actions-tab-format" hidden={actionsView !== 'format'}>
           <div ref={setFormatToolbarTarget} />
-          </div>
+          </div> : null}
         </aside>
+        </WorkspacePanel>
       </div>
     </section>}
     {newArticlePromptOpen ? <TransitionConfirmDialog busy={transitioning || intakeBusy} error={newArticlePromptError} onCancel={cancelNewArticle} onDiscard={() => void deleteAndContinueNewArticle()} onSave={() => void saveAndContinueNewArticle()} returnFocus={() => confirmReturnFocus.current} /> : null}

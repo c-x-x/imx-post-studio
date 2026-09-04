@@ -1,5 +1,6 @@
 import { useId, useRef, useState, type KeyboardEvent } from 'react'
 import { AccessibleDialog, DialogClose } from './AccessibleDialog'
+import { useMobileWorkspace } from './use-mobile-workspace'
 import {
   DEFAULT_STUDIO_SETTINGS,
   resetStudioSettings,
@@ -48,6 +49,7 @@ interface SettingsDialogProps {
 export function SettingsDialog({ onClose, returnFocus }: SettingsDialogProps) {
   const [activeId, setActiveId] = useState<SettingsSectionId>('general')
   const settings = useStudioSettings()
+  const mobile = useMobileWorkspace()
   const [commitTemplate, setCommitTemplate] = useState(() => settings.commitMessageTemplate)
   const [storageWarning, setStorageWarning] = useState('')
   const [resetArmed, setResetArmed] = useState(false)
@@ -97,8 +99,8 @@ export function SettingsDialog({ onClose, returnFocus }: SettingsDialogProps) {
   </div> : activeId === 'editor' ? <div className="settings-dialog__fields">
     <fieldset className="settings-choice">
       <legend>编辑模式</legend>
-      <label><input type="radio" name="default-editor-mode" value="rich" checked={settings.defaultEditorMode === 'rich'} onChange={() => save({ defaultEditorMode: 'rich' })} /><span><strong>即时排版</strong><small>边写边显示 Markdown 排版效果。</small></span></label>
-      <label><input type="radio" name="default-editor-mode" value="source" checked={settings.defaultEditorMode === 'source'} onChange={() => save({ defaultEditorMode: 'source' })} /><span><strong>源代码</strong><small>直接编辑完整 Markdown 标记。</small></span></label>
+      <label><input type="radio" name="default-editor-mode" value="rich" disabled={mobile} checked={!mobile && settings.defaultEditorMode === 'rich'} onChange={() => save({ defaultEditorMode: 'rich' })} /><span><strong>即时排版</strong><small>{mobile ? '手机端不支持即时排版。' : '边写边显示 Markdown 排版效果。'}</small></span></label>
+      <label><input type="radio" name="default-editor-mode" value="source" checked={mobile || settings.defaultEditorMode === 'source'} onChange={() => { if (!mobile) save({ defaultEditorMode: 'source' }) }} /><span><strong>源代码</strong><small>直接编辑完整 Markdown 标记。</small></span></label>
     </fieldset>
     <fieldset className="settings-choice settings-font-choice">
       <legend>编辑器字体</legend>
@@ -110,7 +112,7 @@ export function SettingsDialog({ onClose, returnFocus }: SettingsDialogProps) {
       <label><input type="checkbox" checked={settings.focusMode} onChange={(event) => save({ focusMode: event.target.checked })} /><span><strong>专注模式</strong><small>弱化光标所在段落以外的内容。</small></span></label>
       <label><input type="checkbox" checked={settings.typewriterMode} onChange={(event) => save({ typewriterMode: event.target.checked })} /><span><strong>打字机模式</strong><small>输入时让光标尽量保持在编辑区中部。</small></span></label>
     </fieldset>
-    <p className="settings-dialog__note">编辑模式与字体切换会立即应用，并保存在当前浏览器；不会改变文章内容。</p>
+    <p className="settings-dialog__note">{mobile ? '手机端仅使用源代码模式，不会覆盖桌面端的编辑模式偏好。' : '编辑模式与字体切换会立即应用，并保存在当前浏览器；不会改变文章内容。'}</p>
   </div> : activeId === 'images' ? <div className="settings-dialog__fields">
     <label className="settings-field">
       <span id={`${idPrefix}-cover-width-label`}>封面最大宽度</span>

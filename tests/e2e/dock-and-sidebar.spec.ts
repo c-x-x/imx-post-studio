@@ -84,7 +84,7 @@ test('keeps formatting controls compact after resizing and reopening the rail', 
     await buttons.first().hover()
     await checkHeights()
   }
-  await page.setViewportSize({ width: 390, height: 763 })
+  await page.setViewportSize({ width: 800, height: 763 })
   await page.getByRole('tab', { name: '工具', exact: true }).click()
   await checkHeights()
   expect(await rail.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
@@ -224,7 +224,7 @@ test('collapses the action rail, expands the editor, and restores it independent
   await page.getByRole('button', { name: '写作', exact: true }).click()
   await expect(page.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-actions-collapsed', 'true')
   await expect(page.getByRole('region', { name: '文章工作区' })).toHaveAttribute('data-inspector-collapsed', 'false')
-  for (const width of [1117, 390]) {
+  for (const width of [1117, 800]) {
     await page.setViewportSize({ width, height: 763 })
     if (width > 1023) {
       await page.getByRole('button', { name: '展开文章操作' }).click()
@@ -284,7 +284,7 @@ test('fits the complete preview canvas and Dock without horizontal scrolling at 
   }
 })
 
-test('uses the compact IMX menu and existing workspace tabs on mobile without overflow', async ({ page }) => {
+test('uses the compact IMX menu and popup workspace panels on mobile without overflow', async ({ page }) => {
   await page.goto('/')
   for (const width of [1440, 820, 390]) {
     await page.setViewportSize({ width, height: 900 })
@@ -303,21 +303,21 @@ test('uses the compact IMX menu and existing workspace tabs on mobile without ov
   await page.getByRole('button', { name: '写作', exact: true }).click()
 
   await expect(page.getByRole('button', { name: '打开菜单' })).toHaveAttribute('aria-expanded', 'false')
-  await expect(page.getByRole('tab', { name: '设置', exact: true })).toBeVisible()
-  await expect(page.getByRole('tab', { name: '写作' })).toBeVisible()
-  await expect(page.getByRole('button', { name: '折叠文章设置' })).toBeHidden()
-  await expect(page.getByRole('button', { name: '折叠文章操作' })).toBeHidden()
+  await expect(page.getByRole('tablist', { name: '工作区视图' })).toHaveCount(0)
+  await page.getByRole('button', { name: '属性', exact: true }).click()
+  await expect(page.locator('.inspector-toggle')).toBeHidden()
+  await expect(page.locator('.actions-toggle')).toBeHidden()
   await expect(page.locator('#panel-settings').getByRole('heading', { name: '文章封面' })).toBeVisible()
   await expect(page.locator('#panel-settings').getByLabel('选择封面')).toBeVisible()
-  await page.getByRole('tab', { name: '工具', exact: true }).click()
+  await page.getByRole('button', { name: '返回写作' }).click()
+  await page.getByRole('button', { name: '文档', exact: true }).click()
   await expect(page.getByRole('button', { name: '新建文章' })).toBeVisible()
   await expect(page.getByRole('button', { name: '推送' })).toBeVisible()
   await expect(page.getByRole('button', { name: '导入文章包' })).toBeVisible()
-  await page.getByRole('tab', { name: '文档' }).click()
   await expect(page.getByRole('heading', { name: '正文图片' })).toBeVisible()
   await expect(page.locator('#panel-actions').getByLabel('选择封面')).toHaveCount(0)
   await expect(page.locator('#panel-actions').getByLabel('添加正文图片')).toBeVisible()
-  await page.getByRole('tab', { name: '写作' }).click()
+  await page.getByRole('button', { name: '返回写作' }).click()
   await expect(page.locator('#panel-actions')).toBeHidden()
   await expect(page.locator('#panel-write')).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
@@ -348,7 +348,7 @@ test('formats the selected text from the right sidebar without resetting the edi
   await expect(editor.locator('strong')).toHaveText('保留选区')
   await expect(editor.locator('strong')).not.toContainText('普通输入')
 
-  await page.setViewportSize({ width: 390, height: 844 })
+  await page.setViewportSize({ width: 800, height: 844 })
   await page.getByRole('tab', { name: '写作', exact: true }).click()
   await expect(status).toHaveCSS('text-align', 'center')
   for (const name of ['撤销', '重做']) {
@@ -381,7 +381,7 @@ test('formats the selected text from the right sidebar without resetting the edi
   await expect(editor.locator('em')).toHaveText('保留选区')
 })
 
-test('inserts, edits and removes links from the sidebar on desktop and mobile', async ({ page }) => {
+test('inserts, edits and removes links from the sidebar on desktop and tablet', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: '写作', exact: true }).click()
   const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
@@ -404,7 +404,7 @@ test('inserts, edits and removes links from the sidebar on desktop and mobile', 
   await editor.press('ControlOrMeta+z')
   await expect(editor.getByRole('link')).toHaveAttribute('href', 'https://example.com')
 
-  await page.setViewportSize({ width: 390, height: 844 })
+  await page.setViewportSize({ width: 800, height: 844 })
   await page.getByRole('tab', { name: '写作', exact: true }).click()
   await editor.getByRole('link').click()
   await page.getByRole('tab', { name: '工具', exact: true }).click()

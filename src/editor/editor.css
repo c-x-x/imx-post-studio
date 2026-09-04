@@ -156,6 +156,7 @@
 }
 
 .editor-status-actions button,
+.editor-panel-tools button,
 .editor-history-actions button {
   min-height: 30px;
   padding: .3rem .8rem;
@@ -167,6 +168,7 @@
 }
 
 .editor-status-actions button:hover:not(:disabled),
+.editor-panel-tools button:hover:not(:disabled),
 .editor-history-actions button:hover:not(:disabled) {
   color: var(--imx-accent-hover);
   background: var(--imx-accent-soft);

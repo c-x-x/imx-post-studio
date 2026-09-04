@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test'
 import { setEditorMode } from '../helpers/editor-mode'
 
-test('keeps four asterisks editable instead of rendering a divider after a mobile blur', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 })
+test('keeps four asterisks editable instead of rendering a divider after a tablet blur', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 844 })
   await page.goto('/')
   await page.getByRole('button', { name: '开始写文章' }).click()
   await page.getByRole('tab', { name: '写作' }).click()
@@ -15,8 +15,8 @@ test('keeps four asterisks editable instead of rendering a divider after a mobil
   await expect(editor.locator('p').first()).toHaveText('****')
 })
 
-test('keeps mobile subscript and superscript input inside their source tags', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 })
+test('keeps tablet subscript and superscript input inside their source tags', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 844 })
   await page.goto('/')
   await page.getByRole('button', { name: '开始写文章' }).click()
   const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
@@ -35,10 +35,10 @@ test('keeps mobile subscript and superscript input inside their source tags', as
   }
 })
 
-test('keeps every mobile text-style caret stable while typing', async ({ page }) => {
+test('keeps every tablet text-style caret stable while typing', async ({ page }) => {
   const pageErrors: string[] = []
   page.on('pageerror', (error) => pageErrors.push(error.message))
-  await page.setViewportSize({ width: 390, height: 844 })
+  await page.setViewportSize({ width: 800, height: 844 })
   await page.goto('/')
   await page.getByRole('button', { name: '开始写文章' }).click()
   const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
@@ -116,8 +116,8 @@ test('does not retain pinyin while a real Chromium IME composition updates any t
   expect(pageErrors).toEqual([])
 })
 
-test('returns mobile structural formatting controls to a focused writing surface', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 })
+test('returns tablet structural formatting controls to a focused writing surface', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 844 })
   await page.goto('/')
   await page.getByRole('button', { name: '开始写文章' }).click()
   const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
@@ -371,7 +371,7 @@ test('keeps H1-H6 rendered with a visual-only divider while the caret is inside'
 })
 
 test('changes a heading to ordinary text when Backspace is pressed at its start', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 })
+  await page.setViewportSize({ width: 800, height: 844 })
   await page.goto('/')
   await page.getByRole('button', { name: '开始写文章' }).click()
   await page.getByRole('tab', { name: '写作', exact: true }).click()

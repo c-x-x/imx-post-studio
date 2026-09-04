@@ -159,6 +159,5 @@ test('works → pending → push and confirmed remote deletion preserve the corr
   await navigate(page, '草稿')
   await expect(pending.getByRole('listitem')).toHaveCount(1)
   await pending.getByRole('button', { name: '打开', exact: true }).click()
-  await page.getByRole('tab', { name: '写作', exact: true }).click()
   await expect(editor).toHaveText('Updated body')
 })

@@ -340,7 +340,7 @@ test('keeps responsive workspace panels mounted and opens preview without horizo
   await setEditorMode(page, 'source')
   const source = page.locator('.source-markdown-editor')
   await expect(source.locator('.cm-gutters')).toBeVisible()
-  for (const viewport of [{ width: 1117, height: 763 }, { width: 390, height: 844 }]) {
+  for (const viewport of [{ width: 1117, height: 763 }, { width: 800, height: 844 }]) {
     await page.setViewportSize(viewport)
     for (const theme of ['light', 'dark']) {
       await page.evaluate((value) => { document.documentElement.dataset.theme = value }, theme)
@@ -356,7 +356,7 @@ test('keeps responsive workspace panels mounted and opens preview without horizo
   await page.evaluate(() => { document.documentElement.dataset.theme = 'light' })
   await page.getByRole('tab', { name: '工具', exact: true }).click()
   await setEditorMode(page, 'rich')
-  await page.setViewportSize({ width: 390, height: 844 })
+  await page.setViewportSize({ width: 800, height: 844 })
   const workspaceTabs = page.getByRole('tablist', { name: '工作区视图' })
   await expect(workspaceTabs).toBeVisible()
   await expect(workspaceTabs.getByRole('tab')).toHaveCount(3)
@@ -366,7 +366,7 @@ test('keeps responsive workspace panels mounted and opens preview without horizo
   await page.getByRole('tab', { name: '写作' }).click()
   await expect(page.getByRole('textbox', { name: 'Markdown 编辑器' })).toBeVisible()
   await expectNoHorizontalOverflow()
-  // Opening the mobile tool panel must not parse away the text selection.
+  // Opening the tablet tool panel must not parse away the text selection.
   const rich = page.getByRole('textbox', { name: 'Markdown 编辑器' })
   await rich.fill('**粗体** 链接 尾部')
   await rich.evaluate((element) => {
@@ -407,20 +407,19 @@ test('sizes the mobile writing surface from the available viewport instead of ca
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/')
   await page.getByRole('button', { name: '开始写文章' }).click()
-  await page.getByRole('tab', { name: '写作' }).click()
   const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
   await editor.fill('短内容')
 
   const panel = page.locator('.workspace-editor')
   const panelHeight = await panel.evaluate((element) => element.getBoundingClientRect().height)
   expect(panelHeight).toBeGreaterThan(600)
-  expect(panelHeight).toBeLessThan(720)
+  expect(panelHeight).toBeLessThan(844)
   const [panelWidth, editorWidth] = await Promise.all([
     panel.evaluate((element) => element.getBoundingClientRect().width),
     page.locator('.markdown-editor').evaluate((element) => element.getBoundingClientRect().width),
   ])
   expect(editorWidth).toBeGreaterThan(panelWidth - 40)
-  await expect(editor.locator('p').last()).toBeEmpty()
+  await expect(editor).toContainText('短内容')
 })
 
 test('renders usable code blocks and keeps the preview back control stationary', { tag: '@critical' }, async ({ page, browserName }) => {

@@ -1,9 +1,20 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AccessibleDialog, DialogClose } from '../../src/app/AccessibleDialog'
 
 describe('AccessibleDialog', () => {
   afterEach(cleanup)
+
+  it('lets a nested popup own Escape without closing its parent panel', () => {
+    const closeParent = vi.fn()
+    const closeChild = vi.fn()
+    render(<AccessibleDialog title="文档" onClose={closeParent}>
+      <AccessibleDialog title="导出" onClose={closeChild}><button type="button">取消导出</button></AccessibleDialog>
+    </AccessibleDialog>)
+    fireEvent.keyDown(screen.getByRole('button', { name: '取消导出' }), { key: 'Escape' })
+    expect(closeChild).toHaveBeenCalledOnce()
+    expect(closeParent).not.toHaveBeenCalled()
+  })
 
   it('escapes transformed workspace ancestors by portaling the backdrop to the document body', () => {
     const { container } = render(<div style={{ transform: 'translateX(18px)' }}><AccessibleDialog title="导入已验证" onClose={() => undefined}><button type="button">取消</button></AccessibleDialog></div>)
