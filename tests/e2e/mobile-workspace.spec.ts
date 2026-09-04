@@ -80,6 +80,44 @@ test('keeps the phone Dock in document flow instead of following page scroll', a
   await expect(dock).toHaveCSS('position', 'fixed')
 })
 
+test('keeps the Dock horizontally aligned through restore and orientation changes @critical @webkit-smoke @firefox-smoke', async ({ page }, testInfo) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  const dock = page.locator('#studio-dock')
+  const assertAligned = async () => {
+    // Viewport changes also trigger React's mobile layout subscription.
+    await expect.poll(() => dock.evaluate((element) => {
+      const dock = element.getBoundingClientRect()
+      const panel = document.querySelector('.workspace-editor')!.getBoundingClientRect()
+      return Math.max(Math.abs(dock.x - panel.x), Math.abs(dock.width - panel.width))
+    })).toBeLessThan(1)
+  }
+  for (const viewport of [{ width: 390, height: 844 }, { width: 844, height: 390 }, { width: 320, height: 568 }]) {
+    await page.setViewportSize(viewport)
+    await assertAligned()
+    for (let cycle = 0; cycle < 2; cycle++) {
+      await page.getByRole('button', { name: '隐藏 Dock', exact: true }).click()
+      await expect(dock).toHaveCSS('visibility', 'hidden')
+      await page.getByRole('button', { name: '恢复 Dock', exact: true }).click()
+      await expect(dock).toHaveCSS('height', '64px')
+      await assertAligned()
+      await expect(page.getByRole('button', { name: 'I M P S，返回首页' })).toBeInViewport({ ratio: 1 })
+      await expect(page.getByRole('button', { name: '打开菜单' })).toBeInViewport({ ratio: 1 })
+    }
+  }
+  await page.screenshot({ path: testInfo.outputPath('mobile-dock-restored.png') })
+  // Desktop/tablet still center the fixed Dock; mobile must not inherit an offset.
+  for (const width of [800, 1440]) {
+    await page.setViewportSize({ width, height: 900 })
+    await expect(dock).toHaveCSS('position', 'fixed')
+    expect(await dock.evaluate((element) => {
+      const box = element.getBoundingClientRect()
+      return Math.abs(box.x + box.width / 2 - innerWidth / 2)
+    })).toBeLessThan(1)
+  }
+  await page.setViewportSize({ width: 390, height: 844 })
+  await assertAligned()
+})
+
 test('fills the phone viewport and grows with the Dock hidden without a blank page tail', async ({ page }, testInfo) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   const panel = page.locator('.workspace-editor')

@@ -1427,7 +1427,7 @@ body.dialog-open {
     position: relative;
     top: auto;
     left: auto;
-    translate: none;
+    right: auto;
     flex: 0 0 auto;
     width: 100%;
     max-width: none;
