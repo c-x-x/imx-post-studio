@@ -28,7 +28,6 @@ function renderPreviewContent(host: HTMLElement, html: string): ShadowRoot {
 function wirePreviewFrameScroll(host: HTMLElement, root: ShadowRoot, dock: HTMLElement | null, onScroll: (scrollTop: number) => void): () => void {
   const toc = root.querySelector<HTMLElement>('.article-page .toc')
   const sidebar = root.querySelector<HTMLElement>('.article-page .sidebar')
-  const layout = root.querySelector<HTMLElement>('.article-page .layout-with-sidebar')
   const headings = [...root.querySelectorAll<HTMLElement>('.article-content h1, .article-content h2, .article-content h3, .article-content h4, .article-content h5, .article-content h6')]
   const tocLinkById = new Map<string, HTMLAnchorElement>()
   root.querySelectorAll<HTMLAnchorElement>('.toc a').forEach((link) => {
@@ -38,6 +37,7 @@ function wirePreviewFrameScroll(host: HTMLElement, root: ShadowRoot, dock: HTMLE
     } catch { /* Ignore malformed directory links. */ }
   })
   let lastScrollTop = -1
+  let sidebarTranslation = 0
   let activeTocLink: HTMLAnchorElement | undefined
   const syncDock = () => dock?.dispatchEvent(new CustomEvent(SHARED_DOCK_SCROLL_EVENT, {
     detail: {
@@ -46,20 +46,27 @@ function wirePreviewFrameScroll(host: HTMLElement, root: ShadowRoot, dock: HTMLE
     },
   }))
   const syncSidebar = (scrollTop: number) => {
-    if (!sidebar || !layout) return
+    if (!sidebar) return
     if (host.clientWidth <= 768) {
       sidebar.style.removeProperty('position')
       sidebar.style.removeProperty('top')
       sidebar.style.removeProperty('transform')
+      sidebarTranslation = 0
       return
     }
+    if (!sidebar.getClientRects().length) return
+    // Read the stylesheet's inset, not the inline `top: 0` used for our
+    // translated sidebar. offsetTop belongs to a different containing block
+    // and must not be added to the layout's document-space position.
+    sidebar.style.removeProperty('top')
     const stickyOffset = Number.parseFloat(getComputedStyle(sidebar).top) || 0
     sidebar.style.position = 'relative'
-    sidebar.style.top = 'auto'
+    sidebar.style.top = '0px'
     const hostTop = host.getBoundingClientRect().top
-    const layoutTop = scrollTop + layout.getBoundingClientRect().top - hostTop
-    const stickyStart = layoutTop + sidebar.offsetTop - stickyOffset
-    sidebar.style.transform = `translateY(${Math.max(scrollTop - stickyStart, 0)}px)`
+    const naturalTop = scrollTop + sidebar.getBoundingClientRect().top - hostTop - sidebarTranslation
+    const inset = Math.max(0, Math.min(stickyOffset, host.clientHeight - sidebar.offsetHeight))
+    sidebarTranslation = Math.max(scrollTop + inset - naturalTop, 0)
+    sidebar.style.transform = `translateY(${sidebarTranslation}px)`
   }
   const syncToc = (scrollTop: number) => {
     if (!toc || headings.length === 0) return
@@ -100,6 +107,7 @@ function wirePreviewFrameScroll(host: HTMLElement, root: ShadowRoot, dock: HTMLE
     if (!animationFrame) animationFrame = requestAnimationFrame(sync)
   }
   const followDirectoryLink = (event: Event) => {
+    scheduleSync()
     const link = (event.target as Element | null)?.closest<HTMLAnchorElement>('a[href^="#"]')
     if (!link || !root.contains(link)) return
     let id: string
@@ -114,12 +122,14 @@ function wirePreviewFrameScroll(host: HTMLElement, root: ShadowRoot, dock: HTMLE
   }
   host.addEventListener('scroll', scheduleSync, { passive: true })
   root.addEventListener('click', followDirectoryLink)
+  root.addEventListener('change', scheduleSync)
   const resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(scheduleSync) : null
   resizeObserver?.observe(host)
   scheduleSync()
   return () => {
     host.removeEventListener('scroll', scheduleSync)
     root.removeEventListener('click', followDirectoryLink)
+    root.removeEventListener('change', scheduleSync)
     resizeObserver?.disconnect()
     cancelAnimationFrame(animationFrame)
   }

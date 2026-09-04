@@ -490,7 +490,7 @@ test('keeps the preview table of contents controllable on desktop and mobile wit
   await expect(preview.locator('.article-content')).toContainText('更多正文。')
 })
 
-test('preserves the preview reading position, follows the active directory entry, and hides scrollbars', async ({ page }) => {
+test('preserves the preview reading position, follows the active directory entry, and hides scrollbars', async ({ page, browserName }) => {
   await page.goto('/')
   await page.getByRole('button', { name: '写作', exact: true }).click()
   await page.getByLabel('标题').fill('目录滚动回归')
@@ -508,20 +508,58 @@ test('preserves the preview reading position, follows the active directory entry
     host.scrollTop += heading.getBoundingClientRect().top - host.getBoundingClientRect().top
   })
   await expect.poll(() => preview.evaluate((host) => host.scrollTop)).toBeGreaterThan(0)
-  const scrollBeforeThemeChange = await preview.evaluate((host) => host.scrollTop)
 
   const activeLink = preview.getByRole('link', { name: '第 28 节', exact: true })
   await expect(activeLink).toHaveClass(/active/)
+  await expect(activeLink).toBeInViewport()
+  const expectDirectoryInsideViewport = () => expect.poll(() => preview.evaluate((host) => {
+    const toc = host.shadowRoot!.querySelector('.toc')!.getBoundingClientRect()
+    const bounds = host.getBoundingClientRect()
+    return { topInside: toc.top >= bounds.top - 1, bottomInside: toc.bottom <= bounds.bottom + 1 }
+  })).toEqual({ topInside: true, bottomInside: true })
+  await expectDirectoryInsideViewport()
   await expect.poll(() => activeLink.evaluate((link) => {
     const linkBounds = link.getBoundingClientRect()
     const tocBounds = link.closest('.toc')?.getBoundingClientRect()
     return Boolean(tocBounds && linkBounds.top >= tocBounds.top && linkBounds.bottom <= tocBounds.bottom)
   })).toBe(true)
 
+  const bounds = await preview.boundingBox()
+  if (!bounds) throw new Error('Preview bounds are missing')
+  await page.mouse.move(bounds.x + 100, bounds.y + 180)
+  for (const delta of [-500, 900, -600, 300]) {
+    const before = await preview.evaluate((host) => host.scrollTop)
+    await page.mouse.wheel(0, delta)
+    await expect.poll(() => preview.evaluate((host) => host.scrollTop)).not.toBe(before)
+    await expectDirectoryInsideViewport()
+  }
+
+  const toc = preview.locator('.toc')
+  await toc.hover()
+  // Firefox keeps a wheel transaction latched to the previous scroll target.
+  // Let that gesture end before testing an independent gesture over the TOC.
+  if (browserName === 'firefox') await page.waitForTimeout(1600)
+  const articleScroll = await preview.evaluate((host) => host.scrollTop)
+  for (const delta of [-120, 120]) {
+    const before = await toc.evaluate((element) => element.scrollTop)
+    await page.mouse.wheel(0, delta)
+    await expect.poll(() => toc.evaluate((element) => element.scrollTop)).not.toBe(before)
+    expect(await preview.evaluate((host) => host.scrollTop)).toBe(articleScroll)
+    await expectDirectoryInsideViewport()
+  }
+
+  const toggle = preview.getByRole('checkbox', { name: '目录' })
+  await toggle.click()
+  await expect(toc).toBeHidden()
+  await toggle.click()
+  await expectDirectoryInsideViewport()
+  const scrollBeforeThemeChange = await preview.evaluate((host) => host.scrollTop)
+
   await page.locator('.preview-surface').getByRole('button', { name: '切换到深色主题' }).click()
   await expect(preview.locator('.preview-html')).toHaveAttribute('data-theme', 'dark')
   await page.waitForTimeout(500)
   await expect.poll(() => preview.evaluate((host) => host.scrollTop)).toBe(scrollBeforeThemeChange)
+  await expectDirectoryInsideViewport()
 
   expect(await preview.evaluate((host) => ({
     firefox: getComputedStyle(host).scrollbarWidth,
