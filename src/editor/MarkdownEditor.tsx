@@ -2,7 +2,7 @@ import { forwardRef, lazy, Suspense, useCallback, useEffect, useImperativeHandle
 import { createPortal } from 'react-dom'
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react'
 import { getMarkRange, type ChainedCommands, type Editor } from '@tiptap/core'
-import { TextSelection } from '@tiptap/pm/state'
+import { EditorState, TextSelection } from '@tiptap/pm/state'
 import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from '@tiptap/markdown'
 import { TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
@@ -23,6 +23,7 @@ import { CalloutDialog, type CalloutKind } from './CalloutDialog'
 import { DeferredMarkdown, editorMarkdown, pauseDeferredMarkdown, toolbarMarkdownCaretKey, toolbarMarkdownMarkersKey } from './deferred-markdown'
 import type { SourceMarkdownEditorHandle } from './SourceMarkdownEditor'
 import { AccessibleDialog } from '../app/AccessibleDialog'
+import { BlockReadOnlyContext } from './block-read-only'
 import './editor-fonts.css'
 import './editor.css'
 
@@ -450,6 +451,12 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           const files = clipboardImages(clipboardEvent.clipboardData)
           const activeEditor = richEditorRef.current
           const plainText = clipboardEvent.clipboardData?.getData('text/plain') ?? ''
+          if (activeEditor && !activeEditor.isEditable) return true
+          if (files.length === 0 && activeEditor?.isActive('codeBlock')) {
+            clipboardEvent.preventDefault()
+            activeEditor.view.dispatch(activeEditor.state.tr.insertText(plainText.replace(/\r\n?/g, '\n')).scrollIntoView())
+            return true
+          }
           const markdownText = plainText.trim()
           if (files.length === 0 && activeEditor?.markdown && containsPastedMarkdown(markdownText)) {
             clipboardEvent.preventDefault()
@@ -651,6 +658,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     if (richComposingRef.current || (editor.view as { composing?: boolean }).composing) return
     if (enteredRichMode) {
       editor.commands.setContent(value, { contentType: 'markdown', emitUpdate: false })
+      // Source mode owns a separate history. Start a fresh rich editor state
+      // at this document instead of retaining undo steps for the old content.
+      const { doc, selection, plugins } = editor.state
+      editor.view.updateState(EditorState.create({ doc, selection, plugins }))
+      editor.view.dispatch(editor.state.tr.setMeta('addToHistory', false))
       emittedValueRef.current = value
       richCompositionPendingRef.current = false
       return
@@ -988,7 +1000,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
             >
               <CodeLanguageControl editor={editor} disabled={disabled} />
             </BlockContextMenu>
-            <EditorContent editor={editor} />
+            <BlockReadOnlyContext.Provider value={disabled}><EditorContent editor={editor} /></BlockReadOnlyContext.Provider>
           </>
           : <Suspense fallback={<div className="editor-loading" role="status">正在加载源代码编辑器…</div>}><SourceMarkdownEditor ref={sourceRef} value={value} disabled={disabled} onChange={handleSourceChange} onHistoryStateChange={handleSourceHistoryChange} preparePastedImages={preparePastedImages} onCommitPastedImages={onCommitPastedImages} /></Suspense>}
       </div>

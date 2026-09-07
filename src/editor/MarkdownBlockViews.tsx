@@ -1,8 +1,9 @@
-import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type RefObject } from 'react'
+import { useContext, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type RefObject } from 'react'
 import { NodeViewContent, NodeViewWrapper, type ReactNodeViewProps } from '@tiptap/react'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { Selection, TextSelection } from '@tiptap/pm/state'
 import katex from 'katex'
+import { BlockReadOnlyContext } from './block-read-only'
 
 type SourceAttribute = 'latex' | 'source' | 'content' | 'description'
 type EditableField = HTMLInputElement | HTMLTextAreaElement
@@ -121,6 +122,7 @@ function useBlockEditing(
   rootRef: RefObject<HTMLElement | null>,
   inputRef: RefObject<EditableField | null>,
 ): boolean {
+  const readOnly = useContext(BlockReadOnlyContext)
   const [locallyEditing, setLocallyEditing] = useState(false)
   const editing = locallyEditing || props.selected
   const propsRef = useRef(props)
@@ -130,6 +132,7 @@ function useBlockEditing(
     const root = rootRef.current
     if (!root) return
     const activate = (event: Event) => {
+      if (!propsRef.current.editor.isEditable) return
       if (event.target instanceof Element && event.target.closest('textarea, input')) return
       event.preventDefault()
       announceActiveBlock(root)
@@ -148,7 +151,7 @@ function useBlockEditing(
   }, [rootRef])
 
   useEffect(() => {
-    if (!editing) return
+    if (!editing || readOnly) return
     const frame = window.requestAnimationFrame(() => {
       const input = inputRef.current
       input?.focus({ preventScroll: true })
@@ -166,7 +169,7 @@ function useBlockEditing(
       window.cancelAnimationFrame(frame)
       document.removeEventListener('pointerdown', closeOutside, true)
     }
-  }, [editing, inputRef, rootRef])
+  }, [editing, inputRef, rootRef, readOnly])
   return editing
 }
 
@@ -178,6 +181,7 @@ function useSourceDraft(props: ReactNodeViewProps, attribute: SourceAttribute) {
     if (!composing.current) setDraft(source)
   }, [source])
   const change = (next: string) => {
+    if (!props.editor.isEditable) return
     setDraft(next)
     if (!composing.current) props.updateAttributes({ [attribute]: next })
   }
@@ -187,6 +191,7 @@ function useSourceDraft(props: ReactNodeViewProps, attribute: SourceAttribute) {
     compositionStart: () => { composing.current = true },
     compositionEnd: (next: string) => {
       composing.current = false
+      if (!props.editor.isEditable) return
       setDraft(next)
       props.updateAttributes({ [attribute]: next })
     },
@@ -194,6 +199,7 @@ function useSourceDraft(props: ReactNodeViewProps, attribute: SourceAttribute) {
 }
 
 function sourceKeyDown(event: ReactKeyboardEvent<EditableField>, props: ReactNodeViewProps): void {
+  if (!props.editor.isEditable) return
   if (event.key === 'Escape') {
     event.preventDefault()
     announceActiveBlock(null)
@@ -225,6 +231,7 @@ function BlockSource({ props, attribute, label, placeholder, rows = 5, autoSize 
   onEmptyDelete?: () => void
 }) {
   const source = useSourceDraft(props, attribute)
+  const readOnly = useContext(BlockReadOnlyContext)
   const openingDelimiter = typeof delimiter === 'string' ? delimiter : delimiter?.open
   const closingDelimiter = typeof delimiter === 'string' ? delimiter : delimiter?.close
   useLayoutEffect(() => {
@@ -241,6 +248,7 @@ function BlockSource({ props, attribute, label, placeholder, rows = 5, autoSize 
       spellCheck={false}
       placeholder={placeholder}
       value={source.draft}
+      readOnly={readOnly}
       onChange={(event) => {
         source.change(event.currentTarget.value)
         if (autoSize) resizeTextarea(event.currentTarget)
@@ -248,6 +256,7 @@ function BlockSource({ props, attribute, label, placeholder, rows = 5, autoSize 
       onCompositionStart={source.compositionStart}
       onCompositionEnd={(event) => source.compositionEnd(event.currentTarget.value)}
       onKeyDown={(event) => {
+        if (!props.editor.isEditable) return
         if ((event.key === 'Backspace' || event.key === 'Delete') && event.currentTarget.value === '' && onEmptyDelete) {
           event.preventDefault()
           onEmptyDelete()
@@ -270,6 +279,7 @@ function DelimitedBlockSource({ props, attribute, label, open, close, parse, inp
   inputRef: RefObject<HTMLTextAreaElement | null>
 }) {
   const canonical = `${open}\n${String(props.node.attrs[attribute] ?? '')}\n${close}`
+  const readOnly = useContext(BlockReadOnlyContext)
   const [draft, setDraft] = useState(canonical)
   const composing = useRef(false)
   useEffect(() => {
@@ -280,6 +290,7 @@ function DelimitedBlockSource({ props, attribute, label, open, close, parse, inp
   }, [draft, inputRef])
 
   const update = (next: string, selectionOffset: number) => {
+    if (!props.editor.isEditable) return
     setDraft(next)
     if (composing.current) return
     const parsed = parse(next)
@@ -299,6 +310,7 @@ function DelimitedBlockSource({ props, attribute, label, open, close, parse, inp
       data-initial-caret={open.length + 1}
       spellCheck={false}
       value={draft}
+      readOnly={readOnly}
       onChange={(event) => {
         update(event.currentTarget.value, event.currentTarget.selectionStart)
         resizeTextarea(event.currentTarget)
@@ -338,6 +350,7 @@ function ImageBlockSource({ props, inputRef }: {
   inputRef: RefObject<HTMLTextAreaElement | null>
 }) {
   const canonical = imageMarkdown(props)
+  const readOnly = useContext(BlockReadOnlyContext)
   const [draft, setDraft] = useState(canonical)
   const composing = useRef(false)
   useEffect(() => {
@@ -348,6 +361,7 @@ function ImageBlockSource({ props, inputRef }: {
   }, [draft, inputRef])
 
   const update = (next: string, selectionOffset: number) => {
+    if (!props.editor.isEditable) return
     setDraft(next)
     if (composing.current) return
     const attributes = parsedImageAttributes(props, next)
@@ -371,6 +385,7 @@ function ImageBlockSource({ props, inputRef }: {
       data-initial-caret="2"
       spellCheck={false}
       value={draft}
+      readOnly={readOnly}
       onChange={(event) => {
         update(event.currentTarget.value, event.currentTarget.selectionStart)
         resizeTextarea(event.currentTarget)
