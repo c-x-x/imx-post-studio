@@ -11,7 +11,7 @@ import remarkRehype from 'remark-rehype'
 import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
 import type { Element, Root } from 'hast'
-import { safeMediaName } from '../media/names'
+import { canonicalLocalImageReference } from '../media/references'
 import { nestToc, type TocHeading, type TocItem } from './toc'
 
 export interface RenderedMarkdown {
@@ -27,12 +27,6 @@ function elementText(node: Element): string {
     if (child.type === 'element') return elementText(child)
     return ''
   }).join('')
-}
-
-function isNormalizedLocalImage(path: string): boolean {
-  if (!path.startsWith('images/') || path.includes('?') || path.includes('#')) return false
-  const segments = path.split('/')
-  return segments.length === 2 && safeMediaName(segments[1]) === segments[1]
 }
 
 function isLocalLookingImage(path: string): boolean {
@@ -202,8 +196,9 @@ function collectHeadingsRewriteImagesAndMeasure(resolveLocalImage: (path: string
       if (node.tagName === 'img') {
         const source = typeof node.properties.src === 'string' ? node.properties.src : ''
         if (isLocalLookingImage(source)) {
-          if (isNormalizedLocalImage(source)) {
-            const resolved = resolveLocalImage(source)
+          const canonical = canonicalLocalImageReference(source)?.canonical
+          if (canonical) {
+            const resolved = resolveLocalImage(canonical)
             if (isSafeBlobUrl(resolved)) node.properties.src = resolved
             else delete node.properties.src
           } else delete node.properties.src

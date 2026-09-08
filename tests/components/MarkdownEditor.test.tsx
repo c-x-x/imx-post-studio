@@ -131,7 +131,9 @@ describe('MarkdownEditor', () => {
     const { container } = render(<ControlledEditor initial="![photo](images/photo.jpg)" />)
     const editor = screen.getByRole('textbox', { name: 'Markdown 编辑器' })
     const preview = screen.getByLabelText('图片预览')
-    expect(preview.querySelector('img')).toHaveAttribute('src', 'images/photo.jpg')
+    expect(preview.querySelector('img')).toHaveAttribute('data-markdown-src', 'images/photo.jpg')
+    expect(preview.querySelector('img')).not.toHaveAttribute('src')
+    expect(preview.querySelector('img')).toHaveAttribute('aria-hidden', 'true')
     await waitFor(() => expect(editor.querySelector(':scope > p:last-child')).toBeInTheDocument())
 
     await user.click(preview)

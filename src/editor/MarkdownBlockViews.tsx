@@ -4,6 +4,9 @@ import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { Selection, TextSelection } from '@tiptap/pm/state'
 import katex from 'katex'
 import { BlockReadOnlyContext } from './block-read-only'
+import { BlockMediaContext } from './block-media'
+import { canonicalLocalImageReference } from '../media/references'
+import { serializeImageMarkdown } from './image-markdown'
 
 type SourceAttribute = 'latex' | 'source' | 'content' | 'description'
 type EditableField = HTMLInputElement | HTMLTextAreaElement
@@ -154,6 +157,9 @@ function useBlockEditing(
     if (!editing || readOnly) return
     const frame = window.requestAnimationFrame(() => {
       const input = inputRef.current
+      // A user (or an accessibility tool) may already have focused and selected
+      // text before this frame. Do not overwrite that newer caret position.
+      if (input === document.activeElement) return
       input?.focus({ preventScroll: true })
       const initialCaret = Number(input?.dataset.initialCaret)
       if (input && Number.isFinite(initialCaret)) input.setSelectionRange(initialCaret, initialCaret)
@@ -326,10 +332,7 @@ function DelimitedBlockSource({ props, attribute, label, open, close, parse, inp
 }
 
 function imageMarkdown(props: ReactNodeViewProps): string {
-  const alt = String(props.node.attrs.alt ?? '')
-  const src = String(props.node.attrs.src ?? '')
-  const title = String(props.node.attrs.title ?? '')
-  return title ? `![${alt}](${src} "${title}")` : `![${alt}](${src})`
+  return serializeImageMarkdown(props.node.attrs)
 }
 
 function parsedImageAttributes(props: ReactNodeViewProps, value: string): Record<string, unknown> | null {
@@ -401,10 +404,13 @@ function ImageBlockSource({ props, inputRef }: {
 }
 
 export function ImageBlockView(props: ReactNodeViewProps) {
+  const media = useContext(BlockMediaContext)
   const rootRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const editing = useBlockEditing(props, rootRef, inputRef)
   const src = String(props.node.attrs.src ?? '')
+  const resolved = media.get(canonicalLocalImageReference(src)?.canonical ?? src)
+  const missing = src.startsWith('images/') && !resolved
   const alt = String(props.node.attrs.alt ?? '')
   const title = String(props.node.attrs.title ?? '')
   return <NodeViewWrapper
@@ -414,8 +420,8 @@ export function ImageBlockView(props: ReactNodeViewProps) {
     data-image-block="true"
   >
     {editing ? <ImageBlockSource props={props} inputRef={inputRef} /> : null}
-    <div className="markdown-block-preview image-block-preview" aria-label="图片预览">
-      <img src={src} data-markdown-src={src} alt={alt} title={title || undefined} draggable={false} />
+    <div className="markdown-block-preview image-block-preview" aria-label="图片预览" data-missing-media={missing ? '' : undefined}>
+      <img src={missing ? undefined : resolved ?? src} aria-hidden={missing || undefined} data-markdown-src={src} alt={alt} title={title || undefined} draggable={false} />
       <span className="image-block-missing" role="img" aria-label="图片文件已删除">
         <span className="image-block-missing-icon" aria-hidden="true" />
         <span>图片文件已删除</span>
@@ -567,7 +573,7 @@ export function FootnoteReferenceView(props: ReactNodeViewProps) {
   let description = ''
   let definitionPosition = -1
   props.editor.state.doc.descendants((node, position) => {
-    const match = node.type.name === 'footnoteDefinition' ? node.textContent.match(/^\[\^([^\]\n]+)\]:[ \t]*(.*)$/) : null
+    const match = node.type.name === 'footnoteDefinition' ? node.textContent.match(/^\[\^([^\]\n]+)\]:[ \t]*([\s\S]*)$/) : null
     if (definitionPosition >= 0 || !match || match[1] !== label) return
     definitionPosition = position
     description = match[2]

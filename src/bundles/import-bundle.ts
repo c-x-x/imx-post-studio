@@ -13,6 +13,7 @@ import {
 import { validateArchiveEntries, validateArchivePath } from './archive-path'
 import { assertSafeImageName } from './media-validation'
 import { validateBrowserImage } from '../media/validate-image'
+import { importRecoveryBundle } from './recovery-bundle'
 
 function importError(message: string): Error {
   return new Error(`无法导入文章：${message}`)
@@ -135,6 +136,19 @@ export async function importArticleBundle(blob: Blob): Promise<ArticleDraft> {
   const reader = new ZipReader(new BlobReader(blob), readOptions)
   try {
     const entries = await reader.getEntries()
+    if (entries.some((entry) => entry.filename === 'recovery.json')) {
+      const restored = await importRecoveryBundle(blob)
+      // Normal import still validates media bytes and references. The emergency
+      // recovery entry point remains available for damaged workspaces.
+      const media = await Promise.all(restored.media.map(async (asset) => {
+        const validated = await createMedia(asset.name, new Uint8Array(await asset.blob.arrayBuffer()))
+        if (validated.kind !== asset.kind || validated.mime !== asset.mime) throw importError('备份媒体类型不一致')
+        return validated
+      }))
+      const references = validateMediaReferences(restored.body, media)
+      if (references.missing.length) throw importError(`缺少正文图片：${references.missing.join('、')}`)
+      return { ...createArticleDraft(), meta: restored.meta, body: restored.body, media }
+    }
     const { root, index, images } = inspectArchiveEntries(entries)
     const source = await index.getData(new TextWriter(), readOptions)
     const parsed = parseImportedArticle(source)

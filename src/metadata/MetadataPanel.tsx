@@ -75,6 +75,7 @@ function ChipsInput({ id, label, values, onChange, disabled }: ChipsInputProps) 
       {values.map((value) => <span className="chip" key={value}>{value}<button type="button" disabled={disabled} aria-label={`移除${label} ${value}`} onClick={() => onChange(values.filter((item) => item !== value))}>×</button></span>)}
     </div>
     <input id={id} disabled={disabled} value={pending} onChange={(event) => setPending(event.target.value)} onKeyDown={(event) => {
+      if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
       if (event.key === 'Enter') { event.preventDefault(); add() }
     }} onBlur={add} placeholder={`输入${label}后按 Enter`} />
   </div>

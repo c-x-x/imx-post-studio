@@ -3,6 +3,7 @@ import { assertCompleteArticleMeta, type ArticleDraft, type MediaAsset } from '.
 import { parseArticle, serializeArticle } from '../metadata/frontmatter'
 import { validateMediaReferences } from '../media/references'
 import { assertExportableMedia } from './media-validation'
+import { exportRecoveryBundle } from './recovery-bundle'
 
 export interface ExportOptions {
   production: boolean
@@ -60,6 +61,18 @@ export async function exportArticleBundle(
   draft: ArticleDraft,
   options: ExportOptions,
 ): Promise<Blob> {
+  if (!options.production) {
+    // An unfinished draft has no valid Hugo directory/front matter yet.
+    // Preserve its exact fields in the lossless backup format, never invent them.
+    let incomplete = false
+    try { assertCompleteArticleMeta(draft.meta) } catch { incomplete = true }
+    if (incomplete) {
+      await validateMedia(draft.media)
+      const references = validateMediaReferences(draft.body, draft.media)
+      if (references.missing.length) throw exportError(`缺少正文图片：${references.missing.join('、')}`)
+      return exportRecoveryBundle(draft)
+    }
+  }
   const article = await serializedForExport(draft, options)
   const writer = new ZipWriter(new BlobWriter('application/zip'))
   let closed = false

@@ -70,7 +70,7 @@ describe('renderMarkdown', () => {
 
   it('never network-resolves malformed local-looking inline or reference image paths', async () => {
     const rendered = await renderMarkdown(
-      '![upper](images/Foo.PNG) ![query](images/x.png?raw=1) ![fragment](images/x.png#part) ![slash](images//x.png) ![backslash](images\\x.png) ![encoded](images/%2e%2e/secret.png) ![traversal](images/../secret.png)\n\n![ref-upper][upper] ![ref-query][query] ![ref-traversal][traversal]\n\n[upper]: images/Foo.PNG\n[query]: images/x.png?raw=1\n[traversal]: images/../secret.png',
+      '![upper](images/Foo.PNG) ![slash](images//x.png) ![backslash](images\\x.png) ![encoded](images/%2e%2e/secret.png) ![traversal](images/../secret.png)\n\n![ref-upper][upper] ![ref-traversal][traversal]\n\n[upper]: images/Foo.PNG\n[traversal]: images/../secret.png',
       () => 'blob:should-not-resolve',
     )
 

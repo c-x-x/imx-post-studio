@@ -23,6 +23,11 @@ function coverImage(name: string): MediaAsset {
 }
 
 describe('Markdown image references', () => {
+  it('tracks HTML images and entities but ignores comments and code examples', () => {
+    const source = '<div>\n<img src="images/a&#46;png?v=1">\n</div>\n\n<!-- <img src="images/comment.png"> -->\n\n`<img src="images/code.png">`\n\n```html\n<img src="images/fenced.png">\n```'
+    expect(validateMediaReferences(source, [])).toEqual({ missing: ['images/a.png'], unused: [] })
+    expect(validateMediaReferences(source, [bodyImage('a.png')])).toEqual({ missing: [], unused: [] })
+  })
   it('finds local Hugo image paths from Markdown image nodes', () => {
     expect(findImageReferences('![图](images/a.png)')).toEqual(['images/a.png'])
   })

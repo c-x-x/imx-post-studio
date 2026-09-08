@@ -79,7 +79,7 @@ export function BundleActions({ draft, onReplace, onNew, onStatus, onImportFocus
     if (disabled) return
     setError(undefined)
     try {
-      download(await exportArticleBundle(draft, { production: false, publish: false }), `${draft.meta.slug}-draft.zip`)
+      download(await exportArticleBundle(draft, { production: false, publish: false }), `${draft.meta.slug || 'untitled'}-draft.zip`)
       recordPortableExport()
       onStatus('草稿 ZIP 已下载')
     } catch (cause) {
@@ -130,7 +130,7 @@ export function BundleActions({ draft, onReplace, onNew, onStatus, onImportFocus
       <button type="button" disabled={disabled} onClick={() => void exportDraft()}>备份草稿</button>
       <button ref={productionTrigger} type="button" disabled={disabled || Boolean(exportError)} aria-describedby={exportError ? 'production-export-error' : undefined} onClick={() => setProductionDialog(true)}>导出文章</button>
     </div>
-    <p className="sidebar-tool-hint">文章包为 ZIP，包含 Markdown 与图片；备份草稿无需填全属性。</p>
+    <p className="sidebar-tool-hint">文章包为 ZIP，包含 Markdown 与图片；未填全属性的草稿使用无损备份格式，两种格式均可通过“导入文章包”恢复。</p>
     {exportError ? <p id="production-export-error" className="field-error">{exportError}</p> : null}
     <details className="advanced-import"><summary>其他导入方式</summary>
     <details className="loose-import"><summary>从 index.md 和图片导入</summary><label>index.md<input disabled={disabled} aria-label="导入 index.md" type="file" accept="text/markdown,.md" onChange={(event) => setLooseIndex(event.target.files?.[0])} /></label><label>图片<input disabled={disabled} aria-label="导入图片文件" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={(event) => setLooseImages(Array.from(event.target.files ?? []))} /></label><button type="button" disabled={disabled || !looseIndex} onClick={() => void stageImport(() => importLooseArticle(looseIndex!, looseImages))}>验证并导入文件</button></details>

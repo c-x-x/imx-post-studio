@@ -24,6 +24,7 @@ import { DeferredMarkdown, editorMarkdown, pauseDeferredMarkdown, toolbarMarkdow
 import type { SourceMarkdownEditorHandle } from './SourceMarkdownEditor'
 import { AccessibleDialog } from '../app/AccessibleDialog'
 import { BlockReadOnlyContext } from './block-read-only'
+import { BlockMediaContext } from './block-media'
 import './editor-fonts.css'
 import './editor.css'
 
@@ -682,21 +683,6 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     .filter((asset) => asset.kind === 'body' && resolveMediaUrl)
     .map((asset) => [`images/${asset.name}`, resolveMediaUrl!(asset)])), [media, resolveMediaUrl])
 
-  useEffect(() => {
-    if (!editor) return
-    const root = editor.view.dom
-    root.querySelectorAll<HTMLImageElement>('img[data-markdown-src]').forEach((image) => {
-      const source = image.dataset.markdownSrc ?? ''
-      const resolved = mediaUrls.get(source)
-      const missing = source.startsWith('images/') && !resolved
-      image.closest<HTMLElement>('.image-block-preview')?.toggleAttribute('data-missing-media', missing)
-      if (missing) image.setAttribute('aria-hidden', 'true')
-      else image.removeAttribute('aria-hidden')
-      const nextSource = resolved ?? source
-      if (image.getAttribute('src') !== nextSource) image.setAttribute('src', nextSource)
-    })
-  }, [editor, mediaUrls, value])
-
   const handleSourceChange = useCallback((next: string) => {
     latestValueRef.current = next
     emittedValueRef.current = next
@@ -1000,7 +986,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
             >
               <CodeLanguageControl editor={editor} disabled={disabled} />
             </BlockContextMenu>
-            <BlockReadOnlyContext.Provider value={disabled}><EditorContent editor={editor} /></BlockReadOnlyContext.Provider>
+            <BlockMediaContext.Provider value={mediaUrls}>
+              <BlockReadOnlyContext.Provider value={disabled}><EditorContent editor={editor} /></BlockReadOnlyContext.Provider>
+            </BlockMediaContext.Provider>
           </>
           : <Suspense fallback={<div className="editor-loading" role="status">正在加载源代码编辑器…</div>}><SourceMarkdownEditor ref={sourceRef} value={value} disabled={disabled} onChange={handleSourceChange} onHistoryStateChange={handleSourceHistoryChange} preparePastedImages={preparePastedImages} onCommitPastedImages={onCommitPastedImages} /></Suspense>}
       </div>

@@ -1,20 +1,20 @@
 import { unified } from 'unified'
 import remarkParse from 'remark-parse'
+import remarkGfm from 'remark-gfm'
+import remarkRehype from 'remark-rehype'
+import rehypeRaw from 'rehype-raw'
 import { visit } from 'unist-util-visit'
-import type { Definition, Image, ImageReference, Root } from 'mdast'
+import type { Element } from 'hast'
+import type { Definition } from 'mdast'
 import type { MediaAsset } from '../metadata/article.js'
 import { safeMediaName } from './names.js'
-
-function normalizedIdentifier(identifier: string): string {
-  return identifier.trim().replace(/\s+/g, ' ').toLowerCase()
-}
 
 interface LocalReference {
   canonical?: string
   invalid?: string
 }
 
-function canonicalLocalImageReference(url: string): LocalReference | undefined {
+export function canonicalLocalImageReference(url: string): LocalReference | undefined {
   const lowerUrl = url.toLowerCase()
   if (
     lowerUrl.startsWith('http:')
@@ -55,19 +55,31 @@ function canonicalLocalImageReference(url: string): LocalReference | undefined {
     : { invalid: encodedPath }
 }
 
+const imageProcessor = unified().use(remarkParse).use(remarkGfm)
+  .use(remarkRehype, { allowDangerousHtml: true }).use(rehypeRaw)
+
 function analyzeImageReferences(markdown: string): { references: string[]; invalid: string[] } {
-  const tree = unified().use(remarkParse).parse(markdown) as Root
+  // Use the rendered tree so HTML, entities and reference-style images agree
+  // with preview, while code examples and HTML comments remain inert.
+  const parsed = imageProcessor.parse(markdown)
   const definitions = new Map<string, string>()
+  visit(parsed, 'definition', (node: Definition) => {
+    const key = node.identifier.toUpperCase()
+    if (!definitions.has(key)) definitions.set(key, node.url)
+  })
+  visit(parsed, (node) => {
+    const source = node.type === 'image' ? node.url
+      : node.type === 'imageReference' ? definitions.get(node.identifier.toUpperCase()) : undefined
+    if (source !== undefined) {
+      // Keep malformed URL diagnostics faithful to the user's source rather
+      // than reporting the percent escaping added by the HTML serializer.
+      node.data = { ...node.data, hProperties: { ...node.data?.hProperties, src: source } }
+    }
+  })
+  const tree = imageProcessor.runSync(parsed)
   const references: string[] = []
   const invalid: string[] = []
   const seen = new Set<string>()
-
-  visit(tree, 'definition', (node: Definition) => {
-    const identifier = normalizedIdentifier(node.identifier)
-    if (!definitions.has(identifier)) {
-      definitions.set(identifier, node.url)
-    }
-  })
 
   const addReference = (url: string) => {
     const localReference = canonicalLocalImageReference(url)
@@ -81,15 +93,8 @@ function analyzeImageReferences(markdown: string): { references: string[]; inval
     }
   }
 
-  visit(tree, 'image', (node: Image) => {
-    addReference(node.url)
-  })
-
-  visit(tree, 'imageReference', (node: ImageReference) => {
-    const destination = definitions.get(normalizedIdentifier(node.identifier))
-    if (destination) {
-      addReference(destination)
-    }
+  visit(tree, 'element', (node: Element) => {
+    if (node.tagName === 'img' && typeof node.properties.src === 'string') addReference(node.properties.src)
   })
 
   return { references, invalid }

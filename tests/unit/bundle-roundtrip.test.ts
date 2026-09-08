@@ -45,6 +45,19 @@ function draft(): ArticleDraft {
 }
 
 describe('Hugo article bundle', () => {
+  it('backs up incomplete metadata with cover and body media without changing their bytes', async () => {
+    const original = draft()
+    original.meta.slug = ''
+    original.meta.title = ''
+    const imported = await importArticleBundle(await exportArticleBundle(original, { production: false, publish: false }))
+    expect(imported.meta).toEqual(original.meta)
+    expect(imported.body).toBe(original.body)
+    expect(imported.media.map(({ name, kind }) => ({ name, kind }))).toEqual(original.media.map(({ name, kind }) => ({ name, kind })))
+    for (let index = 0; index < original.media.length; index += 1) {
+      expect(new Uint8Array(await imported.media[index].blob.arrayBuffer())).toEqual(new Uint8Array(await original.media[index].blob.arrayBuffer()))
+    }
+  })
+
   it('can independently reimport an exported article without a cover', async () => {
     const original = { ...draft(), media: [], body: 'No cover needed' }
     const imported = await importLooseArticle(new File([serializeArticle(original)], 'index.md'), [])

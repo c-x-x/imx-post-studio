@@ -7,6 +7,7 @@ import { Plugin, NodeSelection } from '@tiptap/pm/state'
 import { isHistoryTransaction } from '@tiptap/pm/history'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import katex from 'katex'
+import { serializeImageMarkdown } from './image-markdown'
 import { CalloutBlockView, FootnoteDefinitionView, FootnoteReferenceView, ImageBlockView, MathBlockView, MermaidBlockView } from './MarkdownBlockViews'
 
 function longestBacktickRun(value: string): number {
@@ -73,6 +74,7 @@ export const SafeTable = Table.extend({
 
 /** Renders Markdown images as editable blocks instead of unreachable inline atoms. */
 export const SafeImage = Image.extend({
+  renderMarkdown(node: JSONContent) { return serializeImageMarkdown(node.attrs) },
   addNodeView() { return ReactNodeViewRenderer(ImageBlockView) },
 })
 
@@ -363,10 +365,28 @@ export const FootnoteDefinition = Node.create({
     level: 'block',
     start(src: string) { return src.search(/^ {0,3}\[\^[^\]\n]+\]:/m) },
     tokenize(src: string) {
-      const match = src.match(/^ {0,3}\[\^([^\]\n]+)\]:[ \t]*([^\n]*(?:\n(?:(?: {2,}|\t)[^\n]*|[ \t]*$))*)?(?:\n|$)/)
+      const match = src.match(/^ {0,3}\[\^([^\]\n]+)\]:[ \t]*([^\n]*)/)
       if (!match) return undefined
-      const text = String(match[2] ?? '').replace(/\n(?: {2,}|\t)/g, '\n').replace(/\n[ \t]*$/g, '')
-      return { type: 'footnoteDefinition', raw: match[0], label: match[1], text }
+      const lines = src.slice(match[0].length).split('\n')
+      let raw = match[0]
+      let text = match[2]
+      for (let index = 1; index < lines.length; index += 1) {
+        const line = lines[index]
+        if (!/^(?: {2,}|\t)/.test(line) || !line.trim()) {
+          if (line.trim()) break
+          let next = index + 1
+          while (next < lines.length && !lines[next].trim()) next += 1
+          if (next === lines.length || !/^(?: {2,}|\t)/.test(lines[next])) break
+          const blankLines = `\n${lines.slice(index, next).join('\n')}`
+          raw += blankLines
+          text += blankLines
+          index = next - 1
+          continue
+        }
+        raw += `\n${line}`
+        text += `\n${line}`
+      }
+      return { type: 'footnoteDefinition', raw, label: match[1], text }
     },
   },
   addProseMirrorPlugins() {
