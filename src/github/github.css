@@ -24,6 +24,7 @@
 .github-works { width: 100%; max-height: none; overflow: visible; box-sizing: border-box; }
 .github-works .github-articles ul { max-height: none; }
 .github-library-owner { color: var(--imx-accent); font-size: .8rem; letter-spacing: .08em; }
+.github-owner-scramble { display: inline-block; font-family: monospace; min-width: 6ch; }
 .github-library-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
 .github-library-heading h3 { margin: 0; }
 .github-count { display: inline-block; margin-left: 8px; color: var(--imx-ink-secondary); font-size: .8rem; font-weight: normal; }

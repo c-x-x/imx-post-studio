@@ -18,6 +18,24 @@ interface Props {
   returnFocus: () => HTMLElement | null
 }
 
+function WorksOwner({ login, loading }: { login?: string; loading: boolean }) {
+  const [scramble, setScramble] = useState('X7#Q9%')
+  useEffect(() => {
+    if (!loading || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#%&*'
+    const timer = window.setInterval(() => {
+      setScramble(Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join(''))
+    }, 100)
+    return () => window.clearInterval(timer)
+  }, [loading])
+
+  return <div className="github-library-owner">
+    <span aria-live="polite" aria-atomic="true">{loading
+      ? <><span className="github-owner-scramble" aria-hidden="true">{scramble}</span><span className="visually-hidden">正在读取 GitHub 用户名</span></>
+      : login || '未登录'}</span> · 个人博客工作台
+  </div>
+}
+
 export default function GithubPanel({ mode, draft, onOpen, onClose, onPushed, returnFocus }: Props) {
   const settings = useStudioSettings()
   const [session, setSession] = useState<GithubSession>()
@@ -155,7 +173,7 @@ export default function GithubPanel({ mode, draft, onOpen, onClose, onPushed, re
     {mode === 'push' ? <div className="dialog-actions"><button type="button" disabled={busy} onClick={onClose}>返回写作</button></div> : null}
   </>
   return mode === 'works'
-    ? <><section ref={worksRef} tabIndex={-1} className="github-dialog github-works draft-dashboard" aria-label="作品"><div className="github-library-owner">c-x-x · 个人博客工作台</div><h2>作品</h2>{content}</section>
+    ? <><section ref={worksRef} tabIndex={-1} className="github-dialog github-works draft-dashboard" aria-label="作品"><WorksOwner login={session?.user?.login} loading={!session && busy} /><h2>作品</h2>{content}</section>
       {pendingDelete ? <AccessibleDialog title="删除作品？" className="confirm-dialog github-dialog github-delete-dialog" onClose={() => { if (!busyRef.current) setPendingDelete(undefined) }} closeOnEscape={!busy} returnFocus={() => deleteTriggerRef.current}>
         <p>即将从 <strong>{session?.repository?.name} · {pendingDelete.input.ref}</strong> 删除作品“{pendingDelete.slug}”。</p>
         <p className="github-delete-warning">这会删除整个文章目录，包括 Markdown、封面、正文图片及目录内附件。博客重新部署后，该文章将下线。</p>
