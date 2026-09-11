@@ -122,7 +122,8 @@
   display: grid;
   place-items: center;
   transform-origin: center;
-  will-change: transform;
+  transform: translateY(0) rotate(0deg) scale(1);
+  transition: transform .65s cubic-bezier(.22, 1, .36, 1);
 }
 
 .imx-dock__logo {
@@ -135,14 +136,13 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .imx-dock__logo-wrap:hover .imx-dock__logo-motion { animation: imx-logo-alive 1.15s cubic-bezier(.45, 0, .25, 1) infinite; }
-}
-
-@keyframes imx-logo-alive {
-  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); }
-  22% { transform: translate3d(0, -2px, 0) rotate(22deg) scale(1.08); }
-  48% { transform: translate3d(1px, 0, 0) rotate(-12deg) scale(.98); }
-  76% { transform: translate3d(-1px, -1px, 0) rotate(48deg) scale(1.05); }
+  .imx-dock__logo-wrap:hover .imx-dock__logo-motion {
+    transform: translateY(-1.5px) rotate(30deg) scale(1.06);
+  }
+  .imx-dock__logo-wrap:active .imx-dock__logo-motion {
+    transform: translateY(0) rotate(30deg) scale(.96);
+    transition-duration: .15s;
+  }
 }
 
 .imx-snowfall {
@@ -152,6 +152,7 @@
   overflow: hidden;
   pointer-events: none;
   contain: strict;
+  animation: imx-snow-envelope 5s linear both;
 }
 
 .imx-snowfall__flake {
@@ -161,10 +162,10 @@
   width: var(--snow-size);
   height: var(--snow-size);
   border-radius: 50%;
-  background: radial-gradient(circle, #fff 15%, #c2ccd1 65%, transparent 100%);
+  background: radial-gradient(circle, #111 20%, #242424 60%, transparent 100%);
   filter: blur(var(--snow-blur));
   opacity: 0;
-  animation: imx-snow-fall var(--snow-duration) linear var(--snow-delay) both;
+  animation: imx-snow-fall var(--snow-duration) linear var(--snow-delay) infinite;
   will-change: transform;
 }
 
@@ -175,9 +176,14 @@
 @keyframes imx-snow-fall {
   0% { transform: translate3d(0, 0, 0); opacity: 0; }
   16% { opacity: var(--snow-opacity); }
-  50% { transform: translate3d(var(--snow-drift), 15vh, 0); }
+  50% { transform: translate3d(var(--snow-drift), 40vh, 0); }
   72% { opacity: var(--snow-opacity); }
-  100% { transform: translate3d(var(--snow-drift-end), 32vh, 0); opacity: 0; }
+  100% { transform: translate3d(var(--snow-drift-end), 85vh, 0); opacity: 0; }
+}
+
+@keyframes imx-snow-envelope {
+  0%, 100% { opacity: 0; }
+  8%, 76% { opacity: 1; }
 }
 
 .imx-dock__menu {
@@ -509,6 +515,8 @@
   .imx-dock *,
   .imx-dock *::before,
   .imx-dock *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
-  .imx-dock__logo-wrap:hover .imx-dock__logo-motion { animation: none; }
+  .imx-dock__logo-motion,
+  .imx-dock__logo-wrap:hover .imx-dock__logo-motion,
+  .imx-dock__logo-wrap:active .imx-dock__logo-motion { animation: none; transition: none; transform: none; }
   .imx-snowfall { display: none; }
 }

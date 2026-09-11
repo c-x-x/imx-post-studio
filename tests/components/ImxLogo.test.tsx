@@ -15,7 +15,7 @@ describe('IMX logo snowfall', () => {
     fireEvent.click(container.querySelector('.imx-dock__logo-wrap')!)
     const snowfall = document.body.querySelector('[data-snowfall]')
     expect(snowfall).toBeInTheDocument()
-    expect(snowfall?.children).toHaveLength(48)
+    expect(snowfall?.children).toHaveLength(180)
     act(() => vi.advanceTimersByTime(4999))
     expect(document.body.querySelector('[data-snowfall]')).toBeInTheDocument()
     act(() => vi.advanceTimersByTime(1))

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 
 const rotations = [0, 60, 120, 180, 240, 300]
 const SNOW_DURATION_MS = 5000
-const SNOWFLAKE_COUNT = 48
+const SNOWFLAKE_COUNT = 180
 
 function snowSample(index: number, salt: number): number {
   const value = Math.sin((index + 1) * 12.9898 + salt * 78.233) * 43758.5453
@@ -24,17 +24,17 @@ interface SnowflakeStyle extends CSSProperties {
 
 const snowfall = Array.from({ length: SNOWFLAKE_COUNT }, (_, index) => {
   const sample = (salt: number) => snowSample(index, salt)
-  const drift = Math.round(12 + sample(2) * 38)
+  const drift = Math.round(65 + sample(2) * 130)
   const depth = sample(3)
   const style: SnowflakeStyle = {
-    '--snow-x': `${sample(1) * 100}vw`,
+    '--snow-x': `${-35 + sample(1) * 140}vw`,
     '--snow-drift': `${drift}px`,
     '--snow-drift-end': `${Math.round(drift * 1.6)}px`,
-    '--snow-size': `${(1.5 + depth * 4).toFixed(1)}px`,
-    '--snow-opacity': .25 + depth * .5,
-    '--snow-duration': `${(3.3 + sample(5) * .8).toFixed(2)}s`,
-    '--snow-delay': `${(sample(6) * .7).toFixed(2)}s`,
-    '--snow-y': `${(-8 + sample(7) * 72).toFixed(1)}%`,
+    '--snow-size': `${(1.5 + depth * 5).toFixed(1)}px`,
+    '--snow-opacity': .35 + depth * .5,
+    '--snow-duration': `${(1.1 + (1 - depth) * 1.4).toFixed(2)}s`,
+    '--snow-delay': `${(-sample(6) * 2.5).toFixed(2)}s`,
+    '--snow-y': `${(-60 + sample(7) * 100).toFixed(1)}%`,
     '--snow-blur': `${depth > .8 ? .65 : .15}px`,
   }
   return { id: index, style }
