@@ -35,6 +35,7 @@ export default function GithubPanel({ mode, draft, onOpen, onClose, onPushed, re
   const busyRef = useRef(false)
   const deleteTriggerRef = useRef<HTMLButtonElement>(null)
   const worksRef = useRef<HTMLElement>(null)
+  const visibleArticles = articles.filter((item) => item.slug.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
 
   useEffect(() => {
     let cancelled = false
@@ -112,7 +113,7 @@ export default function GithubPanel({ mode, draft, onOpen, onClose, onPushed, re
   }, setDeleteError)
 
   const content = <>
-    <p>{mode === 'works' ? 'GitHub 主分支中的文章。读取并编辑后进入“草稿 → 待提交作品”，再次推送才会更新仓库。' : '确认后直接推送到主分支，不再创建 PR。成功后移除本地草稿并清空编辑区。'}</p>
+    <p>{mode === 'works' ? '你的博客作品都在这里。打开文章继续写作，修改会先保存在本地，再由你推送到博客。' : '确认后直接推送到主分支，不再创建 PR。成功后移除本地草稿并清空编辑区。'}</p>
     {error ? <p className="field-error" role="alert">{error}</p> : null}
     {message ? <p className="github-message" role="status">{message}</p> : null}
     {busy && !session ? <p role="status">正在检查连接…</p> : null}
@@ -133,9 +134,11 @@ export default function GithubPanel({ mode, draft, onOpen, onClose, onPushed, re
           <button type="button" disabled={busy} onClick={() => void submit()}>{published ? '完成草稿清理' : `确认推送到 ${session.repository.branch}`}</button>
         </div> : !busy && !hasDraftContent(draft) ? <p>文章为空，无需推送。</p> : null}
       </section> : <section className="github-articles" aria-label="GitHub 文章列表">
-        <label>查找作品<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="文章目录名" /></label>
-        <ul>{articles.filter((item) => item.slug.toLowerCase().includes(query.toLowerCase())).map((article) => <li key={article.path} aria-label={article.slug}>
-          <span>{article.slug}</span>
+        <div className="github-library-heading"><h3>我的作品 <span className="github-count">{articles.length}</span></h3><button type="button" disabled={busy} onClick={() => void run(async () => { const list = await githubApi.list(); setArticles(list.articles); setListCommit(list.commit); setMessage('作品已刷新') })}>{busy ? '正在加载…' : '刷新作品'}</button></div>
+        <label>查找作品<input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="输入作品目录名" /></label>
+        {query.trim() ? <p role="status">找到 {visibleArticles.length} 篇作品<button className="github-clear-search" type="button" onClick={() => setQuery('')}>清除搜索</button></p> : null}
+        <ul>{visibleArticles.map((article) => <li key={article.path} aria-label={article.slug}>
+          <div className="github-work-info"><h3>{article.slug}</h3><small>{article.path}</small></div>
           <div className="github-article-actions">
             <button type="button" disabled={busy} onClick={() => void openRemote(article.path)}>读取并编辑</button>
             <button type="button" className="github-danger" disabled={busy || !session.csrf || !listCommit} onClick={(event) => {
@@ -145,15 +148,14 @@ export default function GithubPanel({ mode, draft, onOpen, onClose, onPushed, re
             }}>删除</button>
           </div>
         </li>)}</ul>
-        {!articles.length ? <p>暂无作品，或仓库中没有支持的文章包。</p> : null}
-        <p className="github-note">已有待提交修改时会继续打开本地版本，不会覆盖未推送的内容。远端冲突时停止推送，不强制覆盖。</p>
-        <button type="button" disabled={busy} onClick={() => void run(async () => { const list = await githubApi.list(); setArticles(list.articles); setListCommit(list.commit); setMessage('作品已刷新') })}>刷新作品</button>
+        {!busy && !articles.length ? <div className="github-empty"><h3>开始你的第一篇作品</h3><p>在写作页完成文章并推送后，它就会出现在这里。</p><button type="button" onClick={onClose}>去写作</button></div> : !busy && !visibleArticles.length ? <div className="github-empty"><p>没有找到匹配的作品，试试其他目录名。</p></div> : null}
+        <p className="github-note">有未推送的修改时，会优先打开你保存在本地的版本。</p>
       </section>}
     </> : null}
     {mode === 'push' ? <div className="dialog-actions"><button type="button" disabled={busy} onClick={onClose}>返回写作</button></div> : null}
   </>
   return mode === 'works'
-    ? <><section ref={worksRef} tabIndex={-1} className="github-dialog github-works draft-dashboard" aria-label="作品"><h2>作品</h2>{content}</section>
+    ? <><section ref={worksRef} tabIndex={-1} className="github-dialog github-works draft-dashboard" aria-label="作品"><div className="github-library-owner">c-x-x · 个人博客工作台</div><h2>作品</h2>{content}</section>
       {pendingDelete ? <AccessibleDialog title="删除作品？" className="confirm-dialog github-dialog github-delete-dialog" onClose={() => { if (!busyRef.current) setPendingDelete(undefined) }} closeOnEscape={!busy} returnFocus={() => deleteTriggerRef.current}>
         <p>即将从 <strong>{session?.repository?.name} · {pendingDelete.input.ref}</strong> 删除作品“{pendingDelete.slug}”。</p>
         <p className="github-delete-warning">这会删除整个文章目录，包括 Markdown、封面、正文图片及目录内附件。博客重新部署后，该文章将下线。</p>

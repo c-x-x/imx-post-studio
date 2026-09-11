@@ -23,3 +23,14 @@
 @media (max-width: 600px) { .github-dialog { padding: 18px; border-radius: 24px; } .github-dialog h2 { font-size: 1.4rem; } .github-controls > button { flex: 1 1 auto; } }
 .github-works { width: 100%; max-height: none; overflow: visible; box-sizing: border-box; }
 .github-works .github-articles ul { max-height: none; }
+.github-library-owner { color: var(--imx-accent); font-size: .8rem; letter-spacing: .08em; }
+.github-library-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.github-library-heading h3 { margin: 0; }
+.github-count { display: inline-block; margin-left: 8px; color: var(--imx-ink-secondary); font-size: .8rem; font-weight: normal; }
+.github-works .github-articles li { border: 1px solid var(--imx-line); border-radius: 20px; padding: 18px; margin-block: 12px; background: var(--imx-control-soft); }
+.github-work-info { flex: 1 1 220px; min-width: 0; }
+.github-work-info h3 { margin: 0 0 4px; overflow-wrap: anywhere; }
+.github-work-info small { color: var(--imx-ink-secondary); overflow-wrap: anywhere; }
+.github-empty { text-align: center; padding: 32px 16px; border: 1px dashed var(--imx-line); border-radius: 20px; margin-block: 20px; }
+.github-clear-search { margin-left: 12px; }
+@media (max-width: 600px) { .github-works .github-article-actions { width: 100%; } .github-works .github-article-actions button:first-child { flex: 1; } }
