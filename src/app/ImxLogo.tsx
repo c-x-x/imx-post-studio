@@ -18,19 +18,24 @@ interface SnowflakeStyle extends CSSProperties {
   '--snow-opacity': number
   '--snow-duration': string
   '--snow-delay': string
+  '--snow-y': string
+  '--snow-blur': string
 }
 
 const snowfall = Array.from({ length: SNOWFLAKE_COUNT }, (_, index) => {
   const sample = (salt: number) => snowSample(index, salt)
-  const drift = Math.round((sample(2) - .5) * 170)
+  const drift = Math.round(12 + sample(2) * 38)
+  const depth = sample(3)
   const style: SnowflakeStyle = {
     '--snow-x': `${sample(1) * 100}vw`,
     '--snow-drift': `${drift}px`,
-    '--snow-drift-end': `${Math.round(drift * -.45)}px`,
-    '--snow-size': `${Math.round(11 + sample(3) * 14)}px`,
-    '--snow-opacity': .5 + sample(4) * .45,
-    '--snow-duration': `${(2.8 + sample(5) * 2.2).toFixed(2)}s`,
-    '--snow-delay': `${(-sample(6) * 5).toFixed(2)}s`,
+    '--snow-drift-end': `${Math.round(drift * 1.6)}px`,
+    '--snow-size': `${(1.5 + depth * 4).toFixed(1)}px`,
+    '--snow-opacity': .25 + depth * .5,
+    '--snow-duration': `${(3.3 + sample(5) * .8).toFixed(2)}s`,
+    '--snow-delay': `${(sample(6) * .7).toFixed(2)}s`,
+    '--snow-y': `${(-8 + sample(7) * 72).toFixed(1)}%`,
+    '--snow-blur': `${depth > .8 ? .65 : .15}px`,
   }
   return { id: index, style }
 })
@@ -64,7 +69,7 @@ export function ImxLogo() {
       </span>
     </span>
     {snowBurst > 0 ? createPortal(<div key={snowBurst} className="imx-snowfall" data-snowfall aria-hidden="true">
-      {snowfall.map((flake) => <span key={flake.id} className="imx-snowfall__flake" style={flake.style}>❄</span>)}
+      {snowfall.map((flake) => <span key={flake.id} className="imx-snowfall__flake" style={flake.style} />)}
     </div>, document.body) : null}
   </>
 }
