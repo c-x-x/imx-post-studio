@@ -78,6 +78,19 @@ describe('useAutosave', () => {
     expect(put).toHaveBeenLastCalledWith(expect.objectContaining({ body: 'changed after 500 ms' }))
   })
 
+  it('flushes the latest eligible revision when the page is hidden', async () => {
+    const current = draft('last phone edit')
+    renderHook(() => useAutosave(current))
+
+    act(() => window.dispatchEvent(new PageTransitionEvent('pagehide')))
+    await act(async () => { await Promise.resolve() })
+
+    expect(put).toHaveBeenCalledOnce()
+    expect(put).toHaveBeenCalledWith(current)
+    await act(async () => vi.advanceTimersByTimeAsync(800))
+    expect(put).toHaveBeenCalledOnce()
+  })
+
   it('does not write unnamed content and resumes only after naming it', async () => {
     const unnamed = { ...draft('正文已经写好'), meta: { ...draft().meta, title: '  ' } }
     const onSaved = vi.fn()

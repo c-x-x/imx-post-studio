@@ -39,7 +39,11 @@ export function useAutosave(
       }
     }
 
-    const timer = window.setTimeout(() => {
+    let started = false
+    const save = () => {
+      if (started) return
+      started = true
+      window.clearTimeout(timer)
       setRevisionStatus((current) => current.status.state === 'failed'
         ? current
         : { draft, status: { state: 'saving' } })
@@ -63,10 +67,18 @@ export function useAutosave(
           }
         },
       )
-    }, delayMs)
+    }
+    const timer = window.setTimeout(save, delayMs)
+    const saveWhenHidden = () => {
+      if (document.visibilityState === 'hidden') save()
+    }
+    window.addEventListener('pagehide', save)
+    document.addEventListener('visibilitychange', saveWhenHidden)
 
     return () => {
       window.clearTimeout(timer)
+      window.removeEventListener('pagehide', save)
+      document.removeEventListener('visibilitychange', saveWhenHidden)
       generation.current += 1
     }
   }, [delayMs, draft])

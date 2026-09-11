@@ -51,8 +51,11 @@ function exportWarnings(draft: ArticleDraft): string[] {
   return warnings
 }
 
-export function BundleActions({ draft, onReplace, onNew, onStatus, onImportFocusRequest, disabled = false }: BundleActionsProps) {
+export function BundleActions({ draft, onReplace, onNew, onStatus, onImportFocusRequest, disabled: externallyDisabled = false }: BundleActionsProps) {
   const [error, setError] = useState<string>()
+  const [processing, setProcessing] = useState(false)
+  const processingRef = useRef(false)
+  const disabled = externallyDisabled || processing
   const [pendingImport, setPendingImport] = useState<ArticleDraft>()
   const [productionDialog, setProductionDialog] = useState(false)
   const [looseIndex, setLooseIndex] = useState<File>()
@@ -64,49 +67,67 @@ export function BundleActions({ draft, onReplace, onNew, onStatus, onImportFocus
   const slugResult = validateSlug(draft.meta.slug)
   const exportError = !draft.meta.title.trim() ? '标题不能为空' : !slugResult.ok ? slugResult.message : undefined
   const warnings = exportWarnings(draft)
+  const runExclusively = async (work: () => Promise<void>) => {
+    if (externallyDisabled || processingRef.current) return
+    processingRef.current = true
+    setProcessing(true)
+    try {
+      await work()
+    } finally {
+      processingRef.current = false
+      setProcessing(false)
+    }
+  }
 
   const stageImport = async (work: () => Promise<ArticleDraft>) => {
-    if (disabled) return
-    setError(undefined)
-    try {
-      setPendingImport(await work())
-    } catch (cause) {
-      setError(errorMessage(cause))
-    }
+    await runExclusively(async () => {
+      setError(undefined)
+      try {
+        setPendingImport(await work())
+      } catch (cause) {
+        setError(errorMessage(cause))
+      }
+    })
   }
 
   const exportDraft = async () => {
-    if (disabled) return
-    setError(undefined)
-    try {
-      download(await exportArticleBundle(draft, { production: false, publish: false }), `${draft.meta.slug || 'untitled'}-draft.zip`)
-      recordPortableExport()
-      onStatus('草稿 ZIP 已下载')
-    } catch (cause) {
-      setError(errorMessage(cause))
-    }
+    await runExclusively(async () => {
+      setError(undefined)
+      try {
+        download(await exportArticleBundle(draft, { production: false, publish: false }), `${draft.meta.slug || 'untitled'}-draft.zip`)
+        recordPortableExport()
+        onStatus('草稿 ZIP 已下载')
+      } catch (cause) {
+        setError(errorMessage(cause))
+      }
+    })
   }
 
   const exportProduction = async (publish: boolean) => {
-    if (disabled) return
-    setError(undefined)
-    try {
-      const explicitlyChosenDraft = { ...draft, meta: { ...draft.meta, draft: !publish } }
-      download(await exportArticleBundle(explicitlyChosenDraft, { production: true, publish }), `${draft.meta.slug}.zip`)
-      recordPortableExport()
-      setProductionDialog(false)
-      productionTrigger.current?.focus()
-      onStatus('文章 ZIP 已下载')
-    } catch (cause) {
-      setError(errorMessage(cause))
-    }
+    await runExclusively(async () => {
+      setError(undefined)
+      try {
+        const explicitlyChosenDraft = { ...draft, meta: { ...draft.meta, draft: !publish } }
+        download(await exportArticleBundle(explicitlyChosenDraft, { production: true, publish }), `${draft.meta.slug}.zip`)
+        recordPortableExport()
+        setProductionDialog(false)
+        productionTrigger.current?.focus()
+        onStatus('文章 ZIP 已下载')
+      } catch (cause) {
+        setError(errorMessage(cause))
+      }
+    })
   }
 
   const completeImport = async (operation: (draft: ArticleDraft) => Promise<boolean | void> | boolean | void, close: (options?: DialogCloseOptions) => void) => {
-    if (disabled || !pendingImport) return
+    if (externallyDisabled || processingRef.current || !pendingImport) return
+    processingRef.current = true
     setError(undefined)
     try {
-      if (await operation(pendingImport) !== false) {
+      const completed = await operation(pendingImport)
+      // Release the action guard before the dialog restores focus.
+      processingRef.current = false
+      if (completed !== false) {
         onImportFocusRequest?.(() => pendingImportTrigger.current)
         close({ restoreFocus: !onImportFocusRequest })
       } else {
@@ -116,6 +137,8 @@ export function BundleActions({ draft, onReplace, onNew, onStatus, onImportFocus
       }
     } catch (cause) {
       setError(errorMessage(cause))
+    } finally {
+      processingRef.current = false
     }
   }
 

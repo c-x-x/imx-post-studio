@@ -95,6 +95,7 @@ export function App() {
   const [transitionBackupError, setTransitionBackupError] = useState<string>()
   const [transitioning, setTransitioning] = useState(false)
   const [intakeBusy, setIntakeBusy] = useState(false)
+  const [intakeSourceStatus, setIntakeSourceStatus] = useState({ cover: false, body: false, editor: false })
   const [draftStarted, setDraftStartedState] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [importFocusVersion, setImportFocusVersion] = useState(0)
@@ -573,6 +574,7 @@ export function App() {
   }
   const setIntakeSourceBusy = (source: 'cover' | 'body' | 'editor', busy: boolean) => {
     intakeSources.current[source] = busy
+    setIntakeSourceStatus({ ...intakeSources.current })
     const next = intakeSources.current.cover || intakeSources.current.body || intakeSources.current.editor
     intakeBusyRef.current = next
     setIntakeBusy(next)
@@ -632,7 +634,7 @@ export function App() {
           {mobile || inspectorView === 'settings'
             ? <div id="inspector-settings" className="inspector-settings-panel" role={mobile ? undefined : 'tabpanel'} aria-labelledby={mobile ? undefined : 'inspector-tab-settings'}>
                 <MetadataPanel compactHeading disabled={workspaceLocked} meta={draft.meta} onChange={(field, value) => dispatchDraft({ type: 'set-meta', field, value })} />
-                <CoverPanel draftId={draft.id} cover={draft.media.find((asset) => asset.kind === 'cover')} disabled={transitioning} onReplace={(asset) => dispatchDraft({ type: 'replace-cover', asset })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onIntakeBusyChange={(busy) => setIntakeSourceBusy('cover', busy)} />
+                <CoverPanel draftId={draft.id} cover={draft.media.find((asset) => asset.kind === 'cover')} disabled={transitioning || intakeSourceStatus.body || intakeSourceStatus.editor} onReplace={(asset) => dispatchDraft({ type: 'replace-cover', asset })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onIntakeBusyChange={(busy) => setIntakeSourceBusy('cover', busy)} />
               </div>
             : <OutlinePanel markdown={draft.body} onSelect={focusOutlineHeading} />}
         </aside>
@@ -659,7 +661,7 @@ export function App() {
           <p className="sidebar-tool-hint">自动保存到本地；推送将更新 GitHub 博客。</p>
           </section>
           <BundleActions disabled={workspaceLocked} draft={draft} onReplace={replaceImportedDraft} onNew={openImportedAsNew} onStatus={setNotice} onImportFocusRequest={(target) => { importFocusTarget.current = target; setImportFocusVersion((current) => current + 1) }} />
-          <MediaPanel draftId={draft.id} disabled={transitioning} media={draft.media} body={draft.body} onAddBatch={(assets) => dispatchDraft({ type: 'add-media-batch', assets })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onInsertImage={(asset) => {
+          <MediaPanel draftId={draft.id} disabled={transitioning || intakeSourceStatus.cover || intakeSourceStatus.editor} media={draft.media} body={draft.body} onAddBatch={(assets) => dispatchDraft({ type: 'add-media-batch', assets })} onRemove={(id) => { urls.current.revoke(id); dispatchDraft({ type: 'remove-media', id }) }} onInsertImage={(asset) => {
             if (mobile) { pendingMobileImage.current = asset; setMobilePanel(null) }
             else editorRef.current?.insertImage(asset.name, mediaAlt(asset.name))
             setTab('write')

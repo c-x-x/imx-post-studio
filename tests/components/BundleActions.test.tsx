@@ -19,7 +19,7 @@ function draft(): ArticleDraft {
 }
 
 describe('BundleActions production choices', () => {
-  afterEach(() => { cleanup(); vi.restoreAllMocks() })
+  afterEach(() => { cleanup(); vi.restoreAllMocks(); exportArticleBundle.mockReset() })
 
   it('forces draft=true for the keep-draft choice even if editor metadata is already false', async () => {
     exportArticleBundle.mockResolvedValue(new Blob(['zip'], { type: 'application/zip' }))
@@ -33,6 +33,22 @@ describe('BundleActions production choices', () => {
 
     expect(exportArticleBundle).toHaveBeenCalledWith(expect.objectContaining({ meta: expect.objectContaining({ draft: true }) }), { production: true, publish: false })
     click.mockRestore()
+  })
+
+  it('starts only one export when the action is clicked repeatedly while processing', async () => {
+    let finish!: (value: Blob) => void
+    exportArticleBundle.mockReturnValue(new Promise<Blob>((resolve) => { finish = resolve }))
+    vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:download'), revokeObjectURL: vi.fn() })
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+    render(<BundleActions draft={draft()} onReplace={() => undefined} onNew={() => undefined} onStatus={() => undefined} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '备份草稿' }))
+    fireEvent.click(screen.getByRole('button', { name: '备份草稿' }))
+    expect(exportArticleBundle).toHaveBeenCalledOnce()
+    expect(screen.getByRole('button', { name: '备份草稿' })).toBeDisabled()
+
+    finish(new Blob(['zip'], { type: 'application/zip' }))
+    await Promise.resolve()
   })
 
   it('offers a clearly identified recovery ZIP import through the normal replace/new decision', async () => {

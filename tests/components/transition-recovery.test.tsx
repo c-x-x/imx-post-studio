@@ -399,6 +399,7 @@ describe('workspace transitions', () => {
     expect(screen.getByRole('button', { name: '新建文章' })).toBeDisabled()
     expect(screen.getByRole('button', { name: '草稿' })).toBeDisabled()
     expect(screen.getByLabelText('导入文章包')).toBeDisabled()
+    expect(screen.getByLabelText('添加正文图片')).toBeDisabled()
     await act(async () => { resolveRead?.(png.buffer) })
   })
 
