@@ -394,6 +394,11 @@
 
 .markdown-editor .cm-focused { outline: 0; }
 
+.markdown-editor .cm-cursor,
+.markdown-editor .cm-dropCursor {
+  border-left-color: var(--imx-ink);
+}
+
 .markdown-editor:has(.cm-focused) {
   border-color: rgba(122, 90, 50, .34);
   box-shadow: 0 0 0 4px rgba(122, 90, 50, .065);

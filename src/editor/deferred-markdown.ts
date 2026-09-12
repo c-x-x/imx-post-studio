@@ -342,11 +342,13 @@ export const DeferredMarkdown = Extension.create({
           }
           let revealed = previous.revealed
           if (revealed) {
+            const repairing = !completeRevealedSyntax(oldState, revealed)
             const mappedBlock = transaction.mapping.mapResult(revealed.block, 1)
             revealed = mappedBlock.deleted ? null : {
               block: mappedBlock.pos,
-              from: transaction.mapping.map(revealed.from, 1),
-              to: transaction.mapping.map(revealed.to, -1),
+              // Repairs at either delimiter belong to the revealed source.
+              from: transaction.mapping.map(revealed.from, repairing ? -1 : 1),
+              to: transaction.mapping.map(revealed.to, repairing ? 1 : -1),
               kind: revealed.kind,
             }
           }

@@ -20,6 +20,16 @@ function setup(content = '') {
 }
 
 describe('deferred Markdown input', () => {
+  it.each([['**123**', 'strong'], ['*123*', 'em'], ['~~123~~', 's']])('renders repaired boundary markers for %s', (source, tag) => {
+    setup(`${source}\n\n后续`)
+    editor.commands.setTextSelection(2)
+    expect(editor.state.doc.firstChild?.textContent).toBe(source)
+    const end = 1 + source.length
+    editor.view.dispatch(editor.state.tr.delete(end - 1, end))
+    editor.view.dispatch(editor.state.tr.insertText(source.at(-1)!, end - 1))
+    editor.commands.setTextSelection(editor.state.doc.content.size - 1)
+    expect(editor.view.dom.querySelector(tag)).toHaveTextContent('123')
+  })
   it('does not redirect selected-text replacement to a stale toolbar caret', () => {
     setup()
     const tr = editor.state.tr.insertText('****', 1)
