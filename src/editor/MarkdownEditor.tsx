@@ -799,7 +799,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       { from, to: from + open.length },
       { from: to + open.length, to: to + open.length + close.length },
     ])
-    if (emptySelection) transaction.setMeta(toolbarMarkdownCaretKey, nextSelection.from)
+    transaction.setMeta(toolbarMarkdownCaretKey, emptySelection ? nextSelection.from : null)
     // A toolbar click blurs the contenteditable before this transaction is
     // dispatched. Keep parsing paused through all synchronous appended
     // transactions, then resume after focus and caret state are stable.

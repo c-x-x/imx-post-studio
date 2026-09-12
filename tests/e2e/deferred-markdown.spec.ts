@@ -235,7 +235,7 @@ test('defers typed Markdown until leaving the paragraph and keeps toolbar format
   await page.getByRole('tab', { name: '排版' }).click()
   await page.getByRole('button', { name: '加粗' }).click()
   await expect(editor).toContainText('****')
-  await expect(editor.locator('.editor-toolbar-markdown-marker')).toHaveCount(2)
+  await expect(editor.locator('.editor-toolbar-markdown-marker')).toHaveCount(1)
   await editor.pressSequentially('工具栏加粗')
   await expect(editor.locator('strong')).not.toContainText('工具栏加粗')
   await editor.press('Enter')
@@ -420,7 +420,7 @@ test('inserts muted source placeholders from empty text-style controls', async (
     const paragraph = editor.locator('p:has(.editor-toolbar-markdown-marker)').last()
     await expect(paragraph).toContainText(`${format.open}${format.close}`)
     const toolbarMarkers = paragraph.locator('.editor-toolbar-markdown-marker')
-    await expect(toolbarMarkers).toHaveCount(2)
+    await expect(toolbarMarkers).toHaveCount(1)
     if (index === 0) {
       const [markerColor, normalColor] = await Promise.all([
         toolbarMarkers.first().evaluate((element) => getComputedStyle(element).color),

@@ -258,6 +258,7 @@ export const DeferredMarkdown = Extension.create({
     let revealAfterCommit = false
     let revealScheduled = false
     const insertAtToolbarCaret = (view: EditorView, from: number, text: string) => {
+      if (!view.state.selection.empty) return false
       const deferred = pendingKey.getState(view.state)
       if (!deferred || deferred.toolbarCaret === null) return false
       const caret = deferred.toolbarCaret
@@ -306,8 +307,8 @@ export const DeferredMarkdown = Extension.create({
             const mapped = transaction.mapping.mapResult(toolbarCaret, 1)
             toolbarCaret = mapped.deleted ? null : mapped.pos
           }
-          const addedToolbarCaret = transaction.getMeta(toolbarMarkdownCaretKey) as number | undefined
-          if (typeof addedToolbarCaret === 'number') toolbarCaret = addedToolbarCaret
+          const addedToolbarCaret = transaction.getMeta(toolbarMarkdownCaretKey) as number | null | undefined
+          if (typeof addedToolbarCaret === 'number' || addedToolbarCaret === null) toolbarCaret = addedToolbarCaret
           if (transaction.getMeta(consumeToolbarCaretKey)) toolbarCaret = null
           const addedToolbarMarkers = transaction.getMeta(toolbarMarkdownMarkersKey) as Array<{ from: number; to: number }> | undefined
           if (addedToolbarMarkers?.length) {
@@ -449,12 +450,12 @@ export const DeferredMarkdown = Extension.create({
         }
       },
       props: {
-        handleTextInput(view, from, _to, text) {
+        handleTextInput(view, from, to, text) {
           // IME updates replace their current composition range repeatedly.
           // Treating one of those updates like ordinary typing appends each
           // pinyin candidate at the saved toolbar caret instead of replacing
           // the previous candidate (for example: j + ji + jia + 加入).
-          if (composing || view.composing) return false
+          if (composing || view.composing || from !== to) return false
           return insertAtToolbarCaret(view, from, text)
         },
         handleClick(view, position, event) {
@@ -541,7 +542,16 @@ export const DeferredMarkdown = Extension.create({
         },
         decorations(state) {
           const deferred = pendingKey.getState(state)
-          const toolbarDecorations: Decoration[] = deferred?.toolbarMarkers.find() ?? []
+          // Adjacent opening/closing markers must share one DOM text node.
+          // A caret between two decorated spans can be relocated by native IME.
+          const ranges = (deferred?.toolbarMarkers.find() ?? []).sort((a, b) => a.from - b.from)
+          const merged: Array<{ from: number; to: number }> = []
+          for (const range of ranges) {
+            const last = merged[merged.length - 1]
+            if (last && range.from <= last.to) last.to = Math.max(last.to, range.to)
+            else merged.push({ from: range.from, to: range.to })
+          }
+          const toolbarDecorations = merged.map(({ from, to }) => Decoration.inline(from, to, { class: 'editor-toolbar-markdown-marker' }))
           const position = textblockPosition(state)
           if (position === null || !deferred?.pending.has(position)) {
             return toolbarDecorations.length ? DecorationSet.create(state.doc, toolbarDecorations) : null
@@ -553,6 +563,7 @@ export const DeferredMarkdown = Extension.create({
             if (!canInterpretText(child)) return
             for (const match of (child.text ?? '').matchAll(/(?<!\\)(?:^#{1,6}(?=\s)|[*_~`$]+|<\/?(?:mark|sub|sup)>|[[\]])/g)) {
               const from = position + 1 + offset + match.index
+              if (merged.some((range) => from < range.to && from + match[0].length > range.from)) continue
               decorations.push(Decoration.inline(from, from + match[0].length, { class: 'editor-markdown-marker' }))
             }
           })

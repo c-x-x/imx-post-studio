@@ -5,7 +5,7 @@ import { TextSelection } from '@tiptap/pm/state'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import { afterEach, describe, expect, it } from 'vitest'
-import { DeferredMarkdown, editorMarkdown, pauseDeferredMarkdown, toolbarMarkdownMarkersKey } from '../../src/editor/deferred-markdown'
+import { DeferredMarkdown, editorMarkdown, pauseDeferredMarkdown, toolbarMarkdownMarkersKey, toolbarMarkdownCaretKey } from '../../src/editor/deferred-markdown'
 import { MathInline, RawMarkdownBlock, RawMarkdownInline, Subscript, Superscript, TextHighlight } from '../../src/editor/markdown-extensions'
 
 let editor: Editor
@@ -20,6 +20,29 @@ function setup(content = '') {
 }
 
 describe('deferred Markdown input', () => {
+  it('does not redirect selected-text replacement to a stale toolbar caret', () => {
+    setup()
+    const tr = editor.state.tr.insertText('****', 1)
+    tr.setSelection(TextSelection.create(tr.doc, 1, 5))
+    tr.setMeta(toolbarMarkdownCaretKey, 3)
+    editor.view.dispatch(tr)
+    const event = new InputEvent('beforeinput', { inputType: 'insertText', data: '中', cancelable: true, bubbles: true })
+    editor.view.dom.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+    expect(editor.state.doc.firstChild?.textContent).toBe('****')
+  })
+  it('keeps the empty toolbar marker pair in one text node for native IME', () => {
+    setup()
+    const tr = editor.state.tr.insertText('****', 1)
+    tr.setSelection(TextSelection.create(tr.doc, 3))
+    tr.setMeta(toolbarMarkdownMarkersKey, [{ from: 1, to: 3 }, { from: 3, to: 5 }])
+    editor.view.dispatch(tr)
+    const markers = editor.view.dom.querySelectorAll('.editor-toolbar-markdown-marker')
+    expect(markers).toHaveLength(1)
+    expect(markers[0].textContent).toBe('****')
+    expect(markers[0].childNodes).toHaveLength(1)
+    expect(editor.state.selection.from).toBe(3)
+  })
   it('keeps the selected text while opening formatting controls', () => {
     setup().commands.insertContent({ type: 'text', text: '**粗体** 链接 尾部' })
     editor.commands.setTextSelection({ from: 8, to: 10 })
