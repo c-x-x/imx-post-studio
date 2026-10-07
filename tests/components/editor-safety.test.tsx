@@ -1,7 +1,10 @@
 import { afterEach, expect, it, vi } from 'vitest'
+import { createRef } from 'react'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { Editor } from '@tiptap/core'
 import { MarkdownEditor } from '../../src/editor/MarkdownEditor'
+import { SourceMarkdownEditor, type SourceMarkdownEditorHandle } from '../../src/editor/SourceMarkdownEditor'
+import type { MediaAsset } from '../../src/metadata/article'
 
 afterEach(cleanup)
 
@@ -65,4 +68,81 @@ it('starts rich history at the source document and preserves subsequent undo/red
   expect(editor.state.doc.textContent).toBe('source latest')
   act(() => { editor.commands.redo() })
   expect(editor.state.doc.textContent).toBe(changed)
+})
+
+it('undoes an asynchronous image paste back to the captured caret', async () => {
+  let finishPaste!: (assets: MediaAsset[]) => void
+  const preparePastedImages = vi.fn(() => new Promise<MediaAsset[]>((resolve) => { finishPaste = resolve }))
+  const commitPastedImages = vi.fn()
+  render(<MarkdownEditor
+    value="前面后面"
+    onChange={() => undefined}
+    media={[]}
+    preparePastedImages={preparePastedImages}
+    onCommitPastedImages={commitPastedImages}
+  />)
+  const editor = richEditor()
+  act(() => { editor.commands.setTextSelection(3) })
+  fireEvent.paste(editor.view.dom, { clipboardData: {
+    items: [],
+    files: [new File(['image'], 'pasted.png', { type: 'image/png' })],
+    getData: () => '',
+  } })
+  expect(preparePastedImages).toHaveBeenCalled()
+
+  // Image decoding temporarily locks and blurs the real editor. Reproduce a
+  // browser moving its live selection to the start before decoding finishes.
+  act(() => { editor.commands.setTextSelection(1) })
+  const asset: MediaAsset = {
+    id: 'pasted-image',
+    name: 'pasted.png',
+    kind: 'body',
+    mime: 'image/png',
+    blob: new Blob(['image'], { type: 'image/png' }),
+  }
+  await act(async () => { finishPaste([asset]) })
+  await waitFor(() => expect(commitPastedImages).toHaveBeenCalled())
+
+  act(() => { editor.commands.undo() })
+  expect(editor.state.selection.from).toBe(3)
+})
+
+it('keeps the captured source caret outside asynchronous image-paste history', async () => {
+  let finishPaste!: (assets: MediaAsset[]) => void
+  const preparePastedImages = vi.fn(() => new Promise<MediaAsset[]>((resolve) => { finishPaste = resolve }))
+  const commitPastedImages = vi.fn()
+  const onChange = vi.fn()
+  const editorRef = createRef<SourceMarkdownEditorHandle>()
+  render(<SourceMarkdownEditor
+    ref={editorRef}
+    value="源码前源码后"
+    onChange={onChange}
+    disabled={false}
+    preparePastedImages={preparePastedImages}
+    onCommitPastedImages={commitPastedImages}
+  />)
+  const editor = await screen.findByRole('textbox', { name: 'Markdown 编辑器' })
+  act(() => { editorRef.current?.focusPosition(3) })
+  fireEvent.paste(editor, { clipboardData: {
+    items: [],
+    files: [new File(['image'], 'source.png', { type: 'image/png' })],
+  } })
+  expect(preparePastedImages).toHaveBeenCalled()
+
+  act(() => { editorRef.current?.focusPosition(0) })
+  const asset: MediaAsset = {
+    id: 'source-image',
+    name: 'source.png',
+    kind: 'body',
+    mime: 'image/png',
+    blob: new Blob(['image'], { type: 'image/png' }),
+  }
+  await act(async () => { finishPaste([asset]) })
+  await waitFor(() => expect(commitPastedImages).toHaveBeenCalled())
+
+  act(() => {
+    editorRef.current?.undo()
+    editorRef.current?.insertMarkdown('撤销后')
+  })
+  expect(onChange.mock.calls.at(-1)?.[0]).toBe('源码前撤销后源码后')
 })

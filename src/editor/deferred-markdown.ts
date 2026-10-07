@@ -13,7 +13,7 @@ interface DeferredState {
   paused: boolean
   revealed: RevealedInlineSource | null
 }
-type InlineSourceKind = 'bold' | 'italic' | 'strike' | 'code' | 'highlight' | 'subscript' | 'superscript' | 'math'
+type InlineSourceKind = 'bold' | 'italic' | 'strike' | 'code' | 'highlight' | 'subscript' | 'superscript' | 'math' | 'heading'
 interface RevealedInlineSource { block: number; from: number; to: number; kind: InlineSourceKind }
 const pendingKey = new PluginKey<DeferredState>('deferredMarkdown')
 const pauseKey = 'deferredMarkdownPaused'
@@ -112,8 +112,9 @@ function lineMarkdown(editor: Editor, node: ProseMirrorNode, position: number, l
 }
 
 function childMatchesInlineKind(child: ProseMirrorNode, kind: InlineSourceKind): boolean {
+  if (kind === 'heading') return false
   if (kind === 'math') return child.type.name === 'mathInline'
-  const markNames: Record<Exclude<InlineSourceKind, 'math'>, string> = {
+  const markNames: Record<Exclude<InlineSourceKind, 'math' | 'heading'>, string> = {
     bold: 'bold',
     italic: 'italic',
     strike: 'strike',
@@ -196,6 +197,16 @@ function inlineRevealTransaction(editor: Editor, state: EditorState, position: n
 }
 
 function revealSourceAtSelection(editor: Editor, state: EditorState, position: number, kind?: InlineSourceKind): Transaction | null {
+  const block = textblockPosition(state)
+  const node = block === null ? null : state.doc.nodeAt(block)
+  if (!kind && block !== null && node?.type.name === 'heading' && !pendingKey.getState(state)?.pending.has(block)) {
+    const prefix = `${'#'.repeat(Number(node.attrs.level))} `
+    const paragraph = state.schema.nodes.paragraph.create(null, [state.schema.text(prefix), ...Array.from({ length: node.childCount }, (_, index) => node.child(index))])
+    const transaction = state.tr.replaceWith(block, block + node.nodeSize, paragraph)
+    transaction.setSelection(TextSelection.create(transaction.doc, position + prefix.length))
+    transaction.setMeta(revealKey, { block, from: block + 1, to: block + paragraph.nodeSize - 1, kind: 'heading' })
+    return transaction
+  }
   const resolvedKind = kind ?? inlineKindAtSelection(state)
   return resolvedKind ? inlineRevealTransaction(editor, state, position, resolvedKind) : null
 }
@@ -208,8 +219,9 @@ function revealInlineSource(editor: Editor, position: number, kind: InlineSource
 }
 
 function completeRevealedSyntax(state: EditorState, revealed: RevealedInlineSource): boolean {
+  if (revealed.kind === 'heading') return true
   const source = state.doc.textBetween(revealed.from, revealed.to, '')
-  const patterns: Record<InlineSourceKind, RegExp> = {
+  const patterns: Record<Exclude<InlineSourceKind, 'heading'>, RegExp> = {
     bold: /^\*\*[\s\S]+\*\*$/,
     italic: /^\*[\s\S]+\*$/,
     strike: /^~~[\s\S]+~~$/,
@@ -328,7 +340,7 @@ export const DeferredMarkdown = Extension.create({
           for (const position of previous.pending) {
             if (committed?.includes(position)) continue
             const mapped = transaction.mapping.mapResult(position, 1)
-            if (!mapped.deleted && canDefer(nextState.doc.nodeAt(mapped.pos))) pending.add(mapped.pos)
+            if (!mapped.deleted && (canDefer(nextState.doc.nodeAt(mapped.pos)) || previous.revealed?.kind === 'heading' && previous.revealed.block === position)) pending.add(mapped.pos)
           }
           if (transaction.docChanged && !committed) {
             const before = textblockPosition(oldState)
@@ -403,7 +415,7 @@ export const DeferredMarkdown = Extension.create({
               && state.selection.from >= revealed.from && state.selection.to <= revealed.to
             if (revealed?.block === position && !completeRevealedSyntax(state, revealed)) continue
             const node = state.doc.nodeAt(position)
-            if (!node || !canDefer(node)) continue
+            if (!node || (!canDefer(node) && revealed?.kind !== 'heading')) continue
             const markdown = lineMarkdown(editor, node, position, pendingKey.getState(state)?.literals)
             // Four adjacent asterisks are the editor's empty bold source. CommonMark
             // also accepts them as a thematic break, so keep this exact source
@@ -418,7 +430,7 @@ export const DeferredMarkdown = Extension.create({
             if (position === active && (!revealed || insideRevealedSource) && !restoresStandaloneImage) continue
             const $position = state.doc.resolve(position)
             if (!$position.parent.canReplace($position.index(), $position.index() + 1, parsed.content)) continue
-            if (!parsed.content.eq(state.doc.content.cut(position, position + node.nodeSize))) {
+            if (!parsed.content.eq(state.doc.content.cut(position, position + node.nodeSize)) || revealed?.kind === 'heading') {
               committed.push(position)
               transaction.replaceWith(position, position + node.nodeSize, parsed.content)
               if (position === active && restoresStandaloneImage) restoredImagePosition = position
@@ -561,6 +573,10 @@ export const DeferredMarkdown = Extension.create({
           const node = state.doc.nodeAt(position)
           if (!node) return toolbarDecorations.length ? DecorationSet.create(state.doc, toolbarDecorations) : null
           const decorations: Decoration[] = []
+          if (deferred.revealed?.kind === 'heading') {
+            const prefix = node.textContent.match(/^(#{1,6})\s/)
+            if (prefix) decorations.push(Decoration.node(position, position + node.nodeSize, { 'data-heading-source': String(prefix[1].length) }))
+          }
           node.forEach((child, offset) => {
             if (!canInterpretText(child)) return
             for (const match of (child.text ?? '').matchAll(/(?<!\\)(?:^#{1,6}(?=\s)|[*_~`$]+|<\/?(?:mark|sub|sup)>|[[\]])/g)) {

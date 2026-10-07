@@ -430,7 +430,8 @@
 .markdown-editor .tiptap h3,
 .markdown-editor .tiptap h4,
 .markdown-editor .tiptap h5,
-.markdown-editor .tiptap h6 {
+.markdown-editor .tiptap h6,
+.markdown-editor .tiptap [data-heading-source] {
   margin: 1.35em 0 .55em;
   color: var(--imx-ink);
   font-family: var(--imx-editor-font, var(--imx-font-reading));
@@ -446,6 +447,12 @@
 .markdown-editor .tiptap h4,
 .markdown-editor .tiptap h5,
 .markdown-editor .tiptap h6 { font-size: 1.08em; }
+.markdown-editor .tiptap [data-heading-source='1'] { font-size: 1.85em; }
+.markdown-editor .tiptap [data-heading-source='2'] { font-size: 1.55em; }
+.markdown-editor .tiptap [data-heading-source='3'] { font-size: 1.3em; }
+.markdown-editor .tiptap [data-heading-source='4'],
+.markdown-editor .tiptap [data-heading-source='5'],
+.markdown-editor .tiptap [data-heading-source='6'] { font-size: 1.08em; }
 
 .markdown-editor .tiptap ul,
 .markdown-editor .tiptap ol { padding-left: 1.7em; }

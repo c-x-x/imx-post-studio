@@ -491,7 +491,17 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               const content = assets.map((asset) => (
                 { type: 'image', attrs: { src: `images/${asset.name}`, alt: mediaAlt(asset.name) } }
               ))
-              activeEditor.chain().focus().setTextSelection({ from: safeFrom, to: safeTo }).insertContent(content).run()
+              // Image decoding is asynchronous and the editor is temporarily
+              // disabled while it runs. Some browsers move the live selection
+              // to the start when that blur happens. Restore the captured
+              // selection before starting the insertion history event so undo
+              // returns to the paste caret instead of that transient position.
+              const restore = activeEditor.state.tr
+                .setSelection(TextSelection.create(activeEditor.state.doc, safeFrom, safeTo))
+                .setMeta('addToHistory', false)
+              activeEditor.view.dispatch(restore)
+              activeEditor.view.focus()
+              activeEditor.commands.insertContent(content)
               commit(assets, editorMarkdown(activeEditor))
             })
             .catch(() => undefined)

@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
-import CodeMirror, { EditorView, type ReactCodeMirrorRef } from '@uiw/react-codemirror'
+import CodeMirror, { EditorView, Transaction, type ReactCodeMirrorRef } from '@uiw/react-codemirror'
 import { redo as redoCommand, redoDepth, undo as undoCommand, undoDepth } from '@codemirror/commands'
 import { markdown } from '@codemirror/lang-markdown'
 import { languages } from '@codemirror/language-data'
@@ -57,6 +57,14 @@ export const SourceMarkdownEditor = forwardRef<SourceMarkdownEditorHandle, Sourc
             if (assets.length === 0 || !mountedRef.current) return
             const insert = pastedImageMarkdown(assets)
             const target = view.state.doc.toString() === current ? selection : view.state.selection.main
+            // Establish the intended caret outside the image insertion's
+            // history event. If the async decode blurred the editor, undo must
+            // restore this selection rather than CodeMirror's transient one.
+            view.dispatch({
+              selection: { anchor: target.from, head: target.to },
+              annotations: Transaction.addToHistory.of(false),
+            })
+            view.focus()
             view.dispatch({ changes: { from: target.from, to: target.to, insert }, selection: { anchor: target.from + insert.length }, scrollIntoView: true })
             commit(assets, view.state.doc.toString())
           })

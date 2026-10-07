@@ -553,6 +553,103 @@ test('pastes images at the active cursor in both rich and source modes', { tag: 
   expect(sourceText.indexOf('![source](images/source.png)')).toBeLessThan(sourceText.indexOf('源码后'))
 })
 
+test('reveals editable heading hashes on the active line', { tag: ['@critical', '@webkit-smoke'] }, async ({ page }) => {
+  await beginArticle(page)
+  await setMarkdown(page, '## 标题\n\n正文')
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await editor.locator('h2').click()
+  const active = editor.locator('[data-heading-source="2"]')
+  await expect(active).toHaveText('## 标题')
+  await expect(active.locator('.editor-markdown-marker')).toHaveText('##')
+  await active.locator('.editor-markdown-marker').evaluate((element) => {
+    const range = document.createRange()
+    range.setStart(element.firstChild!, 0)
+    range.collapse(true)
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(range)
+    document.dispatchEvent(new Event('selectionchange'))
+  })
+  await editor.press('Delete')
+  await editor.locator('p').filter({ hasText: /^正文$/ }).click()
+  await expect(editor.locator('h1')).toHaveText('标题')
+  expect(await markdownSource(page)).toBe('# 标题\n\n正文')
+})
+
+test('restores the rich-editor caret after undoing a pasted image', { tag: ['@critical', '@webkit-smoke'] }, async ({ page }) => {
+  await beginArticle(page)
+  await setMarkdown(page, '前面后面')
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await editor.evaluate((element) => {
+    const text = element.querySelector('p')?.firstChild
+    if (!text) throw new Error('Missing rich paragraph text')
+    const range = document.createRange()
+    range.setStart(text, 2)
+    range.collapse(true)
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+    ;(element as HTMLElement).focus()
+    document.dispatchEvent(new Event('selectionchange'))
+  })
+
+  await pasteImages(page, [pngFile('undo.png', 40, 30, [34, 56, 78, 255])])
+  await expect(page.locator('.image-block-view')).toBeVisible()
+  await editor.press('ControlOrMeta+z')
+  await expect(page.locator('.image-block-view')).toHaveCount(0)
+  await editor.pressSequentially('撤销后')
+
+  expect(await markdownSource(page)).toBe('前面撤销后后面')
+})
+
+test('keeps the trailing writing line active after undoing a pasted image', { tag: ['@critical', '@webkit-smoke'] }, async ({ page }) => {
+  await beginArticle(page)
+  await setMarkdown(page, Array.from({ length: 30 }, (_, index) => `第 ${index + 1} 段`).join('\n\n'))
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await editor.evaluate((element) => {
+    const paragraph = element.querySelector('p:last-child')
+    if (!paragraph) throw new Error('Missing trailing writing line')
+    const range = document.createRange()
+    range.selectNodeContents(paragraph)
+    range.collapse(false)
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+    ;(element as HTMLElement).focus()
+    document.dispatchEvent(new Event('selectionchange'))
+  })
+
+  await pasteImages(page, [pngFile('undo-tail.png', 40, 30, [56, 78, 90, 255])])
+  await expect(page.locator('.image-block-view')).toBeVisible()
+  await editor.press('ControlOrMeta+z')
+  await expect(page.locator('.image-block-view')).toHaveCount(0)
+  await editor.pressSequentially('撤销后继续')
+
+  const paragraphs = editor.locator('p')
+  await expect(paragraphs.nth(29)).toHaveText('第 30 段')
+  await expect(paragraphs.nth(30)).toHaveText('撤销后继续')
+})
+
+test('restores the source-editor caret after undoing a pasted image', { tag: ['@critical', '@webkit-smoke'] }, async ({ page }) => {
+  await beginArticle(page)
+  await page.getByRole('tab', { name: '文档' }).click()
+  await setEditorMode(page, 'source')
+  await page.getByRole('tab', { name: '文档' }).click()
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await editor.fill('源码前源码后')
+  await editor.press('ControlOrMeta+Home')
+  await editor.press('ArrowRight')
+  await editor.press('ArrowRight')
+  await editor.press('ArrowRight')
+
+  await pasteImages(page, [pngFile('undo-source.png', 40, 30, [78, 90, 12, 255])])
+  await expect(editor).toContainText('![undo source](images/undo-source.png)')
+  await editor.press('ControlOrMeta+z')
+  await expect(editor).not.toContainText('![undo source](images/undo-source.png)')
+  await editor.pressSequentially('撤销后')
+
+  expect((await editor.locator('.cm-line').allTextContents()).join('\n')).toBe('源码前撤销后源码后')
+})
+
 test('edits a rendered image like a formula block and keeps a clickable line below it', { tag: ['@critical', '@webkit-smoke'] }, async ({ page }) => {
   await beginArticle(page)
   await page.getByLabel('添加正文图片').setInputFiles(pngFile('editable.png', 320, 180, [117, 76, 172, 255]))

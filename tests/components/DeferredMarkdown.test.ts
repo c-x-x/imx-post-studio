@@ -20,6 +20,29 @@ function setup(content = '') {
 }
 
 describe('deferred Markdown input', () => {
+  it.each([1, 2, 3, 4, 5, 6])('reveals editable level %s heading markers and commits a changed level', (level) => {
+    setup(`${'#'.repeat(level)} 标题\n\n后续`)
+    editor.commands.setTextSelection(editor.state.doc.content.size - 1)
+    editor.commands.setTextSelection(2)
+    expect(editor.state.doc.firstChild?.textContent).toBe(`${'#'.repeat(level)} 标题`)
+    expect(editor.view.dom.querySelector('.editor-markdown-marker')).toHaveTextContent('#'.repeat(level))
+    expect(editorMarkdown(editor)).toBe(`${'#'.repeat(level)} 标题\n\n后续`)
+    editor.view.dispatch(editor.state.tr.insertText('##', 1, level + 1))
+    editor.commands.setTextSelection(editor.state.doc.content.size - 1)
+    expect(editor.state.doc.firstChild?.type.name).toBe('heading')
+    expect(editor.state.doc.firstChild?.attrs.level).toBe(2)
+    expect(editorMarkdown(editor)).toBe('## 标题\n\n后续')
+  })
+
+  it('allows removing all heading markers to turn the line into a paragraph', () => {
+    setup('## 标题\n\n后续')
+    editor.commands.setTextSelection(editor.state.doc.content.size - 1)
+    editor.commands.setTextSelection(2)
+    editor.view.dispatch(editor.state.tr.delete(1, 4))
+    editor.commands.setTextSelection(editor.state.doc.content.size - 1)
+    expect(editor.state.doc.firstChild?.type.name).toBe('paragraph')
+    expect(editorMarkdown(editor)).toBe('标题\n\n后续')
+  })
   it.each([['**123**', 'strong'], ['*123*', 'em'], ['~~123~~', 's']])('renders repaired boundary markers for %s', (source, tag) => {
     setup(`${source}\n\n后续`)
     editor.commands.setTextSelection(2)
@@ -117,7 +140,7 @@ describe('deferred Markdown input', () => {
     expect(editor.state.selection.$from.parent.textContent).toBe('普通下一行')
   })
 
-  it('reveals inline source but keeps headings rendered when the caret enters', async () => {
+  it('reveals inline and heading source when the caret enters', async () => {
     setup('**123**\n\n### 标题')
     editor.commands.setTextSelection(4)
     expect(editor.state.doc.firstChild?.textContent).toBe('**123**')
@@ -132,9 +155,8 @@ describe('deferred Markdown input', () => {
     })
     editor.commands.setTextSelection(headingPosition + 2)
     await Promise.resolve()
-    expect(editor.view.dom.querySelector('h3')).toHaveTextContent('标题')
-    expect(editor.isActive('heading', { level: 3 })).toBe(true)
-    expect(editor.view.dom.querySelector('.editor-markdown-marker')).toBeNull()
+    expect(editor.view.dom.querySelector('[data-heading-source="3"]')).toHaveTextContent('### 标题')
+    expect(editor.view.dom.querySelector('.editor-markdown-marker')).toHaveTextContent('###')
   })
 
   it('continues lists on Enter without carrying inline toolbar styles', () => {

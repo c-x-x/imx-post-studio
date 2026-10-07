@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { createRef, useState } from 'react'
+import { act, createRef, useState } from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { MarkdownEditor, type MarkdownEditorHandle } from '../../src/editor/MarkdownEditor'
 
@@ -60,24 +60,22 @@ describe('MarkdownEditor', () => {
     expect(within(editor).getByText('正文').tagName).toBe('P')
   })
 
-  it('turns H1-H6 into paragraphs when Backspace is pressed at the text start', async () => {
-    const user = userEvent.setup()
+  it('turns H1-H6 into paragraphs when the revealed heading prefix is deleted', async () => {
     render(<ControlledEditor initial={Array.from({ length: 6 }, (_, index) => `${'#'.repeat(index + 1)} 标题${index + 1}`).join('\n\n')} />)
     const editor = screen.getByRole('textbox', { name: 'Markdown 编辑器' })
 
     for (let level = 1; level <= 6; level += 1) {
-      const heading = within(editor).getByRole('heading', { level, name: `标题${level}` })
-      await user.click(heading)
-      const text = heading.firstChild
-      if (!text) throw new Error('Heading text is missing')
-      const range = document.createRange()
-      range.setStart(text, 0)
-      range.collapse(true)
-      window.getSelection()?.removeAllRanges()
-      window.getSelection()?.addRange(range)
-      fireEvent(document, new Event('selectionchange'))
-      await Promise.resolve()
-      fireEvent.keyDown(editor, { key: 'Backspace' })
+      expect(within(editor).getByRole('heading', { level, name: `标题${level}` })).toBeInTheDocument()
+      const instance = (editor as HTMLElement & { editor: import('@tiptap/core').Editor }).editor
+      let position = 0
+      instance.state.doc.descendants((node, pos) => {
+        if (node.type.name === 'heading' && node.attrs.level === level) position = pos
+      })
+      act(() => {
+        instance.commands.setTextSelection(position + 1)
+        instance.view.dispatch(instance.state.tr.delete(position + 1, position + level + 2))
+        instance.commands.setTextSelection(instance.state.doc.content.size - 1)
+      })
 
       expect(within(editor).queryByRole('heading', { level, name: `标题${level}` })).not.toBeInTheDocument()
       expect(within(editor).getByText(`标题${level}`).tagName).toBe('P')
