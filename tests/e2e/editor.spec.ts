@@ -509,8 +509,9 @@ test('keeps current rich table controls safe and jumps to the selected outline h
   await expect.poll(() => editorScroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
   await expect.poll(() => page.evaluate(() => {
     const selection = window.getSelection()
-    return selection?.anchorNode?.parentElement?.closest('h1,h2,h3,h4,h5,h6')?.textContent ?? ''
-  })).toBe('末尾标题')
+    return selection?.anchorNode?.parentElement?.closest('[data-heading-source="2"]')?.textContent ?? ''
+  })).toBe('## 末尾标题')
+  await expect(page.getByRole('textbox', { name: 'Markdown 编辑器' }).locator('[data-heading-source="2"] .editor-markdown-marker')).toHaveText('##')
 })
 
 test('pastes images at the active cursor in both rich and source modes', { tag: ['@critical', '@firefox-smoke', '@webkit-smoke'] }, async ({ page }) => {
