@@ -354,7 +354,11 @@ export const DeferredMarkdown = Extension.create({
           }
           let revealed = previous.revealed
           if (revealed) {
-            const repairing = !completeRevealedSyntax(oldState, revealed)
+            // A heading's source is the whole editable line. Characters typed
+            // at either edge extend that line, including the first character
+            // entered into an empty heading. Excluding the new end character
+            // makes appendTransaction commit the block under the live caret.
+            const repairing = revealed.kind === 'heading' || !completeRevealedSyntax(oldState, revealed)
             const mappedBlock = transaction.mapping.mapResult(revealed.block, 1)
             revealed = mappedBlock.deleted ? null : {
               block: mappedBlock.pos,

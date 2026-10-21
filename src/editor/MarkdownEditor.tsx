@@ -327,6 +327,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const [syntaxDialog, setSyntaxDialog] = useState<{ kind: InlineSyntaxDialogKind; initial?: SyntaxDialogValue; nodePos?: number } | null>(null)
   const [calloutDialogOpen, setCalloutDialogOpen] = useState(false)
   const [slashOpen, setSlashOpen] = useState(false)
+  const [pasteError, setPasteError] = useState('')
 
   useLayoutEffect(() => {
     if (!richComposingRef.current && !richCompositionPendingRef.current) latestValueRef.current = value
@@ -453,21 +454,39 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           const activeEditor = richEditorRef.current
           const plainText = clipboardEvent.clipboardData?.getData('text/plain') ?? ''
           if (activeEditor && !activeEditor.isEditable) return true
-          if (files.length === 0 && activeEditor?.isActive('codeBlock')) {
+          if (files.length === 0 && activeEditor && plainText) {
             clipboardEvent.preventDefault()
-            activeEditor.view.dispatch(activeEditor.state.tr.insertText(plainText.replace(/\r\n?/g, '\n')).scrollIntoView())
-            return true
-          }
-          const markdownText = plainText.trim()
-          if (files.length === 0 && activeEditor?.markdown && containsPastedMarkdown(markdownText)) {
-            clipboardEvent.preventDefault()
-            const parsed = activeEditor.markdown.parse(markdownText)
-            activeEditor.chain().focus().insertContent(parsed.content ?? []).run()
-            return true
-          }
-          if (files.length === 0 && activeEditor && !activeEditor.state.selection.empty && /^https?:\/\/\S+$/i.test(markdownText)) {
-            clipboardEvent.preventDefault()
-            activeEditor.chain().focus().setLink({ href: markdownText }).run()
+            setPasteError('')
+            const markdownText = plainText.trim()
+            try {
+              let inserted: boolean
+              if (activeEditor.isActive('codeBlock')) {
+                activeEditor.view.dispatch(activeEditor.state.tr.insertText(plainText.replace(/\r\n?/g, '\n')).scrollIntoView())
+                inserted = true
+              } else if (activeEditor.markdown && containsPastedMarkdown(markdownText)) {
+                const parsed = activeEditor.markdown.parse(markdownText)
+                inserted = activeEditor.commands.insertContent(parsed.content ?? [])
+              } else if (!activeEditor.state.selection.empty && /^https?:\/\/\S+$/i.test(markdownText)) {
+                inserted = activeEditor.commands.setLink({ href: markdownText })
+              } else {
+                // Use the explicit paste commands: the default DOM handler
+                // skips JavaScript paste while WebKit reports composition.
+                const html = clipboardEvent.clipboardData?.getData('text/html') ?? ''
+                inserted = html
+                  ? activeEditor.view.pasteHTML(html, clipboardEvent)
+                  : activeEditor.view.pasteText(plainText, clipboardEvent)
+              }
+              if (!inserted) throw new Error('无法插入剪贴板内容')
+            } catch {
+              setPasteError('粘贴失败，请尝试以纯文本粘贴，或切换到源代码模式。')
+            }
+            // A stale browser composition flag can also suppress onUpdate.
+            // Publish this explicit paste immediately instead of waiting for
+            // an IME compositionend event that may never arrive.
+            const next = editorMarkdown(activeEditor)
+            emittedValueRef.current = next
+            latestValueRef.current = next
+            onChangeRef.current(next)
             return true
           }
           const prepare = preparePastedImagesRef.current
@@ -978,6 +997,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           <button type="button" disabled={disabled || (mode === 'rich' ? !activeFormats?.canRedo : !sourceHistory.canRedo)} onMouseDown={(event) => event.preventDefault()} onClick={() => runHistory('redo')}>重做</button>
         </div>
       </div>
+      {pasteError ? <p role="alert">{pasteError}</p> : null}
       <div className="editor-scroll-region">
         {mode === 'rich'
           ? <>

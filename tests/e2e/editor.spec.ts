@@ -576,6 +576,29 @@ test('reveals editable heading hashes on the active line', { tag: ['@critical', 
   expect(await markdownSource(page)).toBe('# 标题\n\n正文')
 })
 
+test('keeps successive letters in the active heading source line', { tag: ['@critical', '@webkit-smoke'] }, async ({ page }) => {
+  await beginArticle(page)
+  await setMarkdown(page, '## 标题\n\n后续')
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await editor.locator('h2').click()
+  const active = editor.locator('[data-heading-source="2"]')
+  await expect(active).toHaveText('## 标题')
+  await active.evaluate((element) => {
+    const range = document.createRange()
+    range.selectNodeContents(element)
+    range.collapse(false)
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(range)
+    document.dispatchEvent(new Event('selectionchange'))
+  })
+  await editor.pressSequentially('abc')
+  await expect(active).toHaveText('## 标题abc')
+  await expect(editor.locator('p').filter({ hasText: /^后续$/ })).toBeVisible()
+  await editor.locator('p').filter({ hasText: /^后续$/ }).click()
+  await expect(editor.locator('h2')).toHaveText('标题abc')
+  expect(await markdownSource(page)).toBe('## 标题abc\n\n后续')
+})
+
 test('restores the rich-editor caret after undoing a pasted image', { tag: ['@critical', '@webkit-smoke'] }, async ({ page }) => {
   await beginArticle(page)
   await setMarkdown(page, '前面后面')
@@ -923,6 +946,23 @@ test('edits pasted Mermaid, math, callout and footnote blocks in the document', 
   })
   await editor.pressSequentially('中文脚注内容')
   expect(await markdownSource(page)).toContain('[^1]: 中文脚注内容')
+})
+
+test('pastes plain text and Markdown into the rich editor in WebKit', { tag: ['@critical', '@webkit-smoke'] }, async ({ page }) => {
+  await beginArticle(page)
+  await setMarkdown(page, '## 标题\n\n正文')
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await editor.locator('p').filter({ hasText: /^正文$/ }).click()
+  for (const source of ['普通粘贴', '**Markdown粘贴**']) {
+    await editor.evaluate((element, text) => {
+      const transfer = new DataTransfer()
+      transfer.setData('text/plain', text)
+      const event = new Event('paste', { bubbles: true, cancelable: true })
+      Object.defineProperty(event, 'clipboardData', { value: transfer })
+      element.dispatchEvent(event)
+    }, source)
+    await expect(editor).toContainText(source.replaceAll('**', ''))
+  }
 })
 
 test('renders pasted headings, fenced code and inline Markdown as structured content', { tag: ['@critical'] }, async ({ page }) => {

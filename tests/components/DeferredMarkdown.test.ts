@@ -20,6 +20,27 @@ function setup(content = '') {
 }
 
 describe('deferred Markdown input', () => {
+  it.each([1, 2, 3, 4, 5, 6])('keeps typing at the end of a revealed level %s heading on the same line', (level) => {
+    const prefix = '#'.repeat(level)
+    setup(`${prefix} 标题\n\n后续`)
+    editor.commands.setTextSelection(editor.state.doc.content.size - 1)
+    editor.commands.setTextSelection(3)
+    editor.commands.setTextSelection(editor.state.doc.firstChild!.nodeSize - 1)
+    for (const letter of 'abc') {
+      editor.commands.insertContent(letter)
+      expect(editor.state.selection.$from.parent.textContent).toBe(`${prefix} 标题${'abc'.slice(0, 'abc'.indexOf(letter) + 1)}`)
+    }
+    expect(editorMarkdown(editor)).toBe(`${prefix} 标题abc\n\n后续`)
+  })
+
+  it('keeps the first letters of an empty heading after its hashes', () => {
+    setup('##\n\n后续')
+    editor.commands.setTextSelection(editor.state.doc.content.size - 1)
+    editor.commands.setTextSelection(1)
+    for (const letter of 'abc') editor.commands.insertContent(letter)
+    expect(editor.state.selection.$from.parent.textContent).toBe('## abc')
+    expect(editorMarkdown(editor)).toBe('## abc\n\n后续')
+  })
   it.each([1, 2, 3, 4, 5, 6])('reveals editable level %s heading markers and commits a changed level', (level) => {
     setup(`${'#'.repeat(level)} 标题\n\n后续`)
     editor.commands.setTextSelection(editor.state.doc.content.size - 1)

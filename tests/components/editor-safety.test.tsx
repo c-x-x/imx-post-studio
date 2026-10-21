@@ -12,6 +12,31 @@ function richEditor(): Editor {
   return (screen.getByRole('textbox', { name: 'Markdown 编辑器' }) as HTMLElement & { editor: Editor }).editor
 }
 
+it.each(['粘贴文字', '**Markdown粘贴**'])('pastes %s even when the browser retains a composition flag', (text) => {
+  const onChange = vi.fn()
+  render(<MarkdownEditor value="前后" onChange={onChange} media={[]} />)
+  const editor = richEditor()
+  act(() => { editor.commands.setTextSelection(2) })
+  const composing = vi.spyOn(editor.view, 'composing', 'get').mockReturnValue(true)
+  fireEvent.paste(editor.view.dom, { clipboardData: {
+    items: [], files: [], getData: (type: string) => type === 'text/plain' ? text : '',
+  } })
+  composing.mockRestore()
+  expect(editor.state.doc.textContent).toBe(`前${text.replaceAll('**', '')}后`)
+  expect(onChange.mock.calls.at(-1)?.[0].replace(/\n/g, '')).toBe(`前${text}后`)
+})
+
+it('reports a failed text paste instead of silently swallowing it', () => {
+  render(<MarkdownEditor value="正文" onChange={() => undefined} media={[]} />)
+  const editor = richEditor()
+  const paste = vi.spyOn(editor.view, 'pasteText').mockReturnValue(false)
+  fireEvent.paste(editor.view.dom, { clipboardData: {
+    items: [], files: [], getData: (type: string) => type === 'text/plain' ? '粘贴文字' : '',
+  } })
+  expect(screen.getByRole('alert')).toHaveTextContent('粘贴失败')
+  paste.mockRestore()
+})
+
 it('keeps pasted syntax, indentation and blank lines inside the code block', () => {
   render(<MarkdownEditor value={'```text\nstart\n```'} onChange={() => undefined} media={[]} />)
   const editor = richEditor()
