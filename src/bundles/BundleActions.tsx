@@ -151,7 +151,7 @@ export function BundleActions({ draft, onReplace, onNew, onStatus, onImportFocus
         if (file) { pendingImportTrigger.current = event.currentTarget; void stageImport(() => importArticleBundle(file)) }
       }} /></label>
       <button type="button" disabled={disabled} onClick={() => void exportDraft()}>备份草稿</button>
-      <button ref={productionTrigger} type="button" disabled={disabled || Boolean(exportError)} aria-describedby={exportError ? 'production-export-error' : undefined} onClick={() => setProductionDialog(true)}>导出文章</button>
+      <button ref={productionTrigger} type="button" disabled={disabled || Boolean(exportError)} aria-describedby={exportError ? 'production-export-error' : undefined} onClick={() => { setError(undefined); setProductionDialog(true) }}>导出文章</button>
     </div>
     <p className="sidebar-tool-hint">文章包为 ZIP，包含 Markdown 与图片；未填全属性的草稿使用无损备份格式，两种格式均可通过“导入文章包”恢复。</p>
     {exportError ? <p id="production-export-error" className="field-error">{exportError}</p> : null}
@@ -164,9 +164,9 @@ export function BundleActions({ draft, onReplace, onNew, onStatus, onImportFocus
     }} /></label>
     <p className="sidebar-tool-hint">仅用于故障时下载的紧急恢复 ZIP；普通备份请使用“导入文章包”。</p>
     </details>
-    {error ? <p role="alert" className="field-error">{error}</p> : null}
-    {pendingImport ? <AccessibleDialog title="导入已验证" onClose={() => setPendingImport(undefined)} returnFocus={() => pendingImportTrigger.current}><p>ZIP 已完整验证。请选择替换当前文章，或作为一篇新草稿打开。</p><div className="dialog-actions"><DialogClose>{(close) => <button type="button" disabled={disabled} onClick={close}>取消</button>}</DialogClose><DialogClose>{(close) => <button type="button" disabled={disabled} onClick={() => void completeImport(onReplace, close)}>替换当前文章</button>}</DialogClose><DialogClose>{(close) => <button type="button" disabled={disabled} onClick={() => void completeImport(onNew, close)}>作为新草稿打开</button>}</DialogClose></div></AccessibleDialog> : null}
-    {productionDialog ? <AccessibleDialog title="导出 Hugo 文章包" onClose={() => setProductionDialog(false)} returnFocus={() => productionTrigger.current}>{warnings.length > 0 ? <><p>导出前请确认这些提醒：</p><ul>{warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></> : <p>验证通过，准备下载 Hugo leaf bundle。</p>}<div className="dialog-actions"><DialogClose>{(close) => <button type="button" disabled={disabled} onClick={close}>取消</button>}</DialogClose><button type="button" disabled={disabled} onClick={() => void exportProduction(false)}>保留 draft = true</button><button type="button" disabled={disabled} onClick={() => void exportProduction(true)}>设为 draft = false</button></div></AccessibleDialog> : null}
+    {error && !pendingImport && !productionDialog ? <p role="alert" className="field-error">{error}</p> : null}
+    {pendingImport ? <AccessibleDialog title="导入已验证" onClose={() => setPendingImport(undefined)} returnFocus={() => pendingImportTrigger.current}><p>ZIP 已完整验证。请选择替换当前文章，或作为一篇新草稿打开。</p>{error ? <p role="alert" className="field-error">{error}</p> : null}<div className="dialog-actions"><DialogClose>{(close) => <button type="button" disabled={disabled} onClick={close}>取消</button>}</DialogClose><DialogClose>{(close) => <button type="button" disabled={disabled} onClick={() => void completeImport(onReplace, close)}>替换当前文章</button>}</DialogClose><DialogClose>{(close) => <button type="button" disabled={disabled} onClick={() => void completeImport(onNew, close)}>作为新草稿打开</button>}</DialogClose></div></AccessibleDialog> : null}
+    {productionDialog ? <AccessibleDialog title="导出 Hugo 文章包" onClose={() => setProductionDialog(false)} returnFocus={() => productionTrigger.current}>{warnings.length > 0 ? <><p>导出前请确认这些提醒：</p><ul>{warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></> : <p>验证通过，准备下载 Hugo leaf bundle。</p>}{error ? <p role="alert" className="field-error">{error}</p> : null}<div className="dialog-actions"><DialogClose>{(close) => <button type="button" disabled={disabled} onClick={close}>取消</button>}</DialogClose><button type="button" disabled={disabled} onClick={() => void exportProduction(false)}>保留 draft = true</button><button type="button" disabled={disabled} onClick={() => void exportProduction(true)}>设为 draft = false</button></div></AccessibleDialog> : null}
   </section>
 }
 

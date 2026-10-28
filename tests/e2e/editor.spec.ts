@@ -948,6 +948,34 @@ test('edits pasted Mermaid, math, callout and footnote blocks in the document', 
   expect(await markdownSource(page)).toContain('[^1]: 中文脚注内容')
 })
 
+test('pastes inline Markdown into a paragraph without splitting it or losing spaces', { tag: ['@critical', '@webkit-smoke', '@firefox-smoke'] }, async ({ page }) => {
+  await beginArticle(page)
+  await setMarkdown(page, '前后')
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await editor.locator('p').first().click()
+  await editor.evaluate((element) => {
+    const text = element.querySelector('p')?.firstChild
+    if (!text) throw new Error('Missing paragraph text')
+    const range = document.createRange()
+    range.setStart(text, 1)
+    range.collapse(true)
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(range)
+    document.dispatchEvent(new Event('selectionchange'))
+  })
+  await editor.evaluate((element) => {
+    const transfer = new DataTransfer()
+    transfer.setData('text/plain', ' **强调** ')
+    const event = new Event('paste', { bubbles: true, cancelable: true })
+    Object.defineProperty(event, 'clipboardData', { value: transfer })
+    element.dispatchEvent(event)
+  })
+  await expect(editor.locator('p').first()).toHaveText('前 强调 后')
+  await expect(editor.locator('p').first().locator('strong')).toHaveText('强调')
+  await editor.press('ControlOrMeta+z')
+  await expect(editor.locator('p').first()).toHaveText('前后')
+})
+
 test('pastes plain text and Markdown into the rich editor in WebKit', { tag: ['@critical', '@webkit-smoke'] }, async ({ page }) => {
   await beginArticle(page)
   await setMarkdown(page, '## 标题\n\n正文')

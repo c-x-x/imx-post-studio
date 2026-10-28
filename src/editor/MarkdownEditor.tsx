@@ -1,7 +1,7 @@
 import { forwardRef, lazy, Suspense, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react'
-import { getMarkRange, type ChainedCommands, type Editor } from '@tiptap/core'
+import { getMarkRange, type ChainedCommands, type Editor, type JSONContent } from '@tiptap/core'
 import { EditorState, TextSelection } from '@tiptap/pm/state'
 import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from '@tiptap/markdown'
@@ -475,7 +475,25 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                 inserted = true
               } else if (activeEditor.markdown && containsPastedMarkdown(markdownText)) {
                 const parsed = activeEditor.markdown.parse(markdownText)
-                inserted = activeEditor.commands.insertContent(parsed.content ?? [])
+                const paragraph = parsed.content?.length === 1 && parsed.content[0].type === 'paragraph' ? parsed.content[0] : null
+                const inline = paragraph?.content
+                if (!/[\r\n]/.test(plainText) && inline?.length
+                  && inline.every((node) => node.type && activeEditor.schema.nodes[node.type]?.isInline)) {
+                  // A standalone parsed paragraph is a block. Inserting it in
+                  // the middle of text splits that line into three blocks.
+                  // Use its inline children for single-line Markdown, and
+                  // retain whitespace stripped for syntax detection.
+                  const before = plainText.match(/^[\t ]*/)?.[0] ?? ''
+                  const after = plainText.match(/[\t ]*$/)?.[0] ?? ''
+                  const content: JSONContent[] = [
+                    ...(before ? [{ type: 'text', text: before }] : []),
+                    ...inline,
+                    ...(after ? [{ type: 'text', text: after }] : []),
+                  ]
+                  inserted = activeEditor.commands.insertContent(content)
+                } else {
+                  inserted = activeEditor.commands.insertContent(parsed.content ?? [])
+                }
               } else if (!activeEditor.state.selection.empty && /^https?:\/\/\S+$/i.test(markdownText)) {
                 inserted = activeEditor.commands.setLink({ href: markdownText })
               } else {

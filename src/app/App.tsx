@@ -71,6 +71,13 @@ export function App() {
   const studioSettings = useStudioSettings()
   const mobile = useMobileWorkspace()
   const [mobilePanel, setMobilePanel] = useState<'properties' | 'document' | null>(null)
+  const [panelMobileLayout, setPanelMobileLayout] = useState(mobile)
+  if (panelMobileLayout !== mobile) {
+    setPanelMobileLayout(mobile)
+    // Desktop sidebars replace phone dialogs. Discard the old dialog state so
+    // it cannot unexpectedly reopen when the viewport returns to phone size.
+    if (!mobile && mobilePanel !== null) setMobilePanel(null)
+  }
   const propertiesTrigger = useRef<HTMLButtonElement>(null)
   const documentTrigger = useRef<HTMLButtonElement>(null)
   const pendingMobileImage = useRef<MediaAsset | null>(null)

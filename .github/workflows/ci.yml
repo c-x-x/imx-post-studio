@@ -19,9 +19,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
+  changes:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    outputs:
+      browser: ${{ steps.changes.outputs.browser }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -49,6 +50,12 @@ jobs:
             fi
           fi
           echo "browser=$browser" >> "$GITHUB_OUTPUT"
+
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -59,22 +66,68 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run check:standalone
+
+  browser:
+    needs: changes
+    if: ${{ needs.changes.outputs.browser == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { browser: chromium, shard: '1/1', report: chromium }
+          - { browser: firefox, shard: '1/1', report: firefox }
+          - { browser: webkit, shard: '1/2', report: webkit-1 }
+          - { browser: webkit, shard: '2/2', report: webkit-2 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --prefer-offline --no-audit --no-fund
+      - run: npm run build
       - name: Install Playwright browsers
-        if: steps.changes.outputs.browser != 'false'
-        run: npx playwright install --with-deps chromium firefox webkit
+        run: npx playwright install --with-deps ${{ matrix.browser }}
       - name: Browser checks
-        if: steps.changes.outputs.browser != 'false'
         run: |
           if [ "${{ inputs.full_browser_suite }}" = "true" ]; then
-            npm run test:e2e
+            npm run test:e2e -- --project=${{ matrix.browser }} --shard=${{ matrix.shard }}
           else
-            npm run test:e2e:ci
+            npm run test:e2e:ci -- --project=${{ matrix.browser }} --shard=${{ matrix.shard }}
           fi
       - name: Upload Playwright report on failure
         if: ${{ failure() }}
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.report }}
           path: playwright-report
           if-no-files-found: ignore
           retention-days: 7
+
+  # Preserve the existing stable required-check name and fail closed if any
+  # prerequisite fails or is cancelled. Documentation-only runs may skip the
+  # browser matrix, but an unexpected skip must never pass verification.
+  verify:
+    if: ${{ always() }}
+    needs: [changes, quality, browser]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm required checks
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
+          BROWSER_REQUIRED: ${{ needs.changes.outputs.browser }}
+        run: |
+          test "$CHANGES_RESULT" = success
+          test "$QUALITY_RESULT" = success
+          if [ "$BROWSER_REQUIRED" = true ]; then
+            test "$BROWSER_RESULT" = success
+          elif [ "$BROWSER_REQUIRED" = false ]; then
+            test "$BROWSER_RESULT" = skipped
+          else
+            exit 1
+          fi

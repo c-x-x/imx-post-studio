@@ -43,6 +43,9 @@ export function DraftDashboard({ onOpen, activeDraftId, onDelete, onRename, disa
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string>()
   const [pendingDelete, setPendingDelete] = useState<ArticleDraft>()
+  const [deleteError, setDeleteError] = useState<string>()
+  const [deleting, setDeleting] = useState(false)
+  const deletingRef = useRef(false)
   const [renameDraft, setRenameDraft] = useState<ArticleDraft>()
   const [renameValue, setRenameValue] = useState('')
   const [needsBackup, setNeedsBackup] = useState(recordNeedsBackup)
@@ -89,14 +92,49 @@ export function DraftDashboard({ onOpen, activeDraftId, onDelete, onRename, disa
     }
   }
 
-  const closeDelete = () => setPendingDelete(undefined)
+  const closeDelete = () => {
+    if (deletingRef.current) return
+    setPendingDelete(undefined)
+    setDeleteError(undefined)
+  }
+
+  const deleteSelectedDraft = async (draft: ArticleDraft) => {
+    if (deletingRef.current) return
+    deletingRef.current = true
+    setDeleting(true)
+    setDeleteError(undefined)
+    try {
+      await draftRepository.delete(draft.id)
+    } catch (cause) {
+      setDeleteError(`删除草稿失败：${errorMessage(cause)}`)
+      deletingRef.current = false
+      setDeleting(false)
+      return
+    }
+
+    // Once the draft is deleted it must no longer remain active in the
+    // editor, even if cleanup of the separate GitHub origin database fails.
+    onDelete?.(draft.id)
+    setDrafts((current) => current.filter((item) => item.id !== draft.id))
+    setPendingIds((current) => { const next = new Set(current); next.delete(draft.id); return next })
+    deletingRef.current = false
+    setDeleting(false)
+    closeDelete()
+    dashboardRef.current?.focus()
+    try {
+      await githubOrigins.delete(draft.id)
+      await refresh()
+    } catch (cause) {
+      setError(`草稿已删除，但清理 GitHub 关联失败：${errorMessage(cause)}`)
+    }
+  }
 
   return <section ref={dashboardRef} className="draft-dashboard" aria-label="草稿" tabIndex={-1}>
     <div className="dashboard-heading"><div><h2>草稿</h2><p>自动保存于当前浏览器；成功推送后移出草稿，只在作品页显示。</p></div></div>
     {needsBackup ? <p className="backup-reminder" role="status">超过 7 天没有导出便携草稿备份。建议下载一个草稿 ZIP。</p> : null}
     {error ? <p className="field-error" role="alert">{error}</p> : null}
     {[false, true].map((pending) => <section key={String(pending)} className="draft-group" aria-label={pending ? '待提交作品' : '本地草稿'}><h3>{pending ? '待提交作品' : '本地草稿'}</h3><p>{pending ? '从作品页读取的文章及其本地修改，尚未再次推送。删除这里只移除本地副本。' : '尚未推送到 GitHub 的本地创作。'}</p>{!drafts.some((draft) => pendingIds.has(draft.id) === pending) ? <p>暂无{pending ? '待提交作品' : '本地草稿'}。</p> : <ul className="draft-list">{drafts.filter((draft) => pendingIds.has(draft.id) === pending).map((draft) => <li key={draft.id}><DraftThumbnail draft={draft} /><div><h3>{draft.meta.title || '未命名文章'}</h3><p>{draft.meta.slug || '尚未设置 Slug'} · 修改于 {new Date(draft.updatedAt).toLocaleString('zh-CN')}</p></div><div className="draft-actions"><button type="button" disabled={disabled} onClick={() => void onOpen(draft)}>打开</button><button type="button" disabled={disabled} onClick={() => void draftRepository.duplicate(draft.id).then(refresh, (cause: unknown) => setError(errorMessage(cause)))}>复制</button><button ref={renameTrigger} type="button" disabled={disabled} onClick={(event) => { renameTrigger.current = event.currentTarget; setRenameDraft(draft); setRenameValue(draft.meta.title) }}>重命名</button><button type="button" disabled={disabled} onClick={() => void downloadDraft(draft)}>导出草稿</button><button ref={deleteTrigger} type="button" disabled={disabled} onClick={(event) => { deleteTrigger.current = event.currentTarget; setPendingDelete(draft) }}>删除</button></div></li>)}</ul>}</section>)}
-    {pendingDelete ? <AccessibleDialog title="删除草稿？" onClose={closeDelete} returnFocus={() => deleteTrigger.current ?? dashboardRef.current}><p>“{pendingDelete.meta.title || '未命名文章'}”及其图片将从本浏览器移除。</p>{pendingDelete.id === activeDraftId ? <p className="field-error">这也是写作区当前打开的文章；确认删除后，写作区内容会同时清空。</p> : null}<div className="dialog-actions"><DialogClose>{(close) => <button type="button" onClick={close}>取消</button>}</DialogClose><button type="button" onClick={() => void draftRepository.delete(pendingDelete.id).then(async () => { await githubOrigins.delete(pendingDelete.id); onDelete?.(pendingDelete.id); closeDelete(); dashboardRef.current?.focus(); return refresh() }, (cause: unknown) => setError(errorMessage(cause)))}>删除草稿</button></div></AccessibleDialog> : null}
+    {pendingDelete ? <AccessibleDialog title="删除草稿？" onClose={closeDelete} returnFocus={() => deleteTrigger.current?.isConnected ? deleteTrigger.current : dashboardRef.current}><p>“{pendingDelete.meta.title || '未命名文章'}”及其图片将从本浏览器移除。</p>{pendingDelete.id === activeDraftId ? <p className="field-error">这也是写作区当前打开的文章；确认删除后，写作区内容会同时清空。</p> : null}{deleteError ? <p className="field-error" role="alert">{deleteError}</p> : null}<div className="dialog-actions"><DialogClose>{(close) => <button type="button" disabled={deleting} onClick={close}>取消</button>}</DialogClose><button type="button" disabled={deleting} onClick={() => void deleteSelectedDraft(pendingDelete)}>删除草稿</button></div></AccessibleDialog> : null}
     {renameDraft ? <AccessibleDialog title="重命名草稿" onClose={() => setRenameDraft(undefined)} returnFocus={() => renameTrigger.current}><label htmlFor="rename-draft">标题<input id="rename-draft" value={renameValue} onChange={(event) => setRenameValue(event.target.value)} /></label><div className="dialog-actions"><DialogClose>{(close) => <button type="button" onClick={close}>取消</button>}</DialogClose><button type="button" onClick={() => void draftRepository.rename(renameDraft.id, renameValue).then((renamed) => { onRename?.(renamed); setRenameDraft(undefined); renameTrigger.current?.focus(); return refresh() }, (cause: unknown) => setError(errorMessage(cause)))}>保存名称</button></div></AccessibleDialog> : null}
   </section>
 }

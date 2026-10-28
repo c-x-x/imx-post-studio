@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ArticleDraft } from '../../src/metadata/article'
@@ -49,6 +49,26 @@ describe('BundleActions production choices', () => {
 
     finish(new Blob(['zip'], { type: 'application/zip' }))
     await Promise.resolve()
+  })
+
+  it('shows production export errors inside the active dialog', async () => {
+    exportArticleBundle.mockRejectedValue(new Error('导出校验失败'))
+    render(<BundleActions draft={draft()} onReplace={() => undefined} onNew={() => undefined} onStatus={() => undefined} />)
+    fireEvent.click(screen.getByRole('button', { name: '导出文章' }))
+    const dialog = screen.getByRole('dialog', { name: '导出 Hugo 文章包' })
+    fireEvent.click(within(dialog).getByRole('button', { name: '设为 draft = false' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('导出校验失败')
+    expect(within(dialog).getByRole('button', { name: '设为 draft = false' })).toBeEnabled()
+  })
+
+  it('shows import transition errors inside the active dialog', async () => {
+    const user = userEvent.setup()
+    render(<BundleActions draft={draft()} onReplace={() => Promise.reject(new Error('无法替换文章'))} onNew={() => undefined} onStatus={() => undefined} />)
+    const recovery = await fileFromBlob(await exportRecoveryBundle(draft()), 'recovery.zip')
+    await user.upload(screen.getByLabelText('紧急恢复'), recovery)
+    const dialog = await screen.findByRole('dialog', { name: '导入已验证' })
+    await user.click(within(dialog).getByRole('button', { name: '替换当前文章' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('无法替换文章')
   })
 
   it('offers a clearly identified recovery ZIP import through the normal replace/new decision', async () => {

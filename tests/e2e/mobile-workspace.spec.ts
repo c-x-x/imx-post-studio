@@ -185,6 +185,20 @@ test('enforces source mode on phones without changing the desktop preference', a
   await expect(editor).toContainText('**保留正文**')
 })
 
+for (const panel of ['属性', '文档']) test(`does not reopen the ${panel} phone panel after resizing through desktop`, async ({ page }) => {
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await editor.fill('保留正文')
+  await page.getByRole('button', { name: panel, exact: true }).click()
+  await expect(page.getByRole('dialog', { name: panel, exact: true })).toBeVisible()
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await expect(page.locator('.markdown-editor')).toHaveAttribute('data-mode', 'rich')
+  await expect(page.getByRole('dialog', { name: panel, exact: true })).toHaveCount(0)
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.locator('.markdown-editor')).toHaveAttribute('data-mode', 'source')
+  await expect(page.getByRole('dialog', { name: panel, exact: true })).toHaveCount(0)
+  await expect(page.getByRole('textbox', { name: 'Markdown 编辑器' })).toContainText('保留正文')
+})
+
 test('opens only properties and document tools from the status bar, preserving content and focus', async ({ page }, testInfo) => {
   const errors: string[] = []
   page.on('pageerror', (error) => errors.push(error.message))

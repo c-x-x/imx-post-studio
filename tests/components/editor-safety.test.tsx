@@ -26,6 +26,33 @@ it.each(['粘贴文字', '**Markdown粘贴**'])('pastes %s even when the browser
   expect(onChange.mock.calls.at(-1)?.[0].replace(/\n/g, '')).toBe(`前${text}后`)
 })
 
+it('keeps a pasted inline Markdown fragment and its surrounding spaces inside the paragraph', () => {
+  const onChange = vi.fn()
+  render(<MarkdownEditor value="前后" onChange={onChange} media={[]} />)
+  const editor = richEditor()
+  act(() => { editor.commands.setTextSelection(2) })
+  fireEvent.paste(editor.view.dom, { clipboardData: {
+    items: [], files: [], getData: (type: string) => type === 'text/plain' ? ' **强调** ' : '',
+  } })
+  expect(editor.state.doc.firstChild?.textContent).toBe('前 强调 后')
+  expect(editor.state.doc.firstChild?.childCount).toBe(3)
+  expect(editor.view.dom.querySelector('strong')).toHaveTextContent('强调')
+  expect(onChange).toHaveBeenLastCalledWith('前 **强调** 后')
+})
+
+it('replaces selected text with inline Markdown and undoes the paste as one edit', () => {
+  render(<MarkdownEditor value="前旧文后" onChange={() => undefined} media={[]} />)
+  const editor = richEditor()
+  act(() => { editor.commands.setTextSelection({ from: 2, to: 4 }) })
+  fireEvent.paste(editor.view.dom, { clipboardData: {
+    items: [], files: [], getData: (type: string) => type === 'text/plain' ? '**新文**' : '',
+  } })
+  expect(editor.state.doc.firstChild?.textContent).toBe('前新文后')
+  expect(editor.view.dom.querySelector('strong')).toHaveTextContent('新文')
+  act(() => { editor.commands.undo() })
+  expect(editor.state.doc.firstChild?.textContent).toBe('前旧文后')
+})
+
 it('reports a failed text paste instead of silently swallowing it', () => {
   render(<MarkdownEditor value="正文" onChange={() => undefined} media={[]} />)
   const editor = richEditor()
