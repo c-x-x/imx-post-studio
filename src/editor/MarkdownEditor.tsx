@@ -20,7 +20,7 @@ import { TableDialog, type MarkdownTableDimensions } from './TableDialog'
 import { LinkDialog } from './LinkDialog'
 import { SyntaxDialog, type SyntaxDialogValue } from './SyntaxDialog'
 import { CalloutDialog, type CalloutKind } from './CalloutDialog'
-import { DeferredMarkdown, editorMarkdown, pauseDeferredMarkdown, toolbarMarkdownCaretKey, toolbarMarkdownMarkersKey } from './deferred-markdown'
+import { activeHeadingSource, DeferredMarkdown, editorMarkdown, pauseDeferredMarkdown, toolbarMarkdownCaretKey, toolbarMarkdownMarkersKey } from './deferred-markdown'
 import type { SourceMarkdownEditorHandle } from './SourceMarkdownEditor'
 import { AccessibleDialog } from '../app/AccessibleDialog'
 import { BlockReadOnlyContext } from './block-read-only'
@@ -390,6 +390,16 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
             }
           }
         }
+        const headingSource = activeHeadingSource(view.state)
+        if (event.key === 'Backspace' && view.state.selection.empty && headingSource?.prefixLength
+          && deletionCursor.pos === headingSource.position + 1 + headingSource.prefixLength) {
+          event.preventDefault()
+          const start = headingSource.position + 1
+          const transaction = view.state.tr.delete(start, start + headingSource.prefixLength)
+          transaction.setSelection(TextSelection.create(transaction.doc, start))
+          view.dispatch(transaction.scrollIntoView())
+          return true
+        }
         if (event.key === 'Backspace'
           && view.state.selection.empty
           && deletionCursor.parent.type.name === 'heading'
@@ -604,7 +614,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       bold: Boolean(currentEditor?.isActive('bold')),
       bulletList: Boolean(currentEditor?.isActive('bulletList')),
       codeBlock: Boolean(currentEditor?.isActive('codeBlock')),
-      headingLevel: currentEditor?.isActive('heading') ? Number(currentEditor.getAttributes('heading').level ?? 0) : 0,
+      headingLevel: currentEditor ? activeHeadingSource(currentEditor.state)?.level ?? (currentEditor.isActive('heading') ? Number(currentEditor.getAttributes('heading').level ?? 0) : 0) : 0,
       italic: Boolean(currentEditor?.isActive('italic')),
       strike: Boolean(currentEditor?.isActive('strike')),
       link: Boolean(currentEditor?.isActive('link')),
@@ -793,6 +803,21 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     }))
   }
 
+  const runHeadingFormat = (level: 0 | 1 | 2 | 3 | 4 | 5 | 6) => {
+    if (!editor || editor.isDestroyed || disabled || mode !== 'rich') return
+    const source = activeHeadingSource(editor.state)
+    if (!source) {
+      runFormat((chain) => level === 0 ? chain.setParagraph() : chain.setHeading({ level }))
+      return
+    }
+    const replacement = level ? `${'#'.repeat(level)} ` : ''
+    if (source.level !== level || source.prefixLength !== replacement.length) {
+      editor.view.dispatch(editor.state.tr.insertText(replacement, source.position + 1, source.position + 1 + source.prefixLength).scrollIntoView())
+    }
+    editor.view.focus()
+    onFormatApplied?.()
+  }
+
   const runInlineFormat = (open: string, close: string) => {
     if (!editor || editor.isDestroyed || disabled || mode !== 'rich') return
     let { from, to } = editor.state.selection
@@ -960,8 +985,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       </div>
       <div className="editor-tool-group" role="group" aria-label="段落结构">
         <h3>段落结构</h3>
-        <button type="button" aria-pressed={mode === 'rich' && (activeFormats?.headingLevel ?? 0) === 0} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.setParagraph())}>正文</button>
-        {([1, 2, 3, 4, 5, 6] as const).map((level) => <button key={level} type="button" aria-label={`H${level}`} aria-pressed={mode === 'rich' && activeFormats?.headingLevel === level} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.setHeading({ level }))}>H{level}</button>)}
+        <button type="button" aria-pressed={mode === 'rich' && (activeFormats?.headingLevel ?? 0) === 0} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => runHeadingFormat(0)}>正文</button>
+        {([1, 2, 3, 4, 5, 6] as const).map((level) => <button key={level} type="button" aria-label={`H${level}`} aria-pressed={mode === 'rich' && activeFormats?.headingLevel === level} disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => runHeadingFormat(level)}>H{level}</button>)}
         <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.bulletList)} disabled={disabled || mode === 'source' || !activeFormats?.canBulletList} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleBulletList())}>无序列表</button>
         <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.orderedList)} disabled={disabled || mode === 'source' || !activeFormats?.canOrderedList} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleOrderedList())}>有序列表</button>
         <button type="button" aria-pressed={mode === 'rich' && Boolean(activeFormats?.taskList)} disabled={disabled || mode === 'source' || !activeFormats?.canTaskList} onMouseDown={(event) => event.preventDefault()} onClick={() => runFormat((chain) => chain.toggleTaskList())}>任务列表</button>

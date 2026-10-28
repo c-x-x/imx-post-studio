@@ -348,7 +348,7 @@ test('reveals rendered inline source on click and only reparses complete syntax'
   await expect(editor).toContainText('*粗体**')
 })
 
-test('keeps H1-H6 rendered with a visual-only divider while the caret is inside', async ({ page }) => {
+test('keeps H1-H6 styled with a visual-only divider and editable source while the caret is inside', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: '写作', exact: true }).click()
   await setEditorMode(page, 'source')
@@ -360,9 +360,10 @@ test('keeps H1-H6 rendered with a visual-only divider while the caret is inside'
   for (let level = 1; level <= 6; level += 1) {
     const heading = editor.locator(`h${level}`)
     await heading.click()
-    await expect(heading).toHaveText(`标题${level}`)
-    await expect(heading).toHaveCSS('border-bottom-style', 'solid')
-    await expect(heading).toHaveCSS('border-bottom-width', '1px')
+    const active = editor.locator(`[data-heading-source="${level}"]`)
+    await expect(active).toHaveText(`${'#'.repeat(level)} 标题${level}`)
+    await expect(active).toHaveCSS('border-bottom-style', 'solid')
+    await expect(active).toHaveCSS('border-bottom-width', '1px')
     await expect(page.getByRole('button', { name: `H${level}` })).toHaveAttribute('aria-pressed', 'true')
   }
   await expect(editor.locator('hr')).toHaveCount(0)
@@ -384,10 +385,29 @@ test('changes a heading to ordinary text when Backspace is pressed at its start'
   await expect(heading).toBeVisible()
   await heading.click()
   await editor.press('ArrowLeft')
+  const active = editor.locator('[data-heading-source="2"]')
+  await expect(active).toHaveText('## 标题文字')
+  await active.evaluate((element) => {
+    const range = document.createRange()
+    range.selectNodeContents(element)
+    range.collapse(false)
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+    document.dispatchEvent(new Event('selectionchange'))
+  })
   await editor.press('ArrowLeft')
   await editor.press('ArrowLeft')
   await editor.press('ArrowLeft')
-  expect(await heading.evaluate(() => window.getSelection()?.anchorOffset)).toBe(0)
+  await editor.press('ArrowLeft')
+  expect(await active.evaluate((element) => {
+    const selection = window.getSelection()
+    if (!selection?.anchorNode) return ''
+    const before = document.createRange()
+    before.selectNodeContents(element)
+    before.setEnd(selection.anchorNode, selection.anchorOffset)
+    return before.toString()
+  })).toBe('## ')
   await editor.press('Backspace')
 
   await expect(editor.locator('h2')).toHaveCount(0)

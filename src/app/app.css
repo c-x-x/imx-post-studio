@@ -645,9 +645,11 @@ button, input, textarea, [tabindex] { outline-color: var(--imx-accent); }
 .cover-panel {
   display: grid;
   gap: 11px;
+  grid-auto-rows: max-content;
+  align-content: start;
 }
 
-.cover-panel .file-button { justify-self: start; }
+.cover-panel .file-button { justify-self: start; align-self: start; }
 
 .cover-help {
   margin: 0;

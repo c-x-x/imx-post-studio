@@ -170,6 +170,39 @@ describe('MarkdownEditor', () => {
     expect(within(screen.getByRole('textbox', { name: 'Markdown 编辑器' })).getByRole('heading', { level: 2 })).toBeInTheDocument()
   })
 
+  it('keeps heading toolbar state and changes a revealed heading without duplicating markers', async () => {
+    const user = userEvent.setup()
+    render(<ControlledEditor initial={'## 标题\n\n后续'} />)
+    const dom = screen.getByRole('textbox', { name: 'Markdown 编辑器' }) as HTMLElement & { editor: import('@tiptap/core').Editor }
+    act(() => {
+      dom.editor.commands.setTextSelection(dom.editor.state.doc.content.size - 1)
+      dom.editor.commands.setTextSelection(3)
+    })
+    expect(dom.querySelector('[data-heading-source="2"]')).toHaveTextContent('## 标题')
+    expect(screen.getByRole('button', { name: 'H2' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByRole('button', { name: 'H1' }))
+    expect(screen.getByRole('button', { name: 'H1' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('markdown')).toHaveTextContent('# 标题')
+    expect(screen.getByTestId('markdown').textContent).not.toContain('# ##')
+    await user.click(screen.getByRole('button', { name: '正文' }))
+    expect(screen.getByRole('button', { name: '正文' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('markdown').textContent).toBe('标题\n\n后续')
+  })
+
+  it.each([1, 2, 3, 4, 5, 6])('changes a revealed H%s to a paragraph on Backspace at the start of its text', (level) => {
+    render(<ControlledEditor initial={`${'#'.repeat(level)} 标题\n\n后续`} />)
+    const dom = screen.getByRole('textbox', { name: 'Markdown 编辑器' }) as HTMLElement & { editor: import('@tiptap/core').Editor }
+    act(() => {
+      dom.editor.commands.setTextSelection(dom.editor.state.doc.content.size - 1)
+      dom.editor.commands.setTextSelection(1)
+    })
+    expect(dom.querySelector(`[data-heading-source="${level}"]`)).toHaveTextContent(`${'#'.repeat(level)} 标题`)
+    fireEvent.keyDown(dom, { key: 'Backspace' })
+    expect(screen.getByTestId('markdown').textContent).toBe('标题\n\n后续')
+    expect(dom.editor.state.selection.from).toBe(1)
+    expect(screen.getByRole('button', { name: '正文' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
   it('creates an editable table and exposes structural actions', async () => {
     const user = userEvent.setup()
     render(<ControlledEditor />)

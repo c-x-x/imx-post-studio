@@ -59,6 +59,16 @@ function textblockPosition(state: EditorState): number | null {
   return $from.depth > 0 && $from.parent.isTextblock ? $from.before() : null
 }
 
+/** Return the editable heading prefix only for a heading currently revealed by this plugin. */
+export function activeHeadingSource(state: EditorState): { position: number; level: number; prefixLength: number } | null {
+  const position = textblockPosition(state)
+  const revealed = pendingKey.getState(state)?.revealed
+  if (position === null || revealed?.kind !== 'heading' || revealed.block !== position) return null
+  const node = state.doc.nodeAt(position)
+  const prefix = node?.textContent.match(/^(#{1,6})[ \t]+/)
+  return { position, level: prefix?.[1].length ?? 0, prefixLength: prefix?.[0].length ?? 0 }
+}
+
 function canDefer(node: ProseMirrorNode | null): boolean {
   if (!node || !['paragraph', 'heading'].includes(node.type.name)) return false
   let syntax = blockPrefix.test(node.textContent)
