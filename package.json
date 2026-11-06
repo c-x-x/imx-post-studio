@@ -36,7 +36,7 @@
     "@jsquash/webp": "^1.5.0",
     "@lezer/markdown": "^1.7.2",
     "@tiptap/extension-code-block-lowlight": "^3.30.6",
-    "@tiptap/extension-image": "^3.30.6",
+    "@tiptap/extension-image": "^3.31.3",
     "@tiptap/extension-table": "^3.30.6",
     "@tiptap/extension-task-item": "^3.30.6",
     "@tiptap/extension-task-list": "^3.30.6",
