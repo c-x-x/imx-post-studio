@@ -29,7 +29,7 @@
     "nanoid": "3.3.18"
   },
   "dependencies": {
-    "@codemirror/commands": "^6.10.4",
+    "@codemirror/commands": "^6.11.1",
     "@codemirror/lang-markdown": "^6.5.1",
     "@codemirror/language": "^6.12.4",
     "@codemirror/language-data": "^6.5.2",
