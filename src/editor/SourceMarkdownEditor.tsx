@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import CodeMirror, { EditorView, Transaction, type ReactCodeMirrorRef } from '@uiw/react-codemirror'
-import { redo as redoCommand, redoDepth, undo as undoCommand, undoDepth } from '@codemirror/commands'
+import { isolateHistory, redo as redoCommand, redoDepth, undo as undoCommand, undoDepth } from '@codemirror/commands'
 import { markdown } from '@codemirror/lang-markdown'
 import { languages } from '@codemirror/language-data'
 import { GFM } from '@lezer/markdown'
@@ -61,11 +61,16 @@ export const SourceMarkdownEditor = forwardRef<SourceMarkdownEditorHandle, Sourc
             // history event. If the async decode blurred the editor, undo must
             // restore this selection rather than CodeMirror's transient one.
             view.dispatch({
-              selection: { anchor: target.from, head: target.to },
+              selection: target,
               annotations: Transaction.addToHistory.of(false),
             })
             view.focus()
-            view.dispatch({ changes: { from: target.from, to: target.to, insert }, selection: { anchor: target.from + insert.length }, scrollIntoView: true })
+            view.dispatch({
+              changes: { from: target.from, to: target.to, insert },
+              selection: { anchor: target.from + insert.length },
+              annotations: isolateHistory.of('full'),
+              scrollIntoView: true,
+            })
             commit(assets, view.state.doc.toString())
           })
           .catch(() => undefined)

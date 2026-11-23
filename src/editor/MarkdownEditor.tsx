@@ -2,6 +2,8 @@ import { forwardRef, lazy, Suspense, useCallback, useEffect, useImperativeHandle
 import { createPortal } from 'react-dom'
 import { EditorContent, useEditor, useEditorState } from '@tiptap/react'
 import { getMarkRange, type ChainedCommands, type Editor, type JSONContent } from '@tiptap/core'
+import type { EditorView } from '@tiptap/pm/view'
+import { closeHistory } from '@tiptap/pm/history'
 import { EditorState, TextSelection } from '@tiptap/pm/state'
 import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from '@tiptap/markdown'
@@ -20,7 +22,7 @@ import { TableDialog, type MarkdownTableDimensions } from './TableDialog'
 import { LinkDialog } from './LinkDialog'
 import { SyntaxDialog, type SyntaxDialogValue } from './SyntaxDialog'
 import { CalloutDialog, type CalloutKind } from './CalloutDialog'
-import { activeHeadingSource, DeferredMarkdown, editorMarkdown, pauseDeferredMarkdown, toolbarMarkdownCaretKey, toolbarMarkdownMarkersKey } from './deferred-markdown'
+import { activeHeadingSource, DeferredMarkdown, editorMarkdown, outlineHeadingPosition, pauseDeferredMarkdown, toolbarMarkdownCaretKey, toolbarMarkdownMarkersKey } from './deferred-markdown'
 import type { SourceMarkdownEditorHandle } from './SourceMarkdownEditor'
 import { AccessibleDialog } from '../app/AccessibleDialog'
 import { BlockReadOnlyContext } from './block-read-only'
@@ -57,6 +59,29 @@ interface MarkdownEditorProps {
   font?: EditorFont
   focusMode?: boolean
   typewriterMode?: boolean
+}
+
+// The browser may paint an arrow-key move before delivering selectionchange.
+// Read both endpoints before an edit can use the previous caret or range.
+function syncNativeTextSelection(view: EditorView): void {
+  if (!(view.state.selection instanceof TextSelection) || !view.hasFocus() || view.composing) return
+  const selection = view.dom.ownerDocument.getSelection()
+  if (!selection?.anchorNode || !selection.focusNode
+    || !view.dom.contains(selection.anchorNode) || !view.dom.contains(selection.focusNode)) return
+  const { doc, tr } = view.state
+  let anchor: number
+  let head: number
+  try {
+    anchor = view.posAtDOM(selection.anchorNode, selection.anchorOffset)
+    head = view.posAtDOM(selection.focusNode, selection.focusOffset)
+  } catch {
+    // A browser-managed node can still be awaiting ProseMirror's DOM reconciliation.
+    return
+  }
+  if (Math.min(anchor, head) < 0 || Math.max(anchor, head) > doc.content.size) return
+  if (!doc.resolve(anchor).parent.inlineContent || !doc.resolve(head).parent.inlineContent) return
+  const live = TextSelection.create(doc, anchor, head)
+  if (!live.eq(view.state.selection)) view.dispatch(tr.setSelection(live).setMeta('addToHistory', false))
 }
 
 function markdownHeadingIndex(value: string, position: number): number {
@@ -377,22 +402,12 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         'aria-label': 'Markdown 编辑器',
       },
       handleKeyDown(view, event) {
+        if (event.isComposing || event.keyCode === 229 || view.composing) return false
+        if (event.key === 'Backspace' || event.key === 'Delete') syncNativeTextSelection(view)
         const { $from } = view.state.selection
-        let deletionCursor = $from
-        if (event.key === 'Backspace' && view.state.selection.empty) {
-          const nativeSelection = view.dom.ownerDocument.getSelection()
-          if (nativeSelection?.isCollapsed && nativeSelection.anchorNode && view.dom.contains(nativeSelection.anchorNode)) {
-            try {
-              deletionCursor = view.state.doc.resolve(view.posAtDOM(nativeSelection.anchorNode, nativeSelection.anchorOffset))
-            } catch {
-              // Fall back to ProseMirror's selection when the browser exposes
-              // a transient DOM position that cannot be mapped yet.
-            }
-          }
-        }
         const headingSource = activeHeadingSource(view.state)
         if (event.key === 'Backspace' && view.state.selection.empty && headingSource?.prefixLength
-          && deletionCursor.pos === headingSource.position + 1 + headingSource.prefixLength) {
+          && $from.pos === headingSource.position + 1 + headingSource.prefixLength) {
           event.preventDefault()
           const start = headingSource.position + 1
           const transaction = view.state.tr.delete(start, start + headingSource.prefixLength)
@@ -402,10 +417,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         }
         if (event.key === 'Backspace'
           && view.state.selection.empty
-          && deletionCursor.parent.type.name === 'heading'
-          && deletionCursor.parentOffset === 0) {
+          && $from.parent.type.name === 'heading'
+          && $from.parentOffset === 0) {
           event.preventDefault()
-          const headingPosition = deletionCursor.before(deletionCursor.depth)
+          const headingPosition = $from.before($from.depth)
           const transaction = view.state.tr
             .setNodeMarkup(headingPosition, view.state.schema.nodes.paragraph, {})
           transaction.setSelection(TextSelection.create(transaction.doc, headingPosition + 1))
@@ -441,32 +456,44 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           return true
         }
         if (event.key !== 'Tab') return false
-        if ($from.parent.type.name !== 'codeBlock') return false
+        const { $to, empty } = view.state.selection
+        if ($from.parent.type.name !== 'codeBlock' || !$from.sameParent($to)) return false
         event.preventDefault()
-        const { from, to } = view.state.selection
-        if (!event.shiftKey) {
-          view.dispatch(view.state.tr.insertText('  ', from, to).scrollIntoView())
+        if (empty && !event.shiftKey) {
+          view.dispatch(view.state.tr.insertText('  ').scrollIntoView())
           return true
         }
         const code = $from.parent.textContent
-        const lineStartOffset = code.lastIndexOf('\n', Math.max(0, $from.parentOffset - 1)) + 1
-        const leadingSpaces = code.slice(lineStartOffset).match(/^ {1,2}/)?.[0].length ?? 0
-        if (leadingSpaces > 0) {
-          const lineStart = $from.start() + lineStartOffset
-          view.dispatch(view.state.tr.delete(lineStart, lineStart + leadingSpaces).scrollIntoView())
-        }
+        const transaction = view.state.tr
+        let offset = code.slice(0, $from.parentOffset).lastIndexOf('\n') + 1
+        // A range ending at the next line's start does not select that line.
+        do {
+          const start = transaction.mapping.map($from.start() + offset)
+          if (event.shiftKey) {
+            const indentation = code.slice(offset).match(/^(?: {1,2}|\t)/)?.[0]
+            if (indentation) transaction.delete(start, start + indentation.length)
+          } else {
+            transaction.insertText('  ', start, start)
+          }
+          const newline = code.indexOf('\n', offset)
+          if (newline < 0) break
+          offset = newline + 1
+        } while (offset < $to.parentOffset)
+        if (transaction.docChanged) view.dispatch(transaction.scrollIntoView())
         return true
       },
       handleDOMEvents: {
-        paste(_view, event) {
+        paste(view, event) {
           const clipboardEvent = event as ClipboardEvent
           const files = clipboardImages(clipboardEvent.clipboardData)
           const activeEditor = richEditorRef.current
           const plainText = clipboardEvent.clipboardData?.getData('text/plain') ?? ''
           if (activeEditor && !activeEditor.isEditable) return true
+          syncNativeTextSelection(view)
           if (files.length === 0 && activeEditor && plainText) {
             clipboardEvent.preventDefault()
             setPasteError('')
+            activeEditor.view.dispatch(closeHistory(activeEditor.state.tr))
             const markdownText = plainText.trim()
             try {
               let inserted: boolean
@@ -474,17 +501,18 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
                 activeEditor.view.dispatch(activeEditor.state.tr.insertText(plainText.replace(/\r\n?/g, '\n')).scrollIntoView())
                 inserted = true
               } else if (activeEditor.markdown && containsPastedMarkdown(markdownText)) {
-                const parsed = activeEditor.markdown.parse(markdownText)
+                const inlineCandidate = !/[\r\n]/.test(plainText) && !/^(?: {4}| {0,3}\t)/.test(plainText)
+                const parsed = activeEditor.markdown.parse(inlineCandidate ? markdownText : plainText.replace(/\r\n?/g, '\n'))
                 const paragraph = parsed.content?.length === 1 && parsed.content[0].type === 'paragraph' ? parsed.content[0] : null
                 const inline = paragraph?.content
-                if (!/[\r\n]/.test(plainText) && inline?.length
+                if (inlineCandidate && inline?.length
                   && inline.every((node) => node.type && activeEditor.schema.nodes[node.type]?.isInline)) {
                   // A standalone parsed paragraph is a block. Inserting it in
                   // the middle of text splits that line into three blocks.
                   // Use its inline children for single-line Markdown, and
                   // retain whitespace stripped for syntax detection.
-                  const before = plainText.match(/^[\t ]*/)?.[0] ?? ''
-                  const after = plainText.match(/[\t ]*$/)?.[0] ?? ''
+                  const before = plainText.match(/^\s*/)?.[0] ?? ''
+                  const after = plainText.match(/\s*$/)?.[0] ?? ''
                   const content: JSONContent[] = [
                     ...(before ? [{ type: 'text', text: before }] : []),
                     ...inline,
@@ -508,6 +536,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
             } catch {
               setPasteError('粘贴失败，请尝试以纯文本粘贴，或切换到源代码模式。')
             }
+            activeEditor.view.dispatch(closeHistory(activeEditor.state.tr))
             // A stale browser composition flag can also suppress onUpdate.
             // Publish this explicit paste immediately instead of waiting for
             // an IME compositionend event that may never arrive.
@@ -524,17 +553,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           const currentEditor = richEditorRef.current
           const current = currentEditor ? editorMarkdown(currentEditor) : latestValueRef.current
           const selection = currentEditor?.state.selection
+          const bookmark = selection?.getBookmark()
           const from = selection?.from ?? 1
           const to = selection?.to ?? from
           void prepare({ files, selection: { from, to }, value: current })
             .then((assets) => {
               const activeEditor = richEditorRef.current
               if (assets.length === 0 || modeRef.current !== 'rich' || !activeEditor || activeEditor.isDestroyed) return
-              const max = activeEditor.state.doc.content.size
-              const unchanged = editorMarkdown(activeEditor) === current
-              const target = unchanged ? { from, to } : activeEditor.state.selection
-              const safeFrom = Math.max(1, Math.min(max, target.from))
-              const safeTo = Math.max(safeFrom, Math.min(max, target.to))
               const content = assets.map((asset) => (
                 { type: 'image', attrs: { src: `images/${asset.name}`, alt: mediaAlt(asset.name) } }
               ))
@@ -543,12 +568,15 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
               // to the start when that blur happens. Restore the captured
               // selection before starting the insertion history event so undo
               // returns to the paste caret instead of that transient position.
-              const restore = activeEditor.state.tr
-                .setSelection(TextSelection.create(activeEditor.state.doc, safeFrom, safeTo))
-                .setMeta('addToHistory', false)
-              activeEditor.view.dispatch(restore)
+              const state = activeEditor.state
+              const restore = closeHistory(state.tr)
+              if (bookmark && to <= state.doc.content.size && editorMarkdown(activeEditor) === current) {
+                restore.setSelection(bookmark.resolve(state.doc))
+              }
+              activeEditor.view.dispatch(restore.setMeta('addToHistory', false))
               activeEditor.view.focus()
               activeEditor.commands.insertContent(content)
+              activeEditor.view.dispatch(closeHistory(activeEditor.state.tr))
               commit(assets, editorMarkdown(activeEditor))
             })
             .catch(() => undefined)
@@ -790,14 +818,8 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         return
       }
       const targetIndex = markdownHeadingIndex(latestValueRef.current, position)
-      let seen = -1
-      let target = 1
-      editor.state.doc.descendants((node, pos) => {
-        if (node.type.name !== 'heading') return
-        seen += 1
-        if (seen === targetIndex) target = pos + 1
-      })
-      editor.chain().focus(target).scrollIntoView().run()
+      const target = outlineHeadingPosition(editor, targetIndex)
+      if (target !== undefined) editor.chain().focus(target).scrollIntoView().run()
     },
     insertImage(name: string, alt: string) {
       if (!editor || disabled) return

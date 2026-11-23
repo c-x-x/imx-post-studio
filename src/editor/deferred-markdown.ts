@@ -3,6 +3,7 @@ import type {} from '@tiptap/markdown'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { isHistoryTransaction } from '@tiptap/pm/history'
 import { Plugin, PluginKey, Selection, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state'
+import { StepMap, type Step } from '@tiptap/pm/transform'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 
 interface DeferredState {
@@ -14,7 +15,15 @@ interface DeferredState {
   revealed: RevealedInlineSource | null
 }
 type InlineSourceKind = 'bold' | 'italic' | 'strike' | 'code' | 'highlight' | 'subscript' | 'superscript' | 'math' | 'heading'
-interface RevealedInlineSource { block: number; from: number; to: number; kind: InlineSourceKind }
+interface RevealedInlineSource {
+  block: number
+  from: number
+  to: number
+  kind: InlineSourceKind
+  originalBlock: number
+  sourceNode: ProseMirrorNode
+  restore: Step[]
+}
 const pendingKey = new PluginKey<DeferredState>('deferredMarkdown')
 const pauseKey = 'deferredMarkdownPaused'
 const revealKey = 'deferredMarkdownReveal'
@@ -121,6 +130,26 @@ function lineMarkdown(editor: Editor, node: ProseMirrorNode, position: number, l
   return `${'#'.repeat(Number(node.attrs.level))} ${text}`
 }
 
+// The outline is built from Markdown, including headings that are temporarily
+// represented by editable paragraphs. Match its order when placing the caret.
+export function outlineHeadingPosition(editor: Editor, index: number): number | undefined {
+  const pending = pendingKey.getState(editor.state)?.pending
+  let seen = 0
+  let target: number | undefined
+  editor.state.doc.descendants((node, position) => {
+    if (target !== undefined) return false
+    let prefixLength = 0
+    if (node.type.name === 'paragraph' && pending?.has(position)) {
+      const prefix = lineMarkdown(editor, node, position).match(/^ {0,3}#{1,6}[ \t]+/)
+      if (!prefix || !node.textContent.slice(prefix[0].length).trim()) return false
+      prefixLength = prefix[0].length
+    } else if (node.type.name !== 'heading' || !node.content.size) return
+    if (seen++ === index) target = position + 1 + prefixLength
+    return false
+  })
+  return target
+}
+
 function childMatchesInlineKind(child: ProseMirrorNode, kind: InlineSourceKind): boolean {
   if (kind === 'heading') return false
   if (kind === 'math') return child.type.name === 'mathInline'
@@ -154,6 +183,16 @@ function inlineKindAtSelection(state: EditorState): InlineSourceKind | null {
   return nodeBefore?.type.name === 'mathInline' || nodeAfter?.type.name === 'mathInline' ? 'math' : null
 }
 
+function revealPresentation(transaction: Transaction, block: number, from: number, to: number, kind: InlineSourceKind): Transaction {
+  const revealed: RevealedInlineSource = {
+    block, from, to, kind,
+    originalBlock: block,
+    sourceNode: transaction.doc.nodeAt(block)!,
+    restore: transaction.steps.map((step, index) => step.invert(transaction.docs[index])).reverse(),
+  }
+  return transaction.setMeta(revealKey, revealed).setMeta('addToHistory', false)
+}
+
 function inlineRevealTransaction(editor: Editor, state: EditorState, position: number, kind: InlineSourceKind): Transaction | null {
   const $position = state.doc.resolve(position)
   let depth = $position.depth
@@ -164,6 +203,7 @@ function inlineRevealTransaction(editor: Editor, state: EditorState, position: n
   if (!['paragraph', 'heading'].includes(node.type.name) || pendingKey.getState(state)?.pending.has(block)) return null
 
   const literals = pendingKey.getState(state)?.literals
+  const transaction = state.tr
   let source = ''
   let selected: { from: number; to: number; caret: number } | null = null
   node.forEach((child, offset) => {
@@ -175,9 +215,21 @@ function inlineRevealTransaction(editor: Editor, state: EditorState, position: n
         : editor.markdown!.serialize({ type: 'paragraph', content: [child.toJSON()] })
     const segmentStart = source.length
     source += segment
+    // Keep the original text positions mappable through the display change so
+    // an earlier edit in this run can still be undone after a visit.
+    const start = block + 1 + segmentStart
+    const index = child.text ? segment.indexOf(child.text) : -1
+    if (index >= 0) {
+      if (child.marks.length) transaction.removeMark(start, start + child.nodeSize)
+      const suffix = segment.slice(index + child.nodeSize)
+      if (suffix) transaction.insert(start + child.nodeSize, state.schema.text(suffix))
+      if (index) transaction.insert(start, state.schema.text(segment.slice(0, index)))
+    } else {
+      transaction.replaceWith(start, start + child.nodeSize, segment ? state.schema.text(segment) : [])
+    }
     const containsClick = position >= childPosition && position <= childPosition + child.nodeSize
     if (!containsClick || !childMatchesInlineKind(child, kind)) return
-    const contentIndex = child.text ? Math.max(0, segment.indexOf(child.text)) : 0
+    const contentIndex = Math.max(0, index)
     const textOffset = child.isText ? Math.max(0, Math.min(child.text?.length ?? 0, position - childPosition)) : 0
     selected = {
       from: segmentStart,
@@ -194,16 +246,8 @@ function inlineRevealTransaction(editor: Editor, state: EditorState, position: n
   if (selectedSource.to <= selectedSource.from) return null
 
   const from = block + 1
-  const transaction = state.tr.replaceWith(from, block + node.nodeSize - 1, state.schema.text(source))
-  const revealed = {
-    block,
-    from: from + selectedSource.from,
-    to: from + selectedSource.to,
-    kind,
-  }
   transaction.setSelection(TextSelection.create(transaction.doc, from + selectedSource.caret))
-  transaction.setMeta(revealKey, revealed)
-  return transaction.scrollIntoView()
+  return revealPresentation(transaction, block, from + selectedSource.from, from + selectedSource.to, kind).scrollIntoView()
 }
 
 function revealSourceAtSelection(editor: Editor, state: EditorState, position: number, kind?: InlineSourceKind): Transaction | null {
@@ -211,11 +255,10 @@ function revealSourceAtSelection(editor: Editor, state: EditorState, position: n
   const node = block === null ? null : state.doc.nodeAt(block)
   if (!kind && block !== null && node?.type.name === 'heading' && !pendingKey.getState(state)?.pending.has(block)) {
     const prefix = `${'#'.repeat(Number(node.attrs.level))} `
-    const paragraph = state.schema.nodes.paragraph.create(null, [state.schema.text(prefix), ...Array.from({ length: node.childCount }, (_, index) => node.child(index))])
-    const transaction = state.tr.replaceWith(block, block + node.nodeSize, paragraph)
+    const transaction = state.tr.setNodeMarkup(block, state.schema.nodes.paragraph)
+    transaction.insert(block + 1, state.schema.text(prefix))
     transaction.setSelection(TextSelection.create(transaction.doc, position + prefix.length))
-    transaction.setMeta(revealKey, { block, from: block + 1, to: block + paragraph.nodeSize - 1, kind: 'heading' })
-    return transaction
+    return revealPresentation(transaction, block, block + 1, block + node.nodeSize + prefix.length - 1, 'heading')
   }
   const resolvedKind = kind ?? inlineKindAtSelection(state)
   return resolvedKind ? inlineRevealTransaction(editor, state, position, resolvedKind) : null
@@ -371,6 +414,7 @@ export const DeferredMarkdown = Extension.create({
             const repairing = revealed.kind === 'heading' || !completeRevealedSyntax(oldState, revealed)
             const mappedBlock = transaction.mapping.mapResult(revealed.block, 1)
             revealed = mappedBlock.deleted ? null : {
+              ...revealed,
               block: mappedBlock.pos,
               // Repairs at either delimiter belong to the revealed source.
               from: transaction.mapping.map(revealed.from, repairing ? -1 : 1),
@@ -421,6 +465,7 @@ export const DeferredMarkdown = Extension.create({
         if (!pending?.size || !editor.markdown) return null
           const transaction = state.tr
           const committed: number[] = []
+          let presentationOnly = true
           let restoredImagePosition: number | null = null
           // Back-to-front replacements leave the remaining block positions stable.
           for (const position of [...pending].sort((a, b) => b - a)) {
@@ -446,11 +491,18 @@ export const DeferredMarkdown = Extension.create({
             if (!$position.parent.canReplace($position.index(), $position.index() + 1, parsed.content)) continue
             if (!parsed.content.eq(state.doc.content.cut(position, position + node.nodeSize)) || revealed?.kind === 'heading') {
               committed.push(position)
-              transaction.replaceWith(position, position + node.nodeSize, parsed.content)
+              if (revealed?.block === position && node.eq(revealed.sourceNode)) {
+                const shift = StepMap.offset(position - revealed.originalBlock)
+                for (const step of revealed.restore) transaction.step(step.map(shift)!)
+              } else {
+                presentationOnly = false
+                transaction.replaceWith(position, position + node.nodeSize, parsed.content)
+              }
               if (position === active && restoresStandaloneImage) restoredImagePosition = position
             }
           }
           if (!committed.length) return null
+          if (presentationOnly) transaction.setMeta('addToHistory', false)
           if (restoredImagePosition !== null) {
             const imagePosition = transaction.mapping.map(restoredImagePosition, -1)
             const image = transaction.doc.nodeAt(imagePosition)

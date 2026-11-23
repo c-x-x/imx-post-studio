@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { createRef } from 'react'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { Editor } from '@tiptap/core'
-import { MarkdownEditor } from '../../src/editor/MarkdownEditor'
+import { MarkdownEditor, type MarkdownEditorHandle } from '../../src/editor/MarkdownEditor'
 import { SourceMarkdownEditor, type SourceMarkdownEditorHandle } from '../../src/editor/SourceMarkdownEditor'
 import type { MediaAsset } from '../../src/metadata/article'
 
@@ -197,4 +197,128 @@ it('keeps the captured source caret outside asynchronous image-paste history', a
     editorRef.current?.insertMarkdown('撤销后')
   })
   expect(onChange.mock.calls.at(-1)?.[0]).toBe('源码前撤销后源码后')
+})
+
+it('keeps selected code intact when indenting and outdenting several lines', () => {
+  render(<MarkdownEditor value={'```js\none\ntwo\nthree\n```'} onChange={() => undefined} media={[]} />)
+  const editor = richEditor()
+  act(() => { editor.commands.setTextSelection({ from: 2, to: 8 }) })
+  fireEvent.keyDown(editor.view.dom, { key: 'Tab' })
+  expect(editor.state.doc.firstChild?.textContent).toBe('  one\n  two\nthree')
+  expect(editor.state.selection.empty).toBe(false)
+  fireEvent.keyDown(editor.view.dom, { key: 'Tab', shiftKey: true })
+  expect(editor.state.doc.firstChild?.textContent).toBe('one\ntwo\nthree')
+  expect([editor.state.selection.from, editor.state.selection.to]).toEqual([2, 8])
+})
+
+it('jumps to the intended outline item while an earlier heading shows its editable prefix', () => {
+  const ref = createRef<MarkdownEditorHandle>()
+  const markdown = '开头\n\n## 第一节\n\n## 第二节\n\n## 第三节'
+  render(<MarkdownEditor ref={ref} value={markdown} onChange={() => undefined} media={[]} />)
+  const editor = richEditor()
+  act(() => { ref.current!.focusPosition(markdown.indexOf('## 第一节')) })
+  expect(editor.state.selection.$from.parent.textContent).toContain('## 第一节')
+  act(() => { ref.current!.focusPosition(markdown.indexOf('## 第二节')) })
+  expect(editor.state.selection.$from.parent.textContent).toContain('第二节')
+})
+
+it('undoes a Markdown paste independently of the immediately preceding keystroke', () => {
+  render(<MarkdownEditor value="正文" onChange={() => undefined} media={[]} />)
+  const editor = richEditor()
+  act(() => { editor.chain().setTextSelection(3).insertContent('甲').run() })
+  fireEvent.paste(editor.view.dom, { clipboardData: {
+    items: [], files: [], getData: (type: string) => type === 'text/plain' ? '**乙**' : '',
+  } })
+  expect(editor.state.doc.firstChild?.textContent).toBe('正文甲乙')
+  act(() => { editor.commands.undo() })
+  expect(editor.state.doc.firstChild?.textContent).toBe('正文甲')
+  expect(editor.state.selection.from).toBe(4)
+})
+
+it.each([['Backspace', '前', 1], ['Delete', '后', 0]] as const)(
+  '%s in an empty callout leaves the caret on the corresponding side',
+  async (key, paragraph, offset) => {
+    render(<MarkdownEditor value={'前\n\n> [!NOTE]\n> 内容\n\n后'} onChange={() => undefined} media={[]} />)
+    const editor = richEditor()
+    act(() => { editor.commands.setNodeSelection(editor.state.doc.firstChild!.nodeSize) })
+    const field = await screen.findByLabelText('提醒内容正文')
+    fireEvent.change(field, { target: { value: '' } })
+    fireEvent.keyDown(field, { key })
+    expect(editor.view.dom.querySelector('.callout-block-view')).toBeNull()
+    expect(editor.state.selection.$from.parent.textContent).toBe(paragraph)
+    expect(editor.state.selection.$from.parentOffset).toBe(offset)
+  },
+)
+
+it('keeps the callout and its editing field during IME cancellation', async () => {
+  render(<MarkdownEditor value={'> [!NOTE]\n> 旧文'} onChange={() => undefined} media={[]} />)
+  const editor = richEditor()
+  act(() => { editor.commands.setNodeSelection(0) })
+  const field = await screen.findByLabelText('提醒内容正文')
+  fireEvent.change(field, { target: { value: '' } })
+  fireEvent.compositionStart(field)
+  fireEvent.keyDown(field, { key: 'Backspace', isComposing: true })
+  expect(field).toBeInTheDocument()
+  fireEvent.keyDown(field, { key: 'Escape', isComposing: true })
+  expect(field).toBeInTheDocument()
+})
+
+it('preserves a pasted indented code sample containing Markdown punctuation', () => {
+  render(<MarkdownEditor value="" onChange={() => undefined} media={[]} />)
+  const editor = richEditor()
+  fireEvent.paste(editor.view.dom, { clipboardData: {
+    items: [], files: [], getData: (type: string) => type === 'text/plain' ? '    # comment\r\n    echo ok' : '',
+  } })
+  expect(editor.state.doc.firstChild?.type.name).toBe('codeBlock')
+  expect(editor.state.doc.firstChild?.textContent).toBe('# comment\necho ok')
+})
+
+it('counts a newly typed heading in outline navigation before leaving its line', () => {
+  const ref = createRef<MarkdownEditorHandle>()
+  const markdown = '预留\n\n## 第二节\n\n## 第三节'
+  render(<MarkdownEditor ref={ref} value={markdown} onChange={() => undefined} media={[]} />)
+  const editor = richEditor()
+  act(() => { editor.view.dispatch(editor.state.tr.insertText('## ', 1)) })
+  act(() => { ref.current!.focusPosition(('## ' + markdown).indexOf('## 第二节')) })
+  expect(editor.state.selection.$from.parent.textContent).toContain('第二节')
+})
+
+it.each(['## 标题', '**加粗**'])('keeps navigation through %s out of the undo history', async (line) => {
+  render(<MarkdownEditor value={'上文\n\n' + line + '\n\n下文'} onChange={() => undefined} media={[]} />)
+  const editor = richEditor()
+  await waitFor(() => expect(editor.state.doc.lastChild?.content.size).toBe(0))
+  expect(editor.can().undo()).toBe(false)
+  const middle = editor.state.doc.firstChild!.nodeSize + 2
+  act(() => { editor.commands.setTextSelection(middle) })
+  act(() => { editor.commands.setTextSelection(1) })
+  expect(editor.can().undo()).toBe(false)
+})
+
+it.each(['## 标题', '**加粗**'])('keeps redo available after navigating through %s', async (line) => {
+  render(<MarkdownEditor value={'上文\n\n' + line} onChange={() => undefined} media={[]} />)
+  const editor = richEditor()
+  await waitFor(() => expect(editor.state.doc.lastChild?.content.size).toBe(0))
+  act(() => { editor.view.dispatch(editor.state.tr.insertText('新', 2)) })
+  act(() => { editor.commands.undo() })
+  act(() => { editor.commands.setTextSelection(editor.state.doc.firstChild!.nodeSize + 2) })
+  act(() => { editor.commands.setTextSelection(1) })
+  act(() => { expect(editor.commands.redo()).toBe(true) })
+  expect(editor.state.doc.firstChild?.textContent).toBe('上新文')
+})
+
+it('deletes the visible backward selection before the delayed selectionchange arrives', async () => {
+  render(<MarkdownEditor value="前原文后" onChange={() => undefined} media={[]} />)
+  const editor = richEditor()
+  await waitFor(() => expect(editor.state.doc.lastChild?.content.size).toBe(0))
+  act(() => {
+    editor.commands.setTextSelection(5)
+    editor.view.focus()
+    const text = editor.view.dom.querySelector('p')!.firstChild!
+    window.getSelection()!.setBaseAndExtent(text, 3, text, 1)
+  })
+  fireEvent.keyDown(editor.view.dom, { key: 'Delete', keyCode: 46 })
+  expect(editor.state.doc.firstChild?.textContent).toBe('前后')
+  act(() => { editor.commands.undo() })
+  expect(editor.state.doc.firstChild?.textContent).toBe('前原文后')
+  expect([editor.state.selection.anchor, editor.state.selection.head]).toEqual([4, 2])
 })

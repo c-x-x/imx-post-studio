@@ -1,6 +1,5 @@
 import { useContext, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type RefObject } from 'react'
 import { NodeViewContent, NodeViewWrapper, type ReactNodeViewProps } from '@tiptap/react'
-import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import { Selection, TextSelection } from '@tiptap/pm/state'
 import katex from 'katex'
 import { BlockReadOnlyContext } from './block-read-only'
@@ -58,30 +57,14 @@ function exitBlock({ editor, getPos, node }: Pick<ReactNodeViewProps, 'editor' |
   editor.view.dispatch(editor.state.tr.setSelection(Selection.near(editor.state.doc.resolve(target), 1)))
 }
 
-function nearestTextCursor(doc: ProseMirrorNode, position: number): number | null {
-  let nearestPosition: number | null = null
-  let nearestDistance = Number.POSITIVE_INFINITY
-  doc.descendants((node, nodePosition) => {
-    if (!node.isTextblock) return true
-    const start = nodePosition + 1
-    const end = start + node.content.size
-    const candidate = Math.max(start, Math.min(position, end))
-    const distance = Math.abs(candidate - position)
-    if (distance < nearestDistance) {
-      nearestPosition = candidate
-      nearestDistance = distance
-    }
-    return false
-  })
-  return nearestPosition
-}
-
-function deleteBlockAndRestoreCursor({ editor, getPos, node }: Pick<ReactNodeViewProps, 'editor' | 'getPos' | 'node'>): void {
+function deleteBlockAndRestoreCursor({ editor, getPos, node }: Pick<ReactNodeViewProps, 'editor' | 'getPos' | 'node'>, direction: -1 | 1): void {
   const position = getPos()
   if (typeof position !== 'number') return
   announceActiveBlock(null)
   let transaction = editor.state.tr.delete(position, position + node.nodeSize)
-  let cursor = nearestTextCursor(transaction.doc, position)
+  const boundary = transaction.doc.resolve(Math.min(position, transaction.doc.content.size))
+  const adjacent = Selection.findFrom(boundary, direction, true) ?? Selection.findFrom(boundary, -direction, true)
+  let cursor = adjacent?.from ?? null
   if (cursor === null) {
     const paragraph = editor.schema.nodes.paragraph
     if (paragraph) {
@@ -205,7 +188,7 @@ function useSourceDraft(props: ReactNodeViewProps, attribute: SourceAttribute) {
 }
 
 function sourceKeyDown(event: ReactKeyboardEvent<EditableField>, props: ReactNodeViewProps): void {
-  if (!props.editor.isEditable) return
+  if (!props.editor.isEditable || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
   if (event.key === 'Escape') {
     event.preventDefault()
     announceActiveBlock(null)
@@ -234,7 +217,7 @@ function BlockSource({ props, attribute, label, placeholder, rows = 5, autoSize 
   showLabel?: boolean
   delimiter?: string | { open: string; close: string }
   inputRef: RefObject<HTMLTextAreaElement | null>
-  onEmptyDelete?: () => void
+  onEmptyDelete?: (direction: -1 | 1) => void
 }) {
   const source = useSourceDraft(props, attribute)
   const readOnly = useContext(BlockReadOnlyContext)
@@ -262,10 +245,10 @@ function BlockSource({ props, attribute, label, placeholder, rows = 5, autoSize 
       onCompositionStart={source.compositionStart}
       onCompositionEnd={(event) => source.compositionEnd(event.currentTarget.value)}
       onKeyDown={(event) => {
-        if (!props.editor.isEditable) return
+        if (!props.editor.isEditable || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
         if ((event.key === 'Backspace' || event.key === 'Delete') && event.currentTarget.value === '' && onEmptyDelete) {
           event.preventDefault()
-          onEmptyDelete()
+          onEmptyDelete(event.key === 'Backspace' ? -1 : 1)
           return
         }
         sourceKeyDown(event, props)
@@ -537,7 +520,7 @@ export function CalloutBlockView(props: ReactNodeViewProps) {
         placeholder="在此输入内容"
         autoSize
         inputRef={inputRef}
-        onEmptyDelete={() => deleteBlockAndRestoreCursor(props)}
+        onEmptyDelete={(direction) => deleteBlockAndRestoreCursor(props, direction)}
       />
       : <p>{content || '在此输入内容'}</p>}
   </NodeViewWrapper>

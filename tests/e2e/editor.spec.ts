@@ -1085,3 +1085,66 @@ test('edits, previews, jumps to, and progressively degrades a footnote definitio
   await expect(editor.locator('.ProseMirror-gapcursor')).toHaveCount(0)
   await expect(editor).toContainText('下一行')
 })
+
+test('deletes a backward selection across paragraphs and restores it on undo', async ({ page }) => {
+  await beginArticle(page)
+  await setMarkdown(page, '前🙂甲\n\n乙后')
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await editor.evaluate((root) => {
+    const [first, second] = root.querySelectorAll('p')
+    ;(root as HTMLElement).focus()
+    window.getSelection()!.setBaseAndExtent(second.firstChild!, 1, first.firstChild!, 1)
+    document.dispatchEvent(new Event('selectionchange'))
+  })
+  await page.keyboard.press('Backspace')
+  await expect(editor.locator('p').first()).toHaveText('前后')
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect(editor.locator('p').nth(0)).toHaveText('前🙂甲')
+  await expect(editor.locator('p').nth(1)).toHaveText('乙后')
+  await page.keyboard.insertText('中')
+  await expect(editor.locator('p').first()).toHaveText('前中后')
+})
+
+test('keeps the direction and contents of a text selection after undoing an image replacement', async ({ page }) => {
+  await beginArticle(page)
+  await setMarkdown(page, '前原文后')
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await editor.evaluate((root) => {
+    const text = root.querySelector('p')!.firstChild!
+    ;(root as HTMLElement).focus()
+    window.getSelection()!.setBaseAndExtent(text, 3, text, 1)
+    document.dispatchEvent(new Event('selectionchange'))
+  })
+  await pasteImages(page, [pngFile('selection.png', 24, 24, [20, 40, 60, 255])])
+  await expect(page.locator('.image-block-view')).toBeVisible()
+  await editor.press('ControlOrMeta+z')
+  await expect(editor.locator('p').first()).toHaveText('前原文后')
+  await expect.poll(() => editor.evaluate(() => {
+    const selection = window.getSelection()!
+    return [selection.toString(), selection.anchorOffset, selection.focusOffset]
+  })).toEqual(['原文', 3, 1])
+  await page.keyboard.insertText('现')
+  await expect(editor.locator('p').first()).toHaveText('前现后')
+})
+
+test('keeps redo after visiting heading and bold source in a draft', async ({ page }) => {
+  await beginArticle(page)
+  await setMarkdown(page, '起点\n\n## 标题\n\n**加粗**\n\n结束')
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  const first = editor.locator('p').first()
+  await first.click()
+  await page.keyboard.press('End')
+  await page.keyboard.insertText('改')
+  await expect(first).toContainText('改')
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect(first).toHaveText('起点')
+  await editor.getByRole('heading', { name: '标题' }).click()
+  await expect(editor.locator('[data-heading-source]')).toHaveText('## 标题')
+  await first.click()
+  await editor.locator('strong').click()
+  await expect(editor).toContainText('**加粗**')
+  await first.click()
+  await page.getByRole('button', { name: '重做', exact: true }).click()
+  await expect(first).toContainText('改')
+  await expect(editor.locator('strong')).toHaveText('加粗')
+})
