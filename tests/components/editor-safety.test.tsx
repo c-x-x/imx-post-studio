@@ -3,6 +3,8 @@ import { createRef } from 'react'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { Editor } from '@tiptap/core'
 import { MarkdownEditor, type MarkdownEditorHandle } from '../../src/editor/MarkdownEditor'
+import { editorMarkdown } from '../../src/editor/deferred-markdown'
+import { SyntaxDialog } from '../../src/editor/SyntaxDialog'
 import { SourceMarkdownEditor, type SourceMarkdownEditorHandle } from '../../src/editor/SourceMarkdownEditor'
 import type { MediaAsset } from '../../src/metadata/article'
 
@@ -321,4 +323,81 @@ it('deletes the visible backward selection before the delayed selectionchange ar
   act(() => { editor.commands.undo() })
   expect(editor.state.doc.firstChild?.textContent).toBe('前原文后')
   expect([editor.state.selection.anchor, editor.state.selection.head]).toEqual([4, 2])
+})
+
+it.each([
+  ['加粗', '**', '**'], ['斜体', '*', '*'], ['删除线', '~~', '~~'], ['行内代码', '`', '`'],
+  ['高亮', '<mark>', '</mark>'], ['下标', '<sub>', '</sub>'], ['上标', '<sup>', '</sup>'],
+])('applies %s across a backward paragraph selection and undoes once', (button, open, close) => {
+  const onChange = vi.fn()
+  render(<MarkdownEditor value={'甲乙\n\n丙丁'} onChange={onChange} media={[]} />)
+  const editor = richEditor()
+  act(() => { editor.commands.setTextSelection({ from: 6, to: 2 }) })
+  fireEvent.click(screen.getByRole('button', { name: button }))
+  expect(onChange).toHaveBeenLastCalledWith('甲' + open + '乙' + close + '\n\n' + open + '丙' + close + '丁')
+  expect(editor.state.selection.anchor).toBeGreaterThan(editor.state.selection.head)
+  act(() => { editor.commands.undo() })
+  expect(onChange).toHaveBeenLastCalledWith('甲乙\n\n丙丁')
+})
+
+it('leaves focus in the next field after an inline formatting command', async () => {
+  render(<><MarkdownEditor value="正文" onChange={() => undefined} media={[]} /><input aria-label="下一栏" /></>)
+  fireEvent.click(screen.getByRole('button', { name: '加粗' }))
+  const next = screen.getByLabelText('下一栏')
+  act(() => { next.focus() })
+  await act(async () => { await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))) })
+  expect(next).toHaveFocus()
+})
+
+it('keeps the link dialog open when Escape cancels an IME candidate', () => {
+  render(<MarkdownEditor value="正文" onChange={() => undefined} media={[]} />)
+  fireEvent.click(screen.getByRole('button', { name: '链接' }))
+  const field = screen.getByLabelText('链接文字')
+  fireEvent.compositionStart(field)
+  fireEvent.keyDown(field, { key: 'Escape', isComposing: true })
+  expect(screen.getByRole('dialog')).toBeInTheDocument()
+  fireEvent.compositionEnd(field)
+  fireEvent.keyDown(field, { key: 'Escape' })
+  expect(screen.queryByRole('dialog')).toBeNull()
+})
+
+it('does not publish a second IME candidate from the previous composition frame', async () => {
+  const onChange = vi.fn()
+  render(<MarkdownEditor value="正文" onChange={onChange} media={[]} />)
+  const editor = richEditor()
+  fireEvent.compositionStart(editor.view.dom)
+  fireEvent.compositionEnd(editor.view.dom)
+  fireEvent.compositionStart(editor.view.dom)
+  act(() => { editor.view.dispatch(editor.state.tr.insertText('pin', 3)) })
+  onChange.mockClear()
+  await act(async () => { await new Promise<void>(resolve => requestAnimationFrame(() => resolve())) })
+  expect(onChange).not.toHaveBeenCalled()
+  act(() => { editor.view.dispatch(editor.state.tr.insertText('拼', 3, 6)) })
+  fireEvent.compositionEnd(editor.view.dom)
+  await waitFor(() => expect(onChange).toHaveBeenCalledWith('正文拼'))
+})
+
+it('confirms an IME candidate without submitting the inline formula dialog', () => {
+  const submit = vi.fn()
+  render(<SyntaxDialog kind="math-inline" onClose={() => undefined} onSubmit={submit} returnFocus={() => null} />)
+  const field = screen.getByLabelText('LaTeX')
+  fireEvent.change(field, { target: { value: 'pin' } })
+  fireEvent.keyDown(field, { key: 'Enter', isComposing: true })
+  expect(submit).not.toHaveBeenCalled()
+  fireEvent.change(field, { target: { value: '拼' } })
+  fireEvent.keyDown(field, { key: 'Enter' })
+  expect(submit).toHaveBeenCalledWith({ primary: '拼', secondary: '' })
+})
+
+it.each(['## 标题', '**加粗**'])('undoes a real edit after leaving the revealed %s line', async (source) => {
+  const body = source + '\n\n后文'
+  render(<MarkdownEditor value={body} onChange={() => undefined} media={[]} />)
+  const editor = richEditor()
+  await waitFor(() => expect(editor.state.doc.lastChild?.content.size).toBe(0))
+  act(() => { editor.commands.setTextSelection(2) })
+  act(() => { editor.view.dispatch(editor.state.tr.insertText('新')) })
+  act(() => { editor.commands.setTextSelection(editor.state.doc.content.size - 1) })
+  expect(editorMarkdown(editor)).toContain('新')
+  act(() => { editor.commands.undo() })
+  expect(editorMarkdown(editor)).toBe(body)
 })

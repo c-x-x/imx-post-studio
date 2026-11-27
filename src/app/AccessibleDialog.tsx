@@ -83,6 +83,7 @@ export function AccessibleDialog({ title, children, onClose, returnFocus, classN
   }, [])
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
     // Portals retain React ancestry: a nested dialog owns its keyboard events.
     if (event.target instanceof Element && event.target.closest('[role="dialog"]') !== event.currentTarget) return
     if (closeOnEscape && event.key === 'Escape') {

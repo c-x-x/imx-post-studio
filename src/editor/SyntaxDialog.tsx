@@ -42,7 +42,11 @@ export function SyntaxDialog({ kind, initial, onClose, onSubmit, returnFocus }: 
 
   return <AccessibleDialog title={titles[kind]} className="confirm-dialog syntax-dialog" onClose={onClose} returnFocus={returnFocus}>
     <label htmlFor={`${id}-primary`}>{kind === 'image' ? '替代文字' : 'LaTeX'}
-      <input id={`${id}-primary`} autoFocus value={primary} onChange={(event) => setPrimary(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); submit() } }} />
+      <input id={`${id}-primary`} autoFocus value={primary} onChange={(event) => setPrimary(event.target.value)} onKeyDown={(event) => {
+        if (event.key !== 'Enter' || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
+        event.preventDefault()
+        submit()
+      }} />
     </label>
     {kind === 'math-inline' ? <div className="inline-math-preview" aria-label="公式实时预览" aria-live="polite">
       {formulaPreview

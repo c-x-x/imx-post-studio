@@ -319,6 +319,7 @@ export const DeferredMarkdown = Extension.create({
   addProseMirrorPlugins() {
     const editor = this.editor
     let composing = false
+    let compositionVersion = 0
     let blurred = false
     let revealAfterCommit = false
     let revealScheduled = false
@@ -676,11 +677,17 @@ export const DeferredMarkdown = Extension.create({
             view.dispatch(view.state.tr.setMeta('deferredMarkdownBlur', true))
             return false
           },
-          compositionstart() { composing = true; return false },
+          compositionstart() {
+            compositionVersion += 1
+            composing = true
+            return false
+          },
           compositionend(view) {
             // `compositionend` can precede the browser's final replacement
             // input. Keep custom text insertion disabled through that commit.
+            const version = compositionVersion
             requestAnimationFrame(() => {
+              if (version !== compositionVersion) return
               composing = false
               if (!view.isDestroyed) view.dispatch(view.state.tr.setMeta('compositionFinished', true))
             })

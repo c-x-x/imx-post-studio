@@ -237,6 +237,7 @@ function CodeLanguageControl({ editor, disabled }: { editor: Editor | null; disa
       editor?.commands.updateAttributes('codeBlock', { language: next || null })
     }}
     onKeyDown={(event) => {
+      if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return
       if (event.key === 'Enter' || event.key === 'Escape') event.currentTarget.blur()
     }}
   />
@@ -342,6 +343,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const onCommitPastedImagesRef = useRef(onCommitPastedImages)
   const richEditorRef = useRef<Editor | null>(null)
   const richComposingRef = useRef(false)
+  const compositionVersion = useRef(0)
   const richCompositionPendingRef = useRef(false)
   const mode = initialMode
   const modeRef = useRef<EditorMode>(mode)
@@ -613,13 +615,16 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           return false
         },
         compositionstart() {
+          compositionVersion.current += 1
           richComposingRef.current = true
           richCompositionPendingRef.current = true
           return false
         },
         compositionend() {
           richCompositionPendingRef.current = true
+          const version = compositionVersion.current
           window.requestAnimationFrame(() => {
+            if (version !== compositionVersion.current) return
             richComposingRef.current = false
             const activeEditor = richEditorRef.current
             if (!activeEditor || activeEditor.isDestroyed) return
@@ -831,15 +836,23 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     },
   }), [disabled, editor, mode])
 
+  const canRestoreToolbarFocus = (activeEditor: Editor, trigger: Element | null) => {
+    if (activeEditor.isDestroyed || modeRef.current !== 'rich' || richComposingRef.current || activeEditor.view.composing) return false
+    const root = activeEditor.view.dom
+    const active = root.ownerDocument.activeElement
+    return active === root || active === root.ownerDocument.body || (active === trigger && Boolean(active?.closest('[data-editor-controls]')))
+  }
+
   const runFormat = (command: (chain: ChainedCommands) => ChainedCommands) => {
     if (!editor || editor.isDestroyed || disabled || mode !== 'rich') return
-    command(editor.chain().focus()).run()
+    const trigger = editor.view.dom.ownerDocument.activeElement
+    editor.view.focus()
+    command(editor.chain()).scrollIntoView().run()
     onFormatApplied?.()
     const requestFrame = editor.view.dom.ownerDocument.defaultView?.requestAnimationFrame
     if (!requestFrame) return
     requestFrame(() => requestFrame(() => {
-      if (editor.isDestroyed || richComposingRef.current || editor.view.composing) return
-      if (editor.view.dom.ownerDocument.activeElement !== editor.view.dom) editor.view.focus()
+      if (canRestoreToolbarFocus(editor, trigger) && !editor.view.hasFocus()) editor.view.focus()
     }))
   }
 
@@ -858,9 +871,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     onFormatApplied?.()
   }
 
-  const runInlineFormat = (open: string, close: string) => {
+  const runInlineFormat = (mark: string, open: string, close: string) => {
     if (!editor || editor.isDestroyed || disabled || mode !== 'rich') return
-    let { from, to } = editor.state.selection
+    const trigger = editor.view.dom.ownerDocument.activeElement
+    const selection = editor.state.selection
+    let { from, to } = selection
     if (!editor.state.selection.$from.sameParent(editor.state.selection.$to)
       || !editor.state.selection.$from.parent.isTextblock) {
       const textRanges: Array<{ from: number; to: number }> = []
@@ -875,6 +890,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       })
       // Ctrl/Cmd+A also selects the permanent empty caret line. Normalize a
       // single real text block so inline Markdown stays inside that paragraph.
+      if (textRanges.length > 1) {
+        // Inline Markdown delimiters cannot span blank lines or table cells.
+        runFormat((chain) => chain.setMark(mark))
+        return
+      }
       if (textRanges.length === 1) ({ from, to } = textRanges[0])
     }
     // Clicking the permanent empty caret paragraph can produce a structural
@@ -888,7 +908,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       .insert(to, editor.schema.text(close))
       .insert(from, editor.schema.text(open))
       .setStoredMarks([])
-    transaction.setSelection(TextSelection.create(transaction.doc, nextSelection.from, nextSelection.to))
+    const backward = selection.anchor > selection.head
+    transaction.setSelection(TextSelection.create(transaction.doc,
+      backward ? nextSelection.to : nextSelection.from,
+      backward ? nextSelection.from : nextSelection.to,
+    ))
     transaction.setMeta(toolbarMarkdownMarkersKey, [
       { from, to: from + open.length },
       { from: to + open.length, to: to + open.length + close.length },
@@ -910,9 +934,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     const restoreSelection = () => {
       // Once an IME composition has started, the native selection belongs to
       // the browser. Moving it here can make iOS replace text at an old caret.
-      if (editor.isDestroyed || richComposingRef.current || editor.view.composing || editor.state.doc !== transaction.doc) return
+      if (!canRestoreToolbarFocus(editor, trigger) || editor.state.doc !== transaction.doc || !editor.state.selection.eq(transaction.selection)) return
       const restore = editor.state.tr
-      restore.setSelection(TextSelection.create(restore.doc, nextSelection.from, nextSelection.to))
+      restore.setSelection(transaction.selection)
       restore.setStoredMarks([]).setMeta('addToHistory', false)
       editor.view.dispatch(restore)
       editor.view.focus()
@@ -923,8 +947,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       // WebKit only makes the writing panel focusable after the next paint.
       // The follow-up may focus, but must never rewrite a live IME selection.
       requestFrame(() => {
-        if (editor.isDestroyed || richComposingRef.current || editor.view.composing) return
-        if (editor.view.dom.ownerDocument.activeElement !== editor.view.dom) editor.view.focus()
+        if (canRestoreToolbarFocus(editor, trigger) && !editor.view.hasFocus()) editor.view.focus()
       })
     })
     else queueMicrotask(restoreSelection)
@@ -1015,13 +1038,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
   const toolbar = <div className="editor-toolbar" data-editor-controls role="toolbar" aria-label="Markdown 格式">
       <div className="editor-tool-group" role="group" aria-label="文字样式">
         <h3>文字样式</h3>
-        <button type="button" aria-pressed="false" disabled={disabled || mode === 'source' || !activeFormats?.canBold} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat('**', '**')}>加粗</button>
-        <button type="button" aria-pressed="false" disabled={disabled || mode === 'source' || !activeFormats?.canItalic} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat('*', '*')}>斜体</button>
-        <button type="button" aria-pressed="false" disabled={disabled || mode === 'source' || !activeFormats?.canStrike} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat('~~', '~~')}>删除线</button>
-        <button type="button" aria-pressed="false" disabled={disabled || mode === 'source' || !activeFormats?.canCode} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat('`', '`')}>行内代码</button>
-        <button type="button" aria-pressed="false" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat('<mark>', '</mark>')}>高亮</button>
-        <button type="button" aria-pressed="false" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat('<sub>', '</sub>')}>下标</button>
-        <button type="button" aria-pressed="false" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat('<sup>', '</sup>')}>上标</button>
+        <button type="button" aria-pressed="false" disabled={disabled || mode === 'source' || !activeFormats?.canBold} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat('bold', '**', '**')}>加粗</button>
+        <button type="button" aria-pressed="false" disabled={disabled || mode === 'source' || !activeFormats?.canItalic} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat('italic', '*', '*')}>斜体</button>
+        <button type="button" aria-pressed="false" disabled={disabled || mode === 'source' || !activeFormats?.canStrike} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat('strike', '~~', '~~')}>删除线</button>
+        <button type="button" aria-pressed="false" disabled={disabled || mode === 'source' || !activeFormats?.canCode} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat('code', '`', '`')}>行内代码</button>
+        <button type="button" aria-pressed="false" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat('textHighlight', '<mark>', '</mark>')}>高亮</button>
+        <button type="button" aria-pressed="false" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat('subscript', '<sub>', '</sub>')}>下标</button>
+        <button type="button" aria-pressed="false" disabled={disabled || mode === 'source'} onMouseDown={(event) => event.preventDefault()} onClick={() => runInlineFormat('superscript', '<sup>', '</sup>')}>上标</button>
       </div>
       <div className="editor-tool-group" role="group" aria-label="段落结构">
         <h3>段落结构</h3>

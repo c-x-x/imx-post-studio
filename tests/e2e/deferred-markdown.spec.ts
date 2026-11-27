@@ -454,3 +454,28 @@ test('inserts muted source placeholders from empty text-style controls', async (
     await expect(editor.locator(format.selector).last()).toHaveText(format.text)
   }
 })
+
+test('formats a backward selection across paragraphs and restores both with one undo', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '开始写文章' }).click()
+  await page.getByRole('tab', { name: '排版' }).click()
+  const editor = page.getByRole('textbox', { name: 'Markdown 编辑器' })
+  await editor.fill('甲乙')
+  await editor.press('Enter')
+  await page.keyboard.insertText('丙丁')
+  await editor.evaluate((root) => {
+    const [first, second] = root.querySelectorAll('p')
+    window.getSelection()!.setBaseAndExtent(second.firstChild!, 1, first.firstChild!, 1)
+    document.dispatchEvent(new Event('selectionchange'))
+  })
+  await page.getByRole('button', { name: '加粗', exact: true }).click()
+  await expect(editor.locator('p strong')).toHaveText(['乙', '丙'])
+  await expect.poll(() => editor.evaluate(() => {
+    const selection = window.getSelection()!
+    const range = selection.getRangeAt(0)
+    return range.toString() === '乙丙' && range.startContainer === selection.focusNode && range.startOffset === selection.focusOffset
+  })).toBe(true)
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect(editor.locator('strong')).toHaveCount(0)
+  await expect(editor.locator('p')).toHaveText(['甲乙', '丙丁', ''])
+})
