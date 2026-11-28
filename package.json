@@ -26,6 +26,7 @@
   "type": "module",
   "private": true,
   "overrides": {
+    "katex": "$katex",
     "nanoid": "3.3.18"
   },
   "dependencies": {
@@ -48,7 +49,7 @@
     "github-slugger": "^2.0.0",
     "highlight.js": "^11.11.1",
     "idb": "^8.0.3",
-    "katex": "^0.16.47",
+    "katex": "^0.19.1",
     "lowlight": "^3.3.0",
     "mdast-util-to-string": "^4.0.0",
     "mermaid": "^11.17.2",
@@ -66,8 +67,8 @@
     "remark-math": "^6.0.0",
     "remark-parse": "^11.0.0",
     "remark-rehype": "^11.1.2",
-    "sharp": "^0.35.4",
-    "smol-toml": "^1.7.1",
+    "sharp": "^0.35.5",
+    "smol-toml": "^1.9.0",
     "unified": "^11.0.5",
     "unist-util-visit": "^5.1.0"
   },

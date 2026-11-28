@@ -56,8 +56,9 @@ export async function handleGithubRequest(request: Request, env = process.env, f
     const session = sessionFor(config, request)
 
     if (action === 'session') {
+      if (!session) return json({ configured: true })
       return json({ configured: true, repository: { name: config.repository, branch: config.branch, contentRoot: config.contentRoot },
-        ...(session ? { user: { id: session.userId, login: session.login }, csrf: session.csrf } : {}),
+        user: { id: session.userId, login: session.login }, csrf: session.csrf,
       })
     }
     if (action === 'login') {

@@ -54,7 +54,16 @@ function bundleImages(path: string, entries: TreeEntry[]) {
     try { assertSafeImageName(name) } catch { return false }
     if (entry.mode !== '100644' || entry.type !== 'blob') throw new GithubError(400, '文章包包含非常规图片文件，已停止操作')
     return true
-  }).map((entry) => ({ name: entry.path.slice(prefix.length), sha: entry.sha, size: entry.size ?? 0 }))
+  }).map((entry) => ({ name: entry.path.slice(prefix.length), sha: entry.sha, size: entry.size }))
+}
+
+function isReadableSize(size: number | undefined, limit: number): size is number {
+  return size !== undefined && Number.isSafeInteger(size) && size >= 0 && size <= limit
+}
+
+function readableImage(image: { name: string; sha: string; size?: number }) {
+  if (!isReadableSize(image.size, GITHUB_IMAGE_LIMIT)) throw new GithubError(413, '图片大小未知或超过 2 MiB，请使用本地导入')
+  return { name: image.name, sha: image.sha, size: image.size }
 }
 
 async function readBlob(config: GithubConfig, client: GithubClient, sha: string, limit: number) {
@@ -81,12 +90,11 @@ export async function readArticle(config: GithubConfig, client: GithubClient, pa
   const { entries } = await snapshot(config, client, sha)
   const entry = entries.find((candidate) => candidate.path === path)
   if (!entry || entry.type !== 'blob' || entry.mode !== '100644') throw new GithubError(404, '文章不存在或不是普通 Markdown 文件')
-  if ((entry.size ?? 0) > GITHUB_SOURCE_LIMIT) throw new GithubError(413, '文章超过 512 KiB，请使用本地导入')
+  if (!isReadableSize(entry.size, GITHUB_SOURCE_LIMIT)) throw new GithubError(413, '文章大小未知或超过 512 KiB，请使用本地导入')
   const images = bundleImages(path, entries)
-  if (images.length > GITHUB_IMAGE_COUNT || images.some((image) => image.size > GITHUB_IMAGE_LIMIT)) {
-    throw new GithubError(413, 'GitHub 编辑模式最多支持 50 张图片、每张 2 MiB；未修改仓库，请使用本地导入处理大文件')
-  }
-  return { path, ref, commit: sha, source: (await readBlob(config, client, entry.sha, GITHUB_SOURCE_LIMIT)).toString('utf8'), images }
+  if (images.length > GITHUB_IMAGE_COUNT) throw new GithubError(413, 'GitHub 编辑模式最多支持 50 张图片，请使用本地导入')
+  const readableImages = images.map(readableImage)
+  return { path, ref, commit: sha, source: (await readBlob(config, client, entry.sha, GITHUB_SOURCE_LIMIT)).toString('utf8'), images: readableImages }
 }
 
 export async function readImage(config: GithubConfig, client: GithubClient, path: string, ref: string, commit: string, name: string) {
@@ -98,7 +106,7 @@ export async function readImage(config: GithubConfig, client: GithubClient, path
   const { entries } = await snapshot(config, client, commit)
   const image = bundleImages(path, entries).find((item) => item.name === name)
   if (!image) throw new GithubError(404, '图片不在当前文章包中')
-  const bytes = await readBlob(config, client, image.sha, GITHUB_IMAGE_LIMIT)
+  const bytes = await readBlob(config, client, readableImage(image).sha, GITHUB_IMAGE_LIMIT)
   return { bytes, mime: await validateDecodedImage(name, bytes) }
 }
 

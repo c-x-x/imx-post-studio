@@ -1,6 +1,8 @@
 import { BlobReader, BlobWriter, TextReader, ZipWriter } from '@zip.js/zip.js'
 import { describe, expect, it } from 'vitest'
 import { importArticleBundle, importLooseArticle } from '../../src/bundles/import-bundle'
+import { importRecoveryBundle } from '../../src/bundles/recovery-bundle'
+import { MAX_ARCHIVE_ENTRIES } from '../../src/shared/limits'
 
 async function archive(entries: Array<{ name: string; contents?: string | Uint8Array; directory?: boolean }>): Promise<Blob> {
   const writer = new ZipWriter(new BlobWriter('application/zip'))
@@ -42,6 +44,20 @@ const validIndex = [
 ].join('\n')
 
 describe('bundle import security', () => {
+  it('checks ZIP size before reading the directory for either import mode', async () => {
+    const zip = new Blob()
+    Object.defineProperty(zip, 'size', { value: 260 * 1024 * 1024 + 1 })
+    for (const read of [importArticleBundle, importRecoveryBundle]) {
+      await expect(read(zip)).rejects.toThrow('260 MiB')
+    }
+  })
+
+  it('stops at the entry limit for either import mode', async () => {
+    const zip = await archive(Array.from({ length: MAX_ARCHIVE_ENTRIES + 1 }, (_, i) => ({ name: `post/dir${i}/`, directory: true })))
+    for (const read of [importArticleBundle, importRecoveryBundle]) {
+      await expect(read(zip)).rejects.toThrow('条目数')
+    }
+  })
   it('imports a macOS-created bundle with directory entries and metadata files', async () => {
     const imported = await importArticleBundle(await archive([
       { name: 'post/', directory: true },

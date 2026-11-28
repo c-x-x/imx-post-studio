@@ -1,4 +1,4 @@
-import { BlobReader, BlobWriter, TextWriter, ZipReader, type Entry, type FileEntry } from '@zip.js/zip.js'
+import { BlobWriter, TextWriter, type Entry, type FileEntry } from '@zip.js/zip.js'
 import type { ArticleDraft, MediaAsset } from '../metadata/article'
 import { assertCompleteArticleMeta, createArticleDraft } from '../metadata/article'
 import { parseArticle, type ParsedArticle } from '../metadata/frontmatter'
@@ -13,7 +13,8 @@ import {
 import { validateArchiveEntries, validateArchivePath } from './archive-path'
 import { assertSafeImageName } from './media-validation'
 import { validateBrowserImage } from '../media/validate-image'
-import { importRecoveryBundle } from './recovery-bundle'
+import { readRecoveryEntries } from './recovery-bundle'
+import { readArchive, readOptions } from './read-archive'
 
 function importError(message: string): Error {
   return new Error(`无法导入文章：${message}`)
@@ -132,19 +133,17 @@ function inspectArchiveEntries(entries: Entry[]): { root: string; index: FileEnt
 }
 
 export async function importArticleBundle(blob: Blob): Promise<ArticleDraft> {
-  const readOptions = { checkSignature: true, checkAmbiguity: true, checkOverlappingEntry: true, strictness: 'strict' as const }
-  const reader = new ZipReader(new BlobReader(blob), readOptions)
-  try {
-    const entries = await reader.getEntries()
+  return readArchive(blob, async (entries) => {
     if (entries.some((entry) => entry.filename === 'recovery.json')) {
-      const restored = await importRecoveryBundle(blob)
+      const restored = await readRecoveryEntries(entries)
       // Normal import still validates media bytes and references. The emergency
       // recovery entry point remains available for damaged workspaces.
-      const media = await Promise.all(restored.media.map(async (asset) => {
+      const media: MediaAsset[] = []
+      for (const asset of restored.media) {
         const validated = await createMedia(asset.name, new Uint8Array(await asset.blob.arrayBuffer()))
         if (validated.kind !== asset.kind || validated.mime !== asset.mime) throw importError('备份媒体类型不一致')
-        return validated
-      }))
+        media.push(validated)
+      }
       const references = validateMediaReferences(restored.body, media)
       if (references.missing.length) throw importError(`缺少正文图片：${references.missing.join('、')}`)
       return { ...createArticleDraft(), meta: restored.meta, body: restored.body, media }
@@ -160,9 +159,7 @@ export async function importArticleBundle(blob: Blob): Promise<ArticleDraft> {
       media.push(await createMedia(validateArchivePath(entry.filename).relative.slice('images/'.length), bytes))
     }
     return draftFromParsed(parsed, root, media.sort((left, right) => left.name.localeCompare(right.name)))
-  } finally {
-    await reader.close().catch(() => undefined)
-  }
+  })
 }
 
 export async function importLooseArticle(indexFile: File, images: File[]): Promise<ArticleDraft> {

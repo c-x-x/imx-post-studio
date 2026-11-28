@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { deleteArticle, saveArticle, uploadImage } from '../../server/github/repository'
+import { deleteArticle, readImage, saveArticle, uploadImage } from '../../server/github/repository'
 import { GithubError, readConfig } from '../../server/github/security'
 import type { GithubClient } from '../../server/github/client'
 import type { GithubDeleteInput, GithubSaveInput } from '../../src/github/contracts'
+import { GITHUB_IMAGE_LIMIT } from '../../src/github/contracts'
 import { createPngBuffer } from '../helpers/test-images'
 
 const config = readConfig({ GITHUB_ENABLED: 'true', GITHUB_SITE_ORIGIN: 'https://studio.example.com', GITHUB_REPOSITORY: 'owner/blog', GITHUB_ALLOWED_USER_ID: '123', GITHUB_CLIENT_ID: 'test', GITHUB_CLIENT_SECRET: 'test', GITHUB_SESSION_SECRET: 'a1'.repeat(32) })!
@@ -44,6 +45,11 @@ function fakeGithub(options: { head?: string; entries?: readonly unknown[]; clos
 }
 
 describe('GitHub atomic content writes', () => {
+  it.each([GITHUB_IMAGE_LIMIT + 1, undefined])('rejects an unreadable image size %s before requesting the blob', async (size) => {
+    const fake = fakeGithub({ entries: [{ path: 'content/posts/article/images/photo.png', mode: '100644', type: 'blob', sha: treeSha, size }] })
+    await expect(readImage(config, fake.client, input().path, 'main', original, 'photo.png')).rejects.toMatchObject({ status: 413 })
+    expect(fake.mock.mock.calls.some(([path]) => path.includes('/git/blobs/'))).toBe(false)
+  })
   it('rejects incomplete or unpublished submissions before any GitHub writes', async () => {
     const fake = fakeGithub()
     const request = input()

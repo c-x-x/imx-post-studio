@@ -1,9 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { BlobReader, BlobWriter, TextReader, ZipWriter } from '@zip.js/zip.js'
 import { assertRecoveryBundleExportable, exportRecoveryBundle, importRecoveryBundle } from '../../src/bundles/recovery-bundle'
 import type { ArticleDraft, MediaAsset } from '../../src/metadata/article'
 import { MAX_ARCHIVE_ENTRIES, MAX_ARCHIVE_FILE_BYTES, MAX_ARCHIVE_TOTAL_BYTES } from '../../src/shared/limits'
 import { fileFromBlob } from '../helpers/test-files'
+import { importArticleBundle } from '../../src/bundles/import-bundle'
+import { createPngBuffer } from '../helpers/test-images'
 
 function incompleteDraft(): ArticleDraft {
   return {
@@ -49,6 +51,25 @@ function blobReportingSize(size: number): Blob {
 }
 
 describe('emergency recovery bundle', () => {
+  it('decodes one image at a time when opening a backup as an article', async () => {
+    const png = new Blob([new Uint8Array(createPngBuffer(1, 1))], { type: 'image/png' })
+    const zip = await exportRecoveryBundle(draftWithMedia([mediaAsset(0, png), mediaAsset(1, png)]))
+    let active = 0
+    let peak = 0
+    const decoder = vi.spyOn(globalThis, 'createImageBitmap').mockImplementation(async () => {
+      peak = Math.max(peak, ++active)
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      return { width: 1, height: 1, close() { active-- } } as ImageBitmap
+    })
+    try {
+      const draft = await importArticleBundle(zip)
+      expect(draft.media.map((asset) => asset.name)).toEqual(['asset-0.png', 'asset-1.png'])
+      expect(peak).toBe(1)
+      expect(active).toBe(0)
+    } finally {
+      decoder.mockRestore()
+    }
+  })
   it('imports an exported recovery ZIP after a browser File input wraps it', async () => {
     const archive = await exportRecoveryBundle(incompleteDraft())
     const file = await fileFromBlob(archive, 'recovery.zip')

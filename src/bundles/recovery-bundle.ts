@@ -1,12 +1,12 @@
-import { BlobReader, BlobWriter, TextReader, TextWriter, ZipReader, ZipWriter, type Entry, type FileEntry } from '@zip.js/zip.js'
+import { BlobReader, BlobWriter, TextReader, TextWriter, ZipWriter, type Entry, type FileEntry } from '@zip.js/zip.js'
 import type { ArticleDraft, ArticleMeta, MediaAsset, MediaKind, MediaMime } from '../metadata/article'
 import { MAX_ARCHIVE_ENTRIES, MAX_ARCHIVE_FILE_BYTES, MAX_ARCHIVE_TOTAL_BYTES } from '../shared/limits'
 import { validateArchiveEntries, validateArchivePath } from './archive-path'
+import { readArchive, readOptions } from './read-archive'
 
 const FORMAT = 'imx-post-studio-recovery-v1'
 const MIME_TYPES = new Set<MediaMime>(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 const MEDIA_KINDS = new Set<MediaKind>(['cover', 'body'])
-const readOptions = { checkSignature: true, checkAmbiguity: true, checkOverlappingEntry: true, strictness: 'strict' as const }
 
 interface RecoveryMedia {
   id: string
@@ -131,6 +131,7 @@ function parsePayload(value: unknown): RecoveryPayload {
   if (!isRecord(value) || !hasExactKeys(value, ['format', 'draft', 'media']) || value.format !== FORMAT || !Array.isArray(value.media)) {
     throw recoveryError('这不是 IMX Post Studio 紧急备份')
   }
+  if (value.media.length >= MAX_ARCHIVE_ENTRIES) throw recoveryError(`ZIP 条目数不能超过 ${MAX_ARCHIVE_ENTRIES}`)
   const media = value.media.map((record, index) => parseMedia(record, index))
   const ids = new Set<string>()
   const names = new Set<string>()
@@ -158,9 +159,6 @@ function prepareRecoveryExport(draft: ArticleDraft): RecoveryExportPlan {
     throw recoveryError(cause instanceof Error ? `备份清单无法序列化：${cause.message}` : '备份清单无法序列化')
   }
   const manifestBytes = manifestByteLength(manifest)
-  if (payload.media.length + 1 > MAX_ARCHIVE_ENTRIES) {
-    throw recoveryError(`ZIP 条目数不能超过 ${MAX_ARCHIVE_ENTRIES}`)
-  }
   if (manifestBytes > MAX_ARCHIVE_FILE_BYTES) {
     throw recoveryError(`recovery.json 不能超过 ${MAX_ARCHIVE_FILE_BYTES / (1024 * 1024)} MiB`)
   }
@@ -237,26 +235,28 @@ function inspectLayout(files: FileEntry[], payload: RecoveryPayload): FileEntry[
   })
 }
 
+export async function readRecoveryEntries(entries: Entry[]): Promise<ArticleDraft> {
+  const { files, manifest } = inspectEntries(entries)
+  const payload = parsePayload(JSON.parse(await manifest.getData(new TextWriter(), readOptions)))
+  const mediaEntries = inspectLayout(files, payload)
+  const media: MediaAsset[] = []
+  for (const [index, record] of payload.media.entries()) {
+    const data = await mediaEntries[index].getData(new BlobWriter(record.blobType), readOptions)
+    if (data.size !== record.bytes) throw recoveryError(`媒体字节数不匹配：${record.path}`)
+    media.push({
+      id: record.id, name: record.name, kind: record.kind, mime: record.mime,
+      width: record.width, height: record.height, blob: data,
+    })
+  }
+  return { ...payload.draft, meta: { ...payload.draft.meta, categories: [...payload.draft.meta.categories], tags: [...payload.draft.meta.tags] }, media }
+}
+
 export async function importRecoveryBundle(blob: Blob): Promise<ArticleDraft> {
-  const reader = new ZipReader(new BlobReader(blob), readOptions)
   try {
-    const { files, manifest } = inspectEntries(await reader.getEntries())
-    const payload = parsePayload(JSON.parse(await manifest.getData(new TextWriter(), readOptions)))
-    const mediaEntries = inspectLayout(files, payload)
-    const media = await Promise.all(payload.media.map(async (record, index) => {
-      const data = await mediaEntries[index].getData(new BlobWriter(record.blobType), readOptions)
-      if (data.size !== record.bytes) throw recoveryError(`媒体字节数不匹配：${record.path}`)
-      return {
-        id: record.id, name: record.name, kind: record.kind, mime: record.mime,
-        width: record.width, height: record.height, blob: data,
-      }
-    }))
-    return { ...payload.draft, meta: { ...payload.draft.meta, categories: [...payload.draft.meta.categories], tags: [...payload.draft.meta.tags] }, media }
+    return await readArchive(blob, readRecoveryEntries)
   } catch (cause) {
     if (cause instanceof Error && cause.message.startsWith('无法恢复紧急备份')) throw cause
     throw recoveryError(cause instanceof Error ? cause.message : 'ZIP 文件无效')
-  } finally {
-    await reader.close().catch(() => undefined)
   }
 }
 

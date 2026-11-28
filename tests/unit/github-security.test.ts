@@ -16,6 +16,10 @@ describe('GitHub backend security boundaries', () => {
     expect(await response.json()).toEqual({ configured: false })
     expect(fetcher).not.toHaveBeenCalled()
   })
+  it('returns only the configured flag to a signed-out visitor', async () => {
+    const response = await handleGithubRequest(new Request(`${config.origin}/api/github/session`), env)
+    expect(await response.json()).toEqual({ configured: true })
+  })
   it('rejects incomplete / unsafe configuration', () => {
     expect(() => readConfig({ GITHUB_ENABLED: 'true' })).toThrow()
     expect(() => readConfig({ ...env, GITHUB_SITE_ORIGIN: 'http://public.example.com' })).toThrow()
